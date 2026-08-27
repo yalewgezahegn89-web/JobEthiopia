@@ -22,6 +22,7 @@ import { upsertJob } from "./upsertJob";
 import { updateLastSeenAt } from "./updateLastSeenAt";
 import { updateJob, getStoredHash, contentChanged } from "./updateJob";
 import { createJobSource } from "./createJobSource";
+import { validateRawJobInput } from "../validations/rawJobInput";
 import type { RawJobInput, IngestionResult } from "./types";
 
 /**
@@ -50,6 +51,12 @@ import type { RawJobInput, IngestionResult } from "./types";
 export async function ingestJob(
   input: RawJobInput,
 ): Promise<IngestionResult> {
+  // 0. Validate raw input
+  const validation = validateRawJobInput(input);
+  if (!validation.success) {
+    throw new Error(`Invalid job input: ${validation.error}`);
+  }
+
   // 1. Normalize raw input
   const normalizedTitle = normalizeTitle(input.title);
   const normalizedOrgName = normalizeOrganization(input.organizationName);
