@@ -15,6 +15,7 @@ import {
   resolveCategory,
 } from "./resolveEntities";
 import { upsertJob } from "./upsertJob";
+import { updateLastSeenAt } from "./updateLastSeenAt";
 import type { RawJobInput, IngestionResult } from "./types";
 
 /**
@@ -90,6 +91,12 @@ export async function ingestJob(
 
   // 5. Handle duplicate
   if (duplicateResult.classification === "DUPLICATE") {
+    // Update lastSeenAt for confirmed duplicates with a known jobSourceId
+    // (Level 1: SOURCE_IDENTIFIER or Level 2: SOURCE_URL)
+    if (duplicateResult.matchedJobSourceId) {
+      await updateLastSeenAt(duplicateResult.matchedJobSourceId);
+    }
+
     return {
       outcome: "DUPLICATE",
       jobId: null,
