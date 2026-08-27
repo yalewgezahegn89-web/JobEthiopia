@@ -45,6 +45,10 @@ export interface UpsertJobResult {
  * to handle slug uniqueness safely. Uses onConflictDoNothing for
  * idempotent entity creation.
  *
+ * Both the job row and the job_source linkage are created inside a
+ * single database transaction. If either fails, the entire operation
+ * rolls back — no orphaned jobs or partial writes.
+ *
  * Does NOT update existing jobs. Update logic belongs to a future batch.
  *
  * @throws If job or job_source creation fails after all retries.
@@ -52,81 +56,83 @@ export interface UpsertJobResult {
 export async function upsertJob(
   input: UpsertJobInput,
 ): Promise<UpsertJobResult> {
-  const baseSlug = generateSlug(input.normalizedTitle);
+  return db.transaction(async (tx) => {
+    const baseSlug = generateSlug(input.normalizedTitle);
 
-  let jobId: string | null = null;
-  let usedSlug = baseSlug;
+    let jobId: string | null = null;
+    let usedSlug = baseSlug;
 
-  for (let attempt = 0; attempt <= MAX_SLUG_RETRIES; attempt++) {
-    const candidateSlug =
-      attempt === 0 ? baseSlug : `${baseSlug}-${attempt}`;
+    for (let attempt = 0; attempt <= MAX_SLUG_RETRIES; attempt++) {
+      const candidateSlug =
+        attempt === 0 ? baseSlug : `${baseSlug}-${attempt}`;
 
-    const [created] = await db
-      .insert(jobs)
+      const [created] = await tx
+        .insert(jobs)
+        .values({
+          title: input.normalizedTitle,
+          slug: candidateSlug,
+          organizationId: input.organizationId,
+          categoryId: input.categoryId,
+          professionId: input.professionId,
+          locationId: input.locationId,
+          description: input.normalizedDescription,
+          responsibilities: input.responsibilities,
+          requirements: input.requirements,
+          educationRequirements: input.educationRequirements,
+          benefits: input.benefits,
+          experienceMin: input.experienceMin,
+          experienceMax: input.experienceMax,
+          employmentType: input.employmentType as never,
+          salaryMin: input.salaryMin != null ? String(input.salaryMin) : null,
+          salaryMax: input.salaryMax != null ? String(input.salaryMax) : null,
+          salaryCurrency: input.salaryCurrency,
+          salaryPeriod: input.salaryPeriod as never,
+          postedAt: input.postedAt,
+          deadline: input.deadline,
+          applicationUrl: input.applicationUrl,
+          status: "DRAFT",
+          verificationStatus: "PENDING",
+        })
+        .onConflictDoNothing()
+        .returning();
+
+      if (created) {
+        jobId = created.id;
+        usedSlug = candidateSlug;
+        break;
+      }
+    }
+
+    if (!jobId) {
+      throw new Error(
+        `Could not create job with unique slug after ${MAX_SLUG_RETRIES + 1} attempts`,
+      );
+    }
+
+    const canonicalUrl = canonicalizeUrl(input.sourceUrl);
+    const effectiveSourceUrl =
+      canonicalUrl ??
+      input.sourceUrl?.trim() ??
+      `jobethiopia://source/${input.sourceId}/external/${input.externalId ?? "none"}`;
+
+    const [jobSource] = await tx
+      .insert(jobSources)
       .values({
-        title: input.normalizedTitle,
-        slug: candidateSlug,
-        organizationId: input.organizationId,
-        categoryId: input.categoryId,
-        professionId: input.professionId,
-        locationId: input.locationId,
-        description: input.normalizedDescription,
-        responsibilities: input.responsibilities,
-        requirements: input.requirements,
-        educationRequirements: input.educationRequirements,
-        benefits: input.benefits,
-        experienceMin: input.experienceMin,
-        experienceMax: input.experienceMax,
-        employmentType: input.employmentType as never,
-        salaryMin: input.salaryMin != null ? String(input.salaryMin) : null,
-        salaryMax: input.salaryMax != null ? String(input.salaryMax) : null,
-        salaryCurrency: input.salaryCurrency,
-        salaryPeriod: input.salaryPeriod as never,
-        postedAt: input.postedAt,
-        deadline: input.deadline,
-        applicationUrl: input.applicationUrl,
-        status: "DRAFT",
-        verificationStatus: "PENDING",
+        jobId,
+        sourceId: input.sourceId,
+        sourceUrl: effectiveSourceUrl,
+        externalId: input.externalId,
+        rawHash: input.rawHash,
       })
       .onConflictDoNothing()
       .returning();
 
-    if (created) {
-      jobId = created.id;
-      usedSlug = candidateSlug;
-      break;
+    if (!jobSource) {
+      throw new Error(
+        `Failed to create job_source linkage for job ${jobId} (slug: ${usedSlug})`,
+      );
     }
-  }
 
-  if (!jobId) {
-    throw new Error(
-      `Could not create job with unique slug after ${MAX_SLUG_RETRIES + 1} attempts`,
-    );
-  }
-
-  const canonicalUrl = canonicalizeUrl(input.sourceUrl);
-  const effectiveSourceUrl =
-    canonicalUrl ??
-    input.sourceUrl?.trim() ??
-    `jobethiopia://source/${input.sourceId}/external/${input.externalId ?? "none"}`;
-
-  const [jobSource] = await db
-    .insert(jobSources)
-    .values({
-      jobId,
-      sourceId: input.sourceId,
-      sourceUrl: effectiveSourceUrl,
-      externalId: input.externalId,
-      rawHash: input.rawHash,
-    })
-    .onConflictDoNothing()
-    .returning();
-
-  if (!jobSource) {
-    throw new Error(
-      `Failed to create job_source linkage for job ${jobId} (slug: ${usedSlug})`,
-    );
-  }
-
-  return { jobId, jobSourceId: jobSource.id };
+    return { jobId, jobSourceId: jobSource.id };
+  });
 }
