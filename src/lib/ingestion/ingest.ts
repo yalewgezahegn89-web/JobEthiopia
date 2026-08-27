@@ -1,3 +1,6 @@
+import { eq } from "drizzle-orm";
+import { db } from "../../db";
+import { jobs } from "../../db/schema/jobs";
 import {
   normalizeTitle,
   normalizeOrganization,
@@ -16,6 +19,7 @@ import {
 } from "./resolveEntities";
 import { upsertJob } from "./upsertJob";
 import { updateLastSeenAt } from "./updateLastSeenAt";
+import { updateJob, getStoredHash, contentChanged } from "./updateJob";
 import type { RawJobInput, IngestionResult } from "./types";
 
 /**
@@ -91,10 +95,67 @@ export async function ingestJob(
 
   // 5. Handle duplicate
   if (duplicateResult.classification === "DUPLICATE") {
-    // Update lastSeenAt for confirmed duplicates with a known jobSourceId
-    // (Level 1: SOURCE_IDENTIFIER or Level 2: SOURCE_URL)
-    if (duplicateResult.matchedJobSourceId) {
-      await updateLastSeenAt(duplicateResult.matchedJobSourceId);
+    const hasJobSource = !!duplicateResult.matchedJobSourceId;
+
+    // L1/L2 confirmed duplicate: check if content changed
+    if (hasJobSource) {
+      const storedHash = await getStoredHash(duplicateResult.matchedJobSourceId!);
+
+      if (contentChanged(storedHash, rawHash)) {
+        // Content changed — update job in transaction
+        await updateJob({
+          jobId: duplicateResult.matchedJobId!,
+          jobSourceId: duplicateResult.matchedJobSourceId!,
+          normalizedTitle,
+          normalizedDescription,
+          locationId,
+          professionId,
+          categoryId,
+          employmentType: normalizedEmploymentType,
+          salaryMin: normalizedSalary.salaryMin,
+          salaryMax: normalizedSalary.salaryMax,
+          salaryCurrency: normalizedSalary.salaryCurrency,
+          salaryPeriod: normalizedSalary.salaryPeriod,
+          experienceMin: normalizedExperience.experienceMin,
+          experienceMax: normalizedExperience.experienceMax,
+          responsibilities: input.responsibilities ?? null,
+          requirements: input.requirements ?? null,
+          educationRequirements: input.educationRequirements ?? null,
+          benefits: input.benefits ?? null,
+          postedAt,
+          deadline,
+          applicationUrl: input.applicationUrl ?? null,
+          rawHash,
+        });
+
+        // Set lastVerifiedAt
+        await db
+          .update(jobs)
+          .set({ lastVerifiedAt: new Date() })
+          .where(eq(jobs.id, duplicateResult.matchedJobId!));
+
+        return {
+          outcome: "UPDATED",
+          jobId: duplicateResult.matchedJobId,
+          jobSourceId: duplicateResult.matchedJobSourceId,
+          matchedJobId: duplicateResult.matchedJobId,
+          matchedJobSourceId: duplicateResult.matchedJobSourceId,
+          duplicateLevel: duplicateResult.level,
+          duplicateConfidence: duplicateResult.confidence,
+          duplicateReason: duplicateResult.reason,
+        };
+      }
+
+      // Content unchanged — just update lastSeenAt
+      await updateLastSeenAt(duplicateResult.matchedJobSourceId!);
+    }
+
+    // Set lastVerifiedAt for all confirmed duplicates with a known jobId
+    if (duplicateResult.matchedJobId) {
+      await db
+        .update(jobs)
+        .set({ lastVerifiedAt: new Date() })
+        .where(eq(jobs.id, duplicateResult.matchedJobId));
     }
 
     return {

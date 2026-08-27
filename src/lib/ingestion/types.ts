@@ -59,6 +59,7 @@ export interface RawJobInput {
 export type IngestionOutcome =
   | "CREATED"
   | "DUPLICATE"
+  | "UPDATED"
   | "POSSIBLE_DUPLICATE";
 
 /**

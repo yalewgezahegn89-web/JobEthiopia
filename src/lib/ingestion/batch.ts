@@ -44,6 +44,8 @@ export interface BatchIngestionResult {
     created: number;
     /** Number of jobs classified as DUPLICATE */
     duplicate: number;
+    /** Number of jobs classified as UPDATED */
+    updated: number;
     /** Number of jobs classified as POSSIBLE_DUPLICATE */
     possibleDuplicate: number;
     /** Number of jobs that failed to process */
@@ -82,6 +84,7 @@ export async function ingestJobs(
 
   let created = 0;
   let duplicate = 0;
+  let updated = 0;
   let possibleDuplicate = 0;
   let failed = 0;
 
@@ -102,6 +105,9 @@ export async function ingestJobs(
           break;
         case "DUPLICATE":
           duplicate++;
+          break;
+        case "UPDATED":
+          updated++;
           break;
         case "POSSIBLE_DUPLICATE":
           possibleDuplicate++;
@@ -137,6 +143,7 @@ export async function ingestJobs(
       total: input.jobs.length,
       created,
       duplicate,
+      updated,
       possibleDuplicate,
       failed,
     },
