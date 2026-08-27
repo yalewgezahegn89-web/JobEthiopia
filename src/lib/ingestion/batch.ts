@@ -1,4 +1,5 @@
 import { ingestJob } from "./ingest";
+import { recordSuccessfulCheck } from "../sources";
 import type { RawJobInput, IngestionResult } from "./types";
 
 /**
@@ -68,7 +69,6 @@ export interface BatchIngestionResult {
  *
  * This function must NOT:
  * - process jobs concurrently
- * - modify source health fields
  * - retry failed items
  * - update existing jobs
  *
@@ -127,6 +127,9 @@ export async function ingestJobs(
       failed++;
     }
   }
+
+  // Record successful source check — the batch was processed
+  await recordSuccessfulCheck(input.sourceId);
 
   return {
     items,
