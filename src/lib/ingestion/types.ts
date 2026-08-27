@@ -60,6 +60,7 @@ export type IngestionOutcome =
   | "CREATED"
   | "DUPLICATE"
   | "UPDATED"
+  | "LINKED"
   | "POSSIBLE_DUPLICATE";
 
 /**

@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { jobs } from "../../db/schema/jobs";
+import { jobSources } from "../../db/schema/jobSources";
 import {
   normalizeTitle,
   normalizeOrganization,
@@ -20,6 +21,7 @@ import {
 import { upsertJob } from "./upsertJob";
 import { updateLastSeenAt } from "./updateLastSeenAt";
 import { updateJob, getStoredHash, contentChanged } from "./updateJob";
+import { createJobSource } from "./createJobSource";
 import type { RawJobInput, IngestionResult } from "./types";
 
 /**
@@ -31,6 +33,7 @@ import type { RawJobInput, IngestionResult } from "./types";
  * - computes a content hash for duplicate detection
  * - detects duplicates using the four-level cascade from Batch 2
  * - creates the job and job-source linkage if the listing is unique
+ * - handles cross-source encounters by creating job-source relationships
  *
  * This function must NOT:
  * - publish jobs (status remains DRAFT)
@@ -41,7 +44,7 @@ import type { RawJobInput, IngestionResult } from "./types";
  * - expose API endpoints
  *
  * @param input - Raw job data from an external source
- * @returns IngestionResult indicating CREATED, DUPLICATE, or POSSIBLE_DUPLICATE
+ * @returns IngestionResult indicating CREATED, DUPLICATE, UPDATED, LINKED, or POSSIBLE_DUPLICATE
  * @throws Database errors propagate to the caller without being swallowed
  */
 export async function ingestJob(
@@ -95,9 +98,73 @@ export async function ingestJob(
 
   // 5. Handle duplicate
   if (duplicateResult.classification === "DUPLICATE") {
-    const hasJobSource = !!duplicateResult.matchedJobSourceId;
+    // L3 CONTENT_HASH — cross-source match: create jobSource for current source
+    if (duplicateResult.level === "CONTENT_HASH" && duplicateResult.matchedJobId) {
+      const currentJobSourceId = await createJobSource({
+        jobId: duplicateResult.matchedJobId,
+        sourceId: input.sourceId,
+        sourceUrl: input.sourceUrl ?? null,
+        externalId: input.externalId ?? null,
+        rawHash,
+      });
+
+      const storedHash = await getStoredHash(currentJobSourceId);
+
+      if (contentChanged(storedHash, rawHash)) {
+        // Content changed — update job with current source's data
+        await updateJob({
+          jobId: duplicateResult.matchedJobId,
+          jobSourceId: currentJobSourceId,
+          normalizedTitle,
+          normalizedDescription,
+          locationId,
+          professionId,
+          categoryId,
+          employmentType: normalizedEmploymentType,
+          salaryMin: normalizedSalary.salaryMin,
+          salaryMax: normalizedSalary.salaryMax,
+          salaryCurrency: normalizedSalary.salaryCurrency,
+          salaryPeriod: normalizedSalary.salaryPeriod,
+          experienceMin: normalizedExperience.experienceMin,
+          experienceMax: normalizedExperience.experienceMax,
+          responsibilities: input.responsibilities ?? null,
+          requirements: input.requirements ?? null,
+          educationRequirements: input.educationRequirements ?? null,
+          benefits: input.benefits ?? null,
+          postedAt,
+          deadline,
+          applicationUrl: input.applicationUrl ?? null,
+          rawHash,
+        });
+      } else {
+        // Content unchanged — refresh rawHash and lastSeenAt for current source
+        await db
+          .update(jobSources)
+          .set({ rawHash, lastSeenAt: new Date() })
+          .where(eq(jobSources.id, currentJobSourceId));
+      }
+
+      // Set lastVerifiedAt
+      await db
+        .update(jobs)
+        .set({ lastVerifiedAt: new Date() })
+        .where(eq(jobs.id, duplicateResult.matchedJobId));
+
+      return {
+        outcome: "UPDATED",
+        jobId: duplicateResult.matchedJobId,
+        jobSourceId: currentJobSourceId,
+        matchedJobId: duplicateResult.matchedJobId,
+        matchedJobSourceId: duplicateResult.matchedJobSourceId,
+        duplicateLevel: duplicateResult.level,
+        duplicateConfidence: duplicateResult.confidence,
+        duplicateReason: duplicateResult.reason,
+      };
+    }
 
     // L1/L2 confirmed duplicate: check if content changed
+    const hasJobSource = !!duplicateResult.matchedJobSourceId;
+
     if (hasJobSource) {
       const storedHash = await getStoredHash(duplicateResult.matchedJobSourceId!);
 
@@ -171,6 +238,28 @@ export async function ingestJob(
   }
 
   if (duplicateResult.classification === "POSSIBLE_DUPLICATE") {
+    // L4 ORG_TITLE_LOCATION — link current source to matched job
+    if (duplicateResult.level === "ORG_TITLE_LOCATION" && duplicateResult.matchedJobId) {
+      const currentJobSourceId = await createJobSource({
+        jobId: duplicateResult.matchedJobId,
+        sourceId: input.sourceId,
+        sourceUrl: input.sourceUrl ?? null,
+        externalId: input.externalId ?? null,
+        rawHash,
+      });
+
+      return {
+        outcome: "LINKED",
+        jobId: duplicateResult.matchedJobId,
+        jobSourceId: currentJobSourceId,
+        matchedJobId: duplicateResult.matchedJobId,
+        matchedJobSourceId: duplicateResult.matchedJobSourceId,
+        duplicateLevel: duplicateResult.level,
+        duplicateConfidence: duplicateResult.confidence,
+        duplicateReason: duplicateResult.reason,
+      };
+    }
+
     return {
       outcome: "POSSIBLE_DUPLICATE",
       jobId: null,

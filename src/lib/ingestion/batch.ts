@@ -46,6 +46,8 @@ export interface BatchIngestionResult {
     duplicate: number;
     /** Number of jobs classified as UPDATED */
     updated: number;
+    /** Number of jobs classified as LINKED */
+    linked: number;
     /** Number of jobs classified as POSSIBLE_DUPLICATE */
     possibleDuplicate: number;
     /** Number of jobs that failed to process */
@@ -72,7 +74,6 @@ export interface BatchIngestionResult {
  * This function must NOT:
  * - process jobs concurrently
  * - retry failed items
- * - update existing jobs
  *
  * @param input - Batch of raw job listings to ingest
  * @returns BatchIngestionResult with per-item outcomes and summary
@@ -85,6 +86,7 @@ export async function ingestJobs(
   let created = 0;
   let duplicate = 0;
   let updated = 0;
+  let linked = 0;
   let possibleDuplicate = 0;
   let failed = 0;
 
@@ -108,6 +110,9 @@ export async function ingestJobs(
           break;
         case "UPDATED":
           updated++;
+          break;
+        case "LINKED":
+          linked++;
           break;
         case "POSSIBLE_DUPLICATE":
           possibleDuplicate++;
@@ -144,6 +149,7 @@ export async function ingestJobs(
       created,
       duplicate,
       updated,
+      linked,
       possibleDuplicate,
       failed,
     },

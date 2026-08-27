@@ -49,8 +49,6 @@ export interface UpsertJobResult {
  * single database transaction. If either fails, the entire operation
  * rolls back — no orphaned jobs or partial writes.
  *
- * Does NOT update existing jobs. Update logic belongs to a future batch.
- *
  * @throws If job or job_source creation fails after all retries.
  */
 export async function upsertJob(
