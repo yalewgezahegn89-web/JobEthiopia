@@ -1,3 +1,5 @@
+export type { FetchResult, SourceAdapter } from "./adapter";
+
 export {
   recordSuccessfulCheck,
   recordFailedCheck,
