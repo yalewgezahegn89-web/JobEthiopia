@@ -3,6 +3,7 @@ import {
   uuid,
   text,
   boolean,
+  integer,
   timestamp,
   index,
   uniqueIndex,
@@ -25,6 +26,16 @@ export const sources = pgTable(
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
+
+    lastSuccessfulCheck: timestamp("last_successful_check", {
+      withTimezone: true,
+    }),
+    lastAttemptedCheck: timestamp("last_attempted_check", {
+      withTimezone: true,
+    }),
+    lastError: text("last_error"),
+    checkFrequencyMinutes: integer("check_frequency_minutes"),
+    consecutiveFailures: integer("consecutive_failures").notNull().default(0),
   },
   (t) => [
     index("sources_source_type_idx").on(t.sourceType),

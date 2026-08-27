@@ -15,6 +15,13 @@
       "when": 1787836814287,
       "tag": "0001_tiny_jack_power",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1787838000000,
+      "tag": "0002_add_sources_operational_fields",
+      "breakpoints": true
     }
   ]
 }
