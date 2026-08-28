@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
+import { organizations } from "@/db/schema/organizations";
+import { categories } from "@/db/schema/categories";
+import { professions } from "@/db/schema/professions";
+import { locations } from "@/db/schema/locations";
 import { jobIdParamSchema } from "@/lib/validations/jobQuery";
 import { updateJobSchema } from "@/lib/validations";
 
@@ -57,7 +61,49 @@ export async function GET(
       return jsonError("Job not found", 404);
     }
 
-    return NextResponse.json({ item: job });
+    const organizationId = job.organizationId;
+    const categoryId = job.categoryId;
+    const professionId = job.professionId;
+    const locationId = job.locationId;
+
+    const entityColumns = { id: true, name: true, slug: true } as const;
+
+    const [organization, category, profession, location] = await Promise.all([
+      organizationId
+        ? db.query.organizations.findFirst({
+            columns: entityColumns,
+            where: eq(organizations.id, organizationId),
+          })
+        : Promise.resolve(null),
+      categoryId
+        ? db.query.categories.findFirst({
+            columns: entityColumns,
+            where: eq(categories.id, categoryId),
+          })
+        : Promise.resolve(null),
+      professionId
+        ? db.query.professions.findFirst({
+            columns: entityColumns,
+            where: eq(professions.id, professionId),
+          })
+        : Promise.resolve(null),
+      locationId
+        ? db.query.locations.findFirst({
+            columns: entityColumns,
+            where: eq(locations.id, locationId),
+          })
+        : Promise.resolve(null),
+    ]);
+
+    return NextResponse.json({
+      item: {
+        ...job,
+        organization: organization ?? null,
+        category: category ?? null,
+        profession: profession ?? null,
+        location: location ?? null,
+      },
+    });
   } catch {
     return jsonError("Internal server error", 500);
   }

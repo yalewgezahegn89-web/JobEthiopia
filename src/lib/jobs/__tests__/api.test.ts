@@ -2,27 +2,45 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockJobsFindMany = vi.fn();
 const mockJobsFindFirst = vi.fn();
+const mockOrganizationsFindMany = vi.fn();
+const mockOrganizationsFindFirst = vi.fn();
+const mockCategoriesFindMany = vi.fn();
+const mockCategoriesFindFirst = vi.fn();
+const mockProfessionsFindMany = vi.fn();
+const mockProfessionsFindFirst = vi.fn();
+const mockLocationsFindMany = vi.fn();
+const mockLocationsFindFirst = vi.fn();
 const mockDbSelect = vi.fn();
 const mockDbFrom = vi.fn();
 const mockDbWhere = vi.fn();
+const mockDbCount = vi.fn();
 const mockDbUpdate = vi.fn();
 const mockDbDelete = vi.fn();
 const mockInsert = vi.fn();
 
 vi.mock("../../../db", () => {
-  const chainable = {
-    where: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    offset: vi.fn().mockReturnThis(),
-  };
-
   return {
     db: {
       query: {
         jobs: {
           findMany: (...args: unknown[]) => mockJobsFindMany(...args),
           findFirst: (...args: unknown[]) => mockJobsFindFirst(...args),
+        },
+        organizations: {
+          findMany: (...args: unknown[]) => mockOrganizationsFindMany(...args),
+          findFirst: (...args: unknown[]) => mockOrganizationsFindFirst(...args),
+        },
+        categories: {
+          findMany: (...args: unknown[]) => mockCategoriesFindMany(...args),
+          findFirst: (...args: unknown[]) => mockCategoriesFindFirst(...args),
+        },
+        professions: {
+          findMany: (...args: unknown[]) => mockProfessionsFindMany(...args),
+          findFirst: (...args: unknown[]) => mockProfessionsFindFirst(...args),
+        },
+        locations: {
+          findMany: (...args: unknown[]) => mockLocationsFindMany(...args),
+          findFirst: (...args: unknown[]) => mockLocationsFindFirst(...args),
         },
       },
       select: (...args: unknown[]) => {
@@ -33,7 +51,7 @@ vi.mock("../../../db", () => {
             return {
               where: (...whereArgs: unknown[]) => {
                 mockDbWhere(...whereArgs);
-                return chainable;
+                return mockDbCount(...whereArgs);
               },
             };
           },
@@ -68,6 +86,9 @@ const SAMPLE_JOB = {
   title: "Staff Nurse",
   slug: "staff-nurse-black-lion",
   organizationId: "org-1",
+  categoryId: null,
+  professionId: null,
+  locationId: null,
   description: "Nursing role at hospital",
   status: "DRAFT",
   employmentType: "FULL_TIME",
@@ -96,15 +117,16 @@ beforeEach(() => {
   mockJobsFindMany.mockResolvedValue([SAMPLE_JOB]);
   mockJobsFindFirst.mockResolvedValue(SAMPLE_JOB);
 
-  const countChain = {
-    where: vi.fn().mockResolvedValue([{ count: 1 }]),
-  };
-  mockDbSelect.mockReturnValue({
-    from: vi.fn().mockReturnValue(countChain),
-  });
-  mockDbWhere.mockReturnValue({
-    where: vi.fn().mockResolvedValue([{ count: 1 }]),
-  });
+  mockOrganizationsFindMany.mockResolvedValue([]);
+  mockOrganizationsFindFirst.mockResolvedValue(undefined);
+  mockCategoriesFindMany.mockResolvedValue([]);
+  mockCategoriesFindFirst.mockResolvedValue(undefined);
+  mockProfessionsFindMany.mockResolvedValue([]);
+  mockProfessionsFindFirst.mockResolvedValue(undefined);
+  mockLocationsFindMany.mockResolvedValue([]);
+  mockLocationsFindFirst.mockResolvedValue(undefined);
+
+  mockDbCount.mockResolvedValue([{ count: 1 }]);
 });
 
 describe("GET /api/jobs", () => {
@@ -211,6 +233,33 @@ describe("GET /api/jobs", () => {
       expect(response.status).toBe(400);
       expect(data.error).toContain("organizationId");
     });
+
+    it("invalid categoryId returns 400", async () => {
+      const request = makeJobListRequest({ categoryId: "not-a-uuid" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("categoryId");
+    });
+
+    it("invalid professionId returns 400", async () => {
+      const request = makeJobListRequest({ professionId: "not-a-uuid" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("professionId");
+    });
+
+    it("invalid locationId returns 400", async () => {
+      const request = makeJobListRequest({ locationId: "not-a-uuid" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("locationId");
+    });
   });
 
   describe("filtering", () => {
@@ -272,9 +321,7 @@ describe("GET /api/jobs", () => {
 
     it("nonexistent organizationId returns empty results", async () => {
       mockJobsFindMany.mockResolvedValue([]);
-      mockDbSelect.mockReturnValue({
-        from: vi.fn().mockResolvedValue([{ count: 0 }]),
-      });
+      mockDbCount.mockResolvedValue([{ count: 0 }]);
 
       const orgId = "00000000-0000-0000-0000-000000000000";
       const request = makeJobListRequest({ organizationId: orgId });
@@ -288,9 +335,7 @@ describe("GET /api/jobs", () => {
 
     it("omitted organizationId preserves existing behavior", async () => {
       mockJobsFindMany.mockResolvedValue([SAMPLE_JOB]);
-      mockDbSelect.mockReturnValue({
-        from: vi.fn().mockResolvedValue([{ count: 1 }]),
-      });
+      mockDbCount.mockResolvedValue([{ count: 1 }]);
 
       const request = makeJobListRequest();
       const response = await GET(request);
@@ -298,6 +343,245 @@ describe("GET /api/jobs", () => {
 
       expect(response.status).toBe(200);
       expect(data.items).toHaveLength(1);
+    });
+
+    it("categoryId filter returns matching jobs", async () => {
+      const categoryId = "110e8400-e29b-41d4-a716-446655440010";
+      const request = makeJobListRequest({ categoryId });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(1);
+    });
+
+    it("professionId filter returns matching jobs", async () => {
+      const professionId = "110e8400-e29b-41d4-a716-446655440011";
+      const request = makeJobListRequest({ professionId });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(1);
+    });
+
+    it("locationId filter returns matching jobs", async () => {
+      const locationId = "110e8400-e29b-41d4-a716-446655440012";
+      const request = makeJobListRequest({ locationId });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(1);
+    });
+
+    it("categoryId combines with professionId and locationId", async () => {
+      const request = makeJobListRequest({
+        categoryId: "110e8400-e29b-41d4-a716-446655440010",
+        professionId: "110e8400-e29b-41d4-a716-446655440011",
+        locationId: "110e8400-e29b-41d4-a716-446655440012",
+      });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(1);
+    });
+
+    it("nonexistent categoryId returns empty results", async () => {
+      mockJobsFindMany.mockResolvedValue([]);
+      mockDbCount.mockResolvedValue([{ count: 0 }]);
+
+      const request = makeJobListRequest({
+        categoryId: "00000000-0000-0000-0000-000000000000",
+      });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(0);
+      expect(data.pagination.total).toBe(0);
+    });
+  });
+
+  describe("keyword search", () => {
+    it("q triggers organization name search", async () => {
+      const organizationId = "123e4567-e89b-12d3-a456-426614174000";
+      mockOrganizationsFindMany.mockResolvedValue([
+        {
+          id: organizationId,
+          name: "Black Lion Hospital",
+          slug: "black-lion-hospital",
+        },
+      ]);
+      mockJobsFindMany.mockResolvedValue([
+        { ...SAMPLE_JOB, organizationId },
+      ]);
+
+      const request = makeJobListRequest({ q: "lion" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(mockOrganizationsFindMany).toHaveBeenCalled();
+      expect(data.items).toHaveLength(1);
+    });
+
+    it("q searches title", async () => {
+      const request = makeJobListRequest({ q: "Staff" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items[0].title).toBe("Staff Nurse");
+    });
+
+    it("q searches description", async () => {
+      const request = makeJobListRequest({ q: "hospital" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(1);
+    });
+
+    it("q is case-insensitive at the request level", async () => {
+      const lowercaseRequest = makeJobListRequest({ q: "staff" });
+      const lowercaseResponse = await GET(lowercaseRequest);
+
+      const uppercaseRequest = makeJobListRequest({ q: "STAFF" });
+      const uppercaseResponse = await GET(uppercaseRequest);
+
+      expect(lowercaseResponse.status).toBe(200);
+      expect(uppercaseResponse.status).toBe(200);
+    });
+
+    it("q combines with status filter", async () => {
+      const request = makeJobListRequest({ q: "nurse", status: "PUBLISHED" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(1);
+    });
+
+    it("q with no organization name matches falls back to title/description", async () => {
+      mockOrganizationsFindMany.mockResolvedValue([]);
+      mockJobsFindMany.mockResolvedValue([SAMPLE_JOB]);
+
+      const request = makeJobListRequest({ q: "nurse" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(1);
+    });
+
+    it("q with no matches returns empty results", async () => {
+      mockOrganizationsFindMany.mockResolvedValue([]);
+      mockJobsFindMany.mockResolvedValue([]);
+      mockDbCount.mockResolvedValue([{ count: 0 }]);
+
+      const request = makeJobListRequest({ q: "no-such-term-xyz" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(0);
+      expect(data.pagination.total).toBe(0);
+    });
+  });
+
+  describe("enriched response", () => {
+    it("items include joined organization data", async () => {
+      const organizationId = "123e4567-e89b-12d3-a456-426614174000";
+      mockJobsFindMany.mockResolvedValue([
+        { ...SAMPLE_JOB, organizationId },
+      ]);
+      mockOrganizationsFindMany.mockResolvedValue([
+        {
+          id: organizationId,
+          name: "Black Lion Hospital",
+          slug: "black-lion-hospital",
+        },
+      ]);
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items[0].organization).toEqual({
+        id: organizationId,
+        name: "Black Lion Hospital",
+        slug: "black-lion-hospital",
+      });
+    });
+
+    it("items include joined category, profession, and location data", async () => {
+      const categoryId = "110e8400-e29b-41d4-a716-446655440010";
+      const professionId = "110e8400-e29b-41d4-a716-446655440011";
+      const locationId = "110e8400-e29b-41d4-a716-446655440012";
+      mockJobsFindMany.mockResolvedValue([
+        { ...SAMPLE_JOB, categoryId, professionId, locationId },
+      ]);
+      mockCategoriesFindMany.mockResolvedValue([
+        { id: categoryId, name: "Healthcare", slug: "healthcare" },
+      ]);
+      mockProfessionsFindMany.mockResolvedValue([
+        { id: professionId, name: "Nursing", slug: "nursing" },
+      ]);
+      mockLocationsFindMany.mockResolvedValue([
+        { id: locationId, name: "Addis Ababa", slug: "addis-ababa" },
+      ]);
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items[0].category).toEqual({
+        id: categoryId,
+        name: "Healthcare",
+        slug: "healthcare",
+      });
+      expect(data.items[0].profession).toEqual({
+        id: professionId,
+        name: "Nursing",
+        slug: "nursing",
+      });
+      expect(data.items[0].location).toEqual({
+        id: locationId,
+        name: "Addis Ababa",
+        slug: "addis-ababa",
+      });
+    });
+
+    it("missing entity relationships resolve to null", async () => {
+      mockJobsFindMany.mockResolvedValue([SAMPLE_JOB]);
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items[0].organization).toBeNull();
+      expect(data.items[0].category).toBeNull();
+      expect(data.items[0].profession).toBeNull();
+      expect(data.items[0].location).toBeNull();
+    });
+
+    it("pagination totals remain correct with enrichment", async () => {
+      mockDbCount.mockResolvedValue([{ count: 25 }]);
+
+      const request = makeJobListRequest({ limit: "10" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.pagination.total).toBe(25);
+      expect(data.pagination.totalPages).toBe(3);
+      expect(data.pagination.limit).toBe(10);
     });
   });
 
@@ -345,6 +629,87 @@ describe("GET /api/jobs/[id]", () => {
       expect(data.item).toBeDefined();
       expect(data.item.id).toBe(VALID_ID);
       expect(data.item.title).toBe("Staff Nurse");
+    });
+  });
+
+  describe("enriched response", () => {
+    const ORGANIZATION_ID = "123e4567-e89b-12d3-a456-426614174000";
+    const CATEGORY_ID = "110e8400-e29b-41d4-a716-446655440010";
+    const PROFESSION_ID = "110e8400-e29b-41d4-a716-446655440011";
+    const LOCATION_ID = "110e8400-e29b-41d4-a716-446655440012";
+
+    it("includes joined organization, category, profession, and location data", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        organizationId: ORGANIZATION_ID,
+        categoryId: CATEGORY_ID,
+        professionId: PROFESSION_ID,
+        locationId: LOCATION_ID,
+      });
+      mockOrganizationsFindFirst.mockResolvedValue({
+        id: ORGANIZATION_ID,
+        name: "Black Lion Hospital",
+        slug: "black-lion-hospital",
+      });
+      mockCategoriesFindFirst.mockResolvedValue({
+        id: CATEGORY_ID,
+        name: "Healthcare",
+        slug: "healthcare",
+      });
+      mockProfessionsFindFirst.mockResolvedValue({
+        id: PROFESSION_ID,
+        name: "Nursing",
+        slug: "nursing",
+      });
+      mockLocationsFindFirst.mockResolvedValue({
+        id: LOCATION_ID,
+        name: "Addis Ababa",
+        slug: "addis-ababa",
+      });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item.organization).toEqual({
+        id: ORGANIZATION_ID,
+        name: "Black Lion Hospital",
+        slug: "black-lion-hospital",
+      });
+      expect(data.item.category).toEqual({
+        id: CATEGORY_ID,
+        name: "Healthcare",
+        slug: "healthcare",
+      });
+      expect(data.item.profession).toEqual({
+        id: PROFESSION_ID,
+        name: "Nursing",
+        slug: "nursing",
+      });
+      expect(data.item.location).toEqual({
+        id: LOCATION_ID,
+        name: "Addis Ababa",
+        slug: "addis-ababa",
+      });
+    });
+
+    it("missing entity relationships resolve to null", async () => {
+      mockJobsFindFirst.mockResolvedValue(SAMPLE_JOB);
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item.organization).toBeNull();
+      expect(data.item.category).toBeNull();
+      expect(data.item.profession).toBeNull();
+      expect(data.item.location).toBeNull();
     });
   });
 

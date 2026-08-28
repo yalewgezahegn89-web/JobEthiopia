@@ -25,6 +25,10 @@ export const jobListQuerySchema = z.object({
   status: z.enum(jobStatusValues).optional(),
   employmentType: z.enum(employmentTypeValues).optional(),
   organizationId: z.string().uuid().optional(),
+  categoryId: z.string().uuid().optional(),
+  professionId: z.string().uuid().optional(),
+  locationId: z.string().uuid().optional(),
+  q: z.string().trim().max(200).optional(),
 });
 
 export type JobListQuery = z.infer<typeof jobListQuerySchema>;
