@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockFindFirst = vi.fn();
 const mockDbUpdate = vi.fn();
+const mockDbDelete = vi.fn();
 
 vi.mock("../../../db", () => ({
   db: {
@@ -11,6 +12,7 @@ vi.mock("../../../db", () => ({
       },
     },
     update: (...args: unknown[]) => mockDbUpdate(...args),
+    delete: (...args: unknown[]) => mockDbDelete(...args),
   },
 }));
 
@@ -27,7 +29,7 @@ vi.mock("../../../db/schema/sources", () => ({
   },
 }));
 
-import { GET, PUT } from "../../../app/api/sources/[id]/route";
+import { GET, PUT, DELETE } from "../../../app/api/sources/[id]/route";
 
 const VALID_ID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -520,6 +522,187 @@ describe("PUT /api/sources/[id]", () => {
       expect(data.item).not.toHaveProperty("lastAttemptedCheck");
       expect(data.item).not.toHaveProperty("checkFrequencyMinutes");
       expect(data.item).not.toHaveProperty("consecutiveFailures");
+    });
+  });
+});
+
+function makeDeleteRequest(id: string, headers?: Record<string, string>): Request {
+  return new Request(`http://localhost/api/sources/${id}`, {
+    method: "DELETE",
+    headers: {
+      "x-api-key": API_KEY,
+      ...headers,
+    },
+  });
+}
+
+function mockDeleteSuccess() {
+  mockDbDelete.mockReturnValue({
+    where: vi.fn().mockResolvedValue(undefined),
+  });
+}
+
+function mockDeleteError(errorMessage: string) {
+  mockDbDelete.mockReturnValue({
+    where: vi.fn().mockRejectedValue(new Error(errorMessage)),
+  });
+}
+
+describe("DELETE /api/sources/[id]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("INGESTION_API_KEY", API_KEY);
+    mockFindFirst.mockResolvedValue({ id: VALID_ID });
+  });
+
+  describe("authentication", () => {
+    it("missing API key returns 401", async () => {
+      const request = makeDeleteRequest(VALID_ID, { "x-api-key": "" });
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("invalid API key returns 401", async () => {
+      const request = makeDeleteRequest(VALID_ID, { "x-api-key": "wrong-key" });
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("API key is not reflected in error response", async () => {
+      const request = makeDeleteRequest(VALID_ID, { "x-api-key": "secret-key-value" });
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const body = await response.text();
+
+      expect(body).not.toContain("secret-key-value");
+    });
+  });
+
+  describe("validation", () => {
+    it("invalid UUID returns 400", async () => {
+      const request = makeDeleteRequest("not-a-uuid");
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: "not-a-uuid" }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe("Invalid source ID");
+    });
+  });
+
+  describe("not found", () => {
+    it("returns 404 when source does not exist", async () => {
+      mockFindFirst.mockResolvedValue(null);
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe("Source not found");
+    });
+  });
+
+  describe("successful deletion", () => {
+    it("returns 200 with success true", async () => {
+      mockDeleteSuccess();
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+    });
+
+    it("uses correct source ID in delete", async () => {
+      mockDeleteSuccess();
+
+      const request = makeDeleteRequest(VALID_ID);
+      await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(mockDbDelete).toHaveBeenCalled();
+    });
+  });
+
+  describe("constraint conflict", () => {
+    it("foreign key constraint returns 409", async () => {
+      mockDeleteError(
+        'update or delete on table "sources" violates foreign key constraint "job_sources_source_id_fkey"',
+      );
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(409);
+      expect(data.error).toBe("Source cannot be deleted because it is referenced by other records");
+    });
+  });
+
+  describe("error handling", () => {
+    it("unrelated DB error returns 500", async () => {
+      mockDeleteError("DB connection failed");
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe("Internal server error");
+    });
+
+    it("DB error details are not leaked", async () => {
+      mockDeleteError("SECRET_DB_PASSWORD=xyz connection refused");
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const body = await response.text();
+
+      expect(body).not.toContain("SECRET_DB_PASSWORD");
+      expect(body).not.toContain("xyz");
+    });
+  });
+
+  describe("data safety", () => {
+    it("response does not contain health fields", async () => {
+      mockDeleteSuccess();
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const body = await response.text();
+
+      expect(body).not.toContain("lastError");
+      expect(body).not.toContain("lastSuccessfulCheck");
+      expect(body).not.toContain("lastAttemptedCheck");
+      expect(body).not.toContain("checkFrequencyMinutes");
+      expect(body).not.toContain("consecutiveFailures");
     });
   });
 });

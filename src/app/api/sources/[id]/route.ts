@@ -125,3 +125,43 @@ export async function PUT(
     return jsonError("Internal server error", 500);
   }
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const authError = checkApiKey(_request);
+  if (authError) return authError;
+
+  const { id } = await params;
+
+  const parsedId = sourceIdParamSchema.safeParse({ id });
+  if (!parsedId.success) {
+    return jsonError("Invalid source ID", 400);
+  }
+
+  try {
+    const existing = await db.query.sources.findFirst({
+      where: eq(sources.id, parsedId.data.id),
+      columns: { id: true },
+    });
+
+    if (!existing) {
+      return jsonError("Source not found", 404);
+    }
+
+    await db
+      .delete(sources)
+      .where(eq(sources.id, parsedId.data.id));
+
+    return NextResponse.json({ success: true });
+  } catch (err: unknown) {
+    if (
+      err instanceof Error &&
+      err.message.includes("foreign key constraint")
+    ) {
+      return jsonError("Source cannot be deleted because it is referenced by other records", 409);
+    }
+    return jsonError("Internal server error", 500);
+  }
+}
