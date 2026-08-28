@@ -141,7 +141,10 @@ export const updateOrganizationSchema = createOrganizationSchema.partial();
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 export type UpdateOrganizationInput = z.infer<typeof updateOrganizationSchema>;
+export const updateCategorySchema = createCategorySchema.partial();
+
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
+export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type CreateProfessionInput = z.infer<typeof createProfessionSchema>;
 export type CreateSourceInput = z.infer<typeof createSourceSchema>;
 export type UpdateSourceInput = z.infer<typeof updateSourceSchema>;
