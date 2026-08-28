@@ -7,6 +7,7 @@ const mockDbFrom = vi.fn();
 const mockDbWhere = vi.fn();
 const mockDbUpdate = vi.fn();
 const mockDbDelete = vi.fn();
+const mockInsert = vi.fn();
 
 vi.mock("../../../db", () => {
   const chainable = {
@@ -38,6 +39,7 @@ vi.mock("../../../db", () => {
           },
         };
       },
+      insert: (...args: unknown[]) => mockInsert(...args),
       update: (...args: unknown[]) => mockDbUpdate(...args),
       delete: (...args: unknown[]) => mockDbDelete(...args),
     },
@@ -1167,5 +1169,513 @@ describe("DELETE /api/jobs/[id]", () => {
     });
   });
 });
+  });
+});
+
+const CREATED_JOB = {
+  id: "660e8400-e29b-41d4-a716-446655440001",
+  title: "Software Engineer",
+  slug: "software-engineer",
+  organizationId: "550e8400-e29b-41d4-a716-446655440000",
+  categoryId: null,
+  professionId: null,
+  locationId: null,
+  description: "A software engineering role",
+  responsibilities: null,
+  requirements: null,
+  educationRequirements: null,
+  benefits: null,
+  experienceMin: null,
+  experienceMax: null,
+  employmentType: null,
+  salaryMin: null,
+  salaryMax: null,
+  salaryCurrency: null,
+  salaryPeriod: null,
+  postedAt: null,
+  deadline: null,
+  applicationUrl: null,
+  status: "DRAFT",
+  verificationStatus: "PENDING",
+  firstSeenAt: new Date("2026-08-28"),
+  lastVerifiedAt: null,
+  createdAt: new Date("2026-08-28"),
+  updatedAt: new Date("2026-08-28"),
+};
+
+const CREATED_JOB_ALL_FIELDS = {
+  id: "660e8400-e29b-41d4-a716-446655440002",
+  title: "Senior Software Engineer",
+  slug: "senior-software-engineer",
+  organizationId: "550e8400-e29b-41d4-a716-446655440000",
+  categoryId: "110e8400-e29b-41d4-a716-446655440010",
+  professionId: "110e8400-e29b-41d4-a716-446655440011",
+  locationId: "110e8400-e29b-41d4-a716-446655440012",
+  description: "A senior software engineering role",
+  responsibilities: "Lead team",
+  requirements: "5+ years experience",
+  educationRequirements: "BS in CS",
+  benefits: "Health insurance",
+  experienceMin: 5,
+  experienceMax: 10,
+  employmentType: "FULL_TIME",
+  salaryMin: "50000",
+  salaryMax: "100000",
+  salaryCurrency: "USD",
+  salaryPeriod: "YEARLY",
+  postedAt: new Date("2026-08-01"),
+  deadline: new Date("2026-09-01"),
+  applicationUrl: "https://example.com/apply",
+  status: "DRAFT",
+  verificationStatus: "PENDING",
+  firstSeenAt: new Date("2026-08-28"),
+  lastVerifiedAt: null,
+  createdAt: new Date("2026-08-28"),
+  updatedAt: new Date("2026-08-28"),
+};
+
+function mockInsertSuccess(job: Record<string, unknown>) {
+  mockInsert.mockReturnValue({
+    values: vi.fn().mockReturnValue({
+      returning: vi.fn().mockResolvedValue([job]),
+    }),
+  });
+}
+
+function mockInsertSlugConflict(job: Record<string, unknown>) {
+  let callCount = 0;
+  mockInsert.mockImplementation(() => ({
+    values: vi.fn().mockReturnValue({
+      returning: vi.fn().mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve([]);
+        }
+        return Promise.resolve([job]);
+      }),
+    }),
+  }));
+}
+
+function mockInsertAllFail() {
+  mockInsert.mockReturnValue({
+    values: vi.fn().mockReturnValue({
+      returning: vi.fn().mockResolvedValue([]),
+    }),
+  });
+}
+
+function mockInsertDbError(errorMessage: string) {
+  mockInsert.mockReturnValue({
+    values: vi.fn().mockReturnValue({
+      returning: vi.fn().mockRejectedValue(new Error(errorMessage)),
+    }),
+  });
+}
+
+function makePostRequest(body: unknown, headers?: Record<string, string>): Request {
+  return new Request("http://localhost/api/jobs", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": API_KEY,
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+const VALID_POST_BODY = {
+  title: "Software Engineer",
+  slug: "software-engineer",
+  organizationId: "550e8400-e29b-41d4-a716-446655440000",
+  description: "A software engineering role",
+};
+
+describe("POST /api/jobs", () => {
+  let POST: typeof import("../../../app/api/jobs/route").POST;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.stubEnv("INGESTION_API_KEY", API_KEY);
+    const mod = await import("../../../app/api/jobs/route");
+    POST = mod.POST;
+  });
+
+  describe("authentication", () => {
+    it("missing API key returns 401", async () => {
+      const request = makePostRequest(VALID_POST_BODY, { "x-api-key": "" });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("invalid API key returns 401", async () => {
+      const request = makePostRequest(VALID_POST_BODY, { "x-api-key": "wrong-key" });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("missing API key configuration returns 500", async () => {
+      vi.stubEnv("INGESTION_API_KEY", undefined);
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe("API key not configured");
+    });
+
+    it("API key is not reflected in error response", async () => {
+      const request = makePostRequest(VALID_POST_BODY, { "x-api-key": "secret-key-value" });
+      const response = await POST(request);
+      const body = await response.text();
+
+      expect(body).not.toContain("secret-key-value");
+    });
+  });
+
+  describe("validation", () => {
+    it("missing title returns 400", async () => {
+      const request = makePostRequest({
+        slug: "test",
+        organizationId: "550e8400-e29b-41d4-a716-446655440000",
+        description: "desc",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("title");
+    });
+
+    it("missing slug returns 400", async () => {
+      const request = makePostRequest({
+        title: "Test",
+        organizationId: "550e8400-e29b-41d4-a716-446655440000",
+        description: "desc",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("slug");
+    });
+
+    it("missing organizationId returns 400", async () => {
+      const request = makePostRequest({
+        title: "Test",
+        slug: "test",
+        description: "desc",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("organizationId");
+    });
+
+    it("missing description returns 400", async () => {
+      const request = makePostRequest({
+        title: "Test",
+        slug: "test",
+        organizationId: "550e8400-e29b-41d4-a716-446655440000",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("description");
+    });
+
+    it("invalid organizationId UUID returns 400", async () => {
+      const request = makePostRequest({
+        title: "Test",
+        slug: "test",
+        organizationId: "not-a-uuid",
+        description: "desc",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("organizationId");
+    });
+
+    it("invalid optional FK UUID returns 400", async () => {
+      const request = makePostRequest({
+        title: "Test",
+        slug: "test",
+        organizationId: "550e8400-e29b-41d4-a716-446655440000",
+        categoryId: "not-a-uuid",
+        description: "desc",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("categoryId");
+    });
+
+    it("invalid slug format returns 400", async () => {
+      const request = makePostRequest({
+        title: "Test",
+        slug: "INVALID SLUG!",
+        organizationId: "550e8400-e29b-41d4-a716-446655440000",
+        description: "desc",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("slug");
+    });
+
+    it("salaryMax < salaryMin returns 400", async () => {
+      const request = makePostRequest({
+        title: "Test",
+        slug: "test",
+        organizationId: "550e8400-e29b-41d4-a716-446655440000",
+        description: "desc",
+        salaryMin: 50000,
+        salaryMax: 30000,
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("salaryMax");
+    });
+
+    it("experienceMax < experienceMin returns 400", async () => {
+      const request = makePostRequest({
+        title: "Test",
+        slug: "test",
+        organizationId: "550e8400-e29b-41d4-a716-446655440000",
+        description: "desc",
+        experienceMin: 5,
+        experienceMax: 2,
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("experienceMax");
+    });
+  });
+
+  describe("successful creation", () => {
+    it("required fields only returns 201", async () => {
+      mockInsertSuccess(CREATED_JOB);
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.item).toBeDefined();
+      expect(data.item.title).toBe("Software Engineer");
+      expect(data.item.slug).toBe("software-engineer");
+    });
+
+    it("all supported optional fields returns 201", async () => {
+      mockInsertSuccess(CREATED_JOB_ALL_FIELDS);
+
+      const request = makePostRequest({
+        title: "Senior Software Engineer",
+        slug: "senior-software-engineer",
+        organizationId: "550e8400-e29b-41d4-a716-446655440000",
+        categoryId: "110e8400-e29b-41d4-a716-446655440010",
+        professionId: "110e8400-e29b-41d4-a716-446655440011",
+        locationId: "110e8400-e29b-41d4-a716-446655440012",
+        description: "A senior software engineering role",
+        responsibilities: "Lead team",
+        requirements: "5+ years experience",
+        educationRequirements: "BS in CS",
+        benefits: "Health insurance",
+        experienceMin: 5,
+        experienceMax: 10,
+        employmentType: "FULL_TIME",
+        salaryMin: 50000,
+        salaryMax: 100000,
+        salaryCurrency: "USD",
+        salaryPeriod: "YEARLY",
+        postedAt: "2026-08-01T00:00:00.000Z",
+        deadline: "2026-09-01T00:00:00.000Z",
+        applicationUrl: "https://example.com/apply",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.item.title).toBe("Senior Software Engineer");
+      expect(data.item.categoryId).toBe("110e8400-e29b-41d4-a716-446655440010");
+      expect(data.item.professionId).toBe("110e8400-e29b-41d4-a716-446655440011");
+      expect(data.item.locationId).toBe("110e8400-e29b-41d4-a716-446655440012");
+      expect(data.item.employmentType).toBe("FULL_TIME");
+      expect(data.item.salaryPeriod).toBe("YEARLY");
+    });
+
+    it("response is exactly shaped as { item: ... }", async () => {
+      mockInsertSuccess(CREATED_JOB);
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(Object.keys(data)).toEqual(["item"]);
+    });
+
+    it("status defaults to DRAFT", async () => {
+      mockInsertSuccess(CREATED_JOB);
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(data.item.status).toBe("DRAFT");
+    });
+
+    it("verificationStatus defaults to PENDING", async () => {
+      mockInsertSuccess(CREATED_JOB);
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(data.item.verificationStatus).toBe("PENDING");
+    });
+
+    it("correct organizationId is inserted", async () => {
+      mockInsertSuccess(CREATED_JOB);
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(data.item.organizationId).toBe("550e8400-e29b-41d4-a716-446655440000");
+    });
+
+    it("optional FK fields are null when omitted", async () => {
+      mockInsertSuccess(CREATED_JOB);
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(data.item.categoryId).toBeNull();
+      expect(data.item.professionId).toBeNull();
+      expect(data.item.locationId).toBeNull();
+    });
+
+    it("created job is returned with all fields", async () => {
+      mockInsertSuccess(CREATED_JOB);
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(data.item.id).toBeDefined();
+      expect(data.item.title).toBeDefined();
+      expect(data.item.slug).toBeDefined();
+      expect(data.item.organizationId).toBeDefined();
+      expect(data.item.description).toBeDefined();
+      expect(data.item.status).toBeDefined();
+      expect(data.item.verificationStatus).toBeDefined();
+      expect(data.item.createdAt).toBeDefined();
+      expect(data.item.updatedAt).toBeDefined();
+    });
+  });
+
+  describe("database", () => {
+    it("nonexistent organizationId is handled safely", async () => {
+      mockInsertDbError(
+        'insert or update on table "jobs" violates foreign key constraint',
+      );
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe("Internal server error");
+    });
+
+    it("slug collision retries succeed on second attempt", async () => {
+      const retryJob = { ...CREATED_JOB, slug: "software-engineer-1" };
+      mockInsertSlugConflict(retryJob);
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.item.slug).toBe("software-engineer-1");
+    });
+
+    it("retries are bounded to MAX_SLUG_RETRIES + 1 attempts", async () => {
+      mockInsertAllFail();
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+
+      expect(response.status).toBe(409);
+      expect(mockInsert).toHaveBeenCalledTimes(11);
+    });
+
+    it("exhausted slug retries returns 409", async () => {
+      mockInsertAllFail();
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(409);
+      expect(data.error).toBe("Job slug already exists");
+    });
+
+    it("DB error returns 500", async () => {
+      mockInsertDbError("DB connection failed");
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe("Internal server error");
+    });
+
+    it("raw DB error details are not leaked", async () => {
+      mockInsertDbError("SECRET_DB_PASSWORD=xyz connection refused");
+
+      const request = makePostRequest(VALID_POST_BODY);
+      const response = await POST(request);
+      const body = await response.text();
+
+      expect(body).not.toContain("SECRET_DB_PASSWORD");
+      expect(body).not.toContain("xyz");
+    });
+
+    it("malformed JSON body returns 400", async () => {
+      const request = new Request("http://localhost/api/jobs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": API_KEY,
+        },
+        body: "not valid json",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe("Invalid JSON body");
+    });
   });
 });
