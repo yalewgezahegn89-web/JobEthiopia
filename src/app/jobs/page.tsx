@@ -48,6 +48,13 @@ function uniqueFilterOptions(
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function uniqueEmploymentTypes(items: PublicJobSummary[]): string[] {
+  const values = items
+    .map((item) => item.employmentType)
+    .filter((value): value is string => Boolean(value));
+  return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+}
+
 export default async function JobsPage({
   searchParams,
 }: {
@@ -59,6 +66,7 @@ export default async function JobsPage({
   const categoryId = firstValue(params.categoryId);
   const professionId = firstValue(params.professionId);
   const locationId = firstValue(params.locationId);
+  const employmentType = firstValue(params.employmentType);
   const page = toPositiveInteger(firstValue(params.page), 1);
 
   let result: PublicJobList | null = null;
@@ -70,6 +78,7 @@ export default async function JobsPage({
       categoryId,
       professionId,
       locationId,
+      employmentType,
       page,
       limit: 20,
     });
@@ -114,6 +123,7 @@ export default async function JobsPage({
     (item) => item.locationId,
     (item) => item.locationName,
   );
+  const employmentTypes = uniqueEmploymentTypes(items);
 
   function hrefWithPage(targetPage: number): string {
     const query = new URLSearchParams();
@@ -128,6 +138,9 @@ export default async function JobsPage({
     }
     if (locationId) {
       query.set("locationId", locationId);
+    }
+    if (employmentType) {
+      query.set("employmentType", employmentType);
     }
     query.set("page", String(targetPage));
     return `?${query.toString()}`;
@@ -157,7 +170,7 @@ export default async function JobsPage({
           className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
         />
 
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <label htmlFor="categoryId" className="text-sm font-semibold">
               Category
@@ -214,10 +227,29 @@ export default async function JobsPage({
               ))}
             </select>
           </div>
+
+          <div>
+            <label htmlFor="employmentType" className="text-sm font-semibold">
+              Employment Type
+            </label>
+            <select
+              id="employmentType"
+              name="employmentType"
+              defaultValue={employmentType ?? ""}
+              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+            >
+              <option value="">Any</option>
+              {employmentTypes.map((value) => (
+                <option key={value} value={value}>
+                  {value.replace("_", " ")}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <div className="flex flex-wrap justify-end gap-2">
-          {(q || categoryId || professionId || locationId) && (
+          {(q || categoryId || professionId || locationId || employmentType) && (
             <Link
               href="/jobs"
               className="rounded-md px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"

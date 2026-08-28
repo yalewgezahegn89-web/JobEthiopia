@@ -398,6 +398,18 @@ describe("fetchJobById", () => {
     expect(job?.applicationUrl).toBe("https://example.com/apply");
   });
 
+  it("maps the verificationStatus field", async () => {
+    const fetcher = makeFetcher(jsonResponse({ item: FULL_JOB_ITEM }));
+
+    const job = await fetchJobById(FULL_JOB_ITEM.id, {
+      baseUrl: BASE_URL,
+      fetcher,
+    });
+
+    expect(job).not.toBeNull();
+    expect(job?.verificationStatus).toBe("VERIFIED");
+  });
+
   it("returns null when the job is not found (404)", async () => {
     const fetcher = makeFetcher(jsonResponse({ error: "Job not found" }, 404));
 
@@ -505,6 +517,13 @@ describe("view model mappers", () => {
     expect(detail.applicationUrl).toBeNull();
     expect(detail.salaryText).toBeNull();
     expect(detail.experienceMin).toBeNull();
+    expect(detail.verificationStatus).toBeNull();
+  });
+
+  it("toPublicJobDetail maps verificationStatus", () => {
+    const detail = toPublicJobDetail({ verificationStatus: "VERIFIED" });
+
+    expect(detail.verificationStatus).toBe("VERIFIED");
   });
 
   it("toPublicJobDetail coerces string description", () => {

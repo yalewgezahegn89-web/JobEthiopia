@@ -56,6 +56,7 @@ export type PublicJobDetail = {
   deadline: string | null;
   postedAt: string | null;
   applicationUrl: string | null;
+  verificationStatus: string | null;
 };
 
 export type PublicJobList = {
@@ -223,6 +224,10 @@ export function toPublicJobDetail(raw: Record<string, unknown>): PublicJobDetail
       raw.postedAt != null ? String(raw.postedAt) : null,
     applicationUrl:
       typeof raw.applicationUrl === "string" ? raw.applicationUrl : null,
+    verificationStatus:
+      typeof raw.verificationStatus === "string"
+        ? raw.verificationStatus
+        : null,
   };
 }
 

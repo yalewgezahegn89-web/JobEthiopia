@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fetchJobById, type PublicJobDetail } from "@/lib/jobs/public";
+import { fetchJobById, formatDate, type PublicJobDetail } from "@/lib/jobs/public";
 
 export const dynamic = "force-dynamic";
 
@@ -73,6 +73,7 @@ export default async function JobPage({
 
   const employmentType = formatEmploymentType(job.employmentType);
   const experience = experienceText(job.experienceMin, job.experienceMax);
+  const postedText = formatDate(job.postedAt);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8">
@@ -116,6 +117,16 @@ export default async function JobPage({
                 {experience}
               </span>
             )}
+            {postedText && (
+              <span className="rounded-md bg-gray-100 px-2 py-1 dark:bg-gray-800">
+                Posted {postedText}
+              </span>
+            )}
+            {job.verificationStatus === "VERIFIED" && (
+              <span className="rounded-md bg-green-100 px-2 py-1 font-semibold text-green-800 dark:bg-green-900 dark:text-green-200">
+                Verified
+              </span>
+            )}
           </div>
 
           <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
@@ -131,22 +142,23 @@ export default async function JobPage({
                 <dd className="font-semibold">{job.deadlineText}</dd>
               </div>
             )}
-            {job.applicationUrl && (
-              <div className="flex justify-between gap-4 rounded-md border border-gray-200 px-3 py-2 sm:col-span-2 dark:border-gray-800">
-                <dt className="text-gray-500 dark:text-gray-400">Apply</dt>
-                <dd>
-                  <a
-                    href={job.applicationUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
-                  >
-                    Go to application page
-                  </a>
-                </dd>
-              </div>
-            )}
           </dl>
+
+          {job.applicationUrl && (
+            <div className="mt-4 rounded-md border border-gray-200 p-4 text-center dark:border-gray-800">
+              <a
+                href={job.applicationUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex w-full items-center justify-center rounded-md bg-gray-900 px-6 py-3 text-base font-semibold text-white hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300 sm:w-auto"
+              >
+                Apply Now
+              </a>
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Opens an external application page.
+              </p>
+            </div>
+          )}
         </header>
 
         <div className="mt-8 space-y-6 text-sm leading-7 text-gray-700 dark:text-gray-200">
