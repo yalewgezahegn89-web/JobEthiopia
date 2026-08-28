@@ -68,6 +68,16 @@ export const createSourceSchema = z.object({
   trustLevel: TrustLevel.optional().default("MEDIUM"),
 });
 
+export const updateSourceSchema = z
+  .object({
+    name: z.string().min(1, "Name is required"),
+    sourceType: SourceType,
+    baseUrl: z.string().url().nullable(),
+    isActive: z.boolean(),
+    trustLevel: TrustLevel,
+  })
+  .partial();
+
 export const createJobSchema = z
   .object({
     title: z.string().min(1, "Title is required"),
@@ -128,6 +138,7 @@ export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type CreateProfessionInput = z.infer<typeof createProfessionSchema>;
 export type CreateSourceInput = z.infer<typeof createSourceSchema>;
+export type UpdateSourceInput = z.infer<typeof updateSourceSchema>;
 export type CreateJobInput = z.infer<typeof createJobSchema>;
 export type CreateJobSourceInput = z.infer<typeof createJobSourceSchema>;
 export type CreateCareerArticleInput = z.infer<typeof createCareerArticleSchema>;
