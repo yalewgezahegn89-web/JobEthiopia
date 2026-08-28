@@ -8,6 +8,7 @@ import {
   professions,
   sources,
   jobs,
+  careerArticles,
 } from "./schema";
 
 const pool = new Pool({
@@ -182,6 +183,24 @@ async function seed() {
     .returning();
 
   console.log("Jobs seeded.");
+
+  // Career Articles
+  await db
+    .insert(careerArticles)
+    .values({
+      title: "How to Write a Professional CV",
+      slug: "how-to-write-a-professional-cv",
+      excerpt: "Tips for crafting a standout CV for the Ethiopian job market",
+      content:
+        "A well-written CV is your first opportunity to make a great impression. This guide covers formatting, content, and tailoring your CV for specific roles in Ethiopia.",
+      category: "Career Tips",
+      status: "PUBLISHED",
+      publishedAt: new Date("2026-01-20"),
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  console.log("Career Articles seeded.");
   console.log("Seed complete.");
   await pool.end();
 }

@@ -161,4 +161,7 @@ export const updateJobSchema = z
 export type UpdateJobInput = z.infer<typeof updateJobSchema>;
 export type CreateJobInput = z.infer<typeof createJobSchema>;
 export type CreateJobSourceInput = z.infer<typeof createJobSourceSchema>;
+export const updateCareerArticleSchema = createCareerArticleSchema.partial();
+
 export type CreateCareerArticleInput = z.infer<typeof createCareerArticleSchema>;
+export type UpdateCareerArticleInput = z.infer<typeof updateCareerArticleSchema>;
