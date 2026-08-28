@@ -63,6 +63,42 @@ export async function GET(
   }
 }
 
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const authError = checkApiKey(request);
+  if (authError) return authError;
+
+  const { id } = await params;
+
+  const parsedId = jobIdParamSchema.safeParse({ id });
+  if (!parsedId.success) {
+    const issue = parsedId.error.issues[0];
+    const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+    return jsonError(`${path}${issue.message}`, 400);
+  }
+
+  try {
+    const existing = await db.query.jobs.findFirst({
+      where: eq(jobs.id, parsedId.data.id),
+      columns: { id: true },
+    });
+
+    if (!existing) {
+      return jsonError("Job not found", 404);
+    }
+
+    await db
+      .delete(jobs)
+      .where(eq(jobs.id, parsedId.data.id));
+
+    return NextResponse.json({ success: true });
+  } catch {
+    return jsonError("Internal server error", 500);
+  }
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },

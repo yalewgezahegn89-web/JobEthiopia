@@ -6,6 +6,7 @@ const mockDbSelect = vi.fn();
 const mockDbFrom = vi.fn();
 const mockDbWhere = vi.fn();
 const mockDbUpdate = vi.fn();
+const mockDbDelete = vi.fn();
 
 vi.mock("../../../db", () => {
   const chainable = {
@@ -38,6 +39,7 @@ vi.mock("../../../db", () => {
         };
       },
       update: (...args: unknown[]) => mockDbUpdate(...args),
+      delete: (...args: unknown[]) => mockDbDelete(...args),
     },
   };
 });
@@ -57,7 +59,7 @@ vi.mock("../../../db/schema/jobs", () => ({
 }));
 
 import { GET } from "../../../app/api/jobs/route";
-import { GET as GET_BY_ID, PATCH } from "../../../app/api/jobs/[id]/route";
+import { GET as GET_BY_ID, PATCH, DELETE } from "../../../app/api/jobs/[id]/route";
 
 const SAMPLE_JOB = {
   id: "550e8400-e29b-41d4-a716-446655440000",
@@ -999,8 +1001,171 @@ describe("PATCH /api/jobs/[id]", () => {
         expect(response.status).toBe(409);
         expect(data).toEqual({
           error: "Invalid status transition from EXPIRED to PENDING_REVIEW",
-        });
-      });
     });
+  });
+});
+
+function makeDeleteRequest(
+  id: string,
+  headers?: Record<string, string>,
+): Request {
+  return new Request(`http://localhost/api/jobs/${id}`, {
+    method: "DELETE",
+    headers: {
+      "x-api-key": API_KEY,
+      ...headers,
+    },
+  });
+}
+
+function mockDeleteSuccess() {
+  mockDbDelete.mockReturnValue({
+    where: vi.fn().mockResolvedValue([]),
+  });
+}
+
+describe("DELETE /api/jobs/[id]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("INGESTION_API_KEY", API_KEY);
+    mockJobsFindFirst.mockResolvedValue({ id: VALID_ID });
+  });
+
+  describe("authentication", () => {
+    it("missing API key returns 401", async () => {
+      const request = makeDeleteRequest(VALID_ID, { "x-api-key": "" });
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("invalid API key returns 401", async () => {
+      const request = makeDeleteRequest(VALID_ID, { "x-api-key": "wrong-key" });
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("API key is not reflected in error response", async () => {
+      const request = makeDeleteRequest(VALID_ID, { "x-api-key": "secret-key-value" });
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const body = await response.text();
+
+      expect(body).not.toContain("secret-key-value");
+    });
+  });
+
+  describe("validation", () => {
+    it("invalid UUID returns 400", async () => {
+      const request = makeDeleteRequest("not-a-uuid");
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: "not-a-uuid" }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("id");
+    });
+  });
+
+  describe("not found", () => {
+    it("returns 404 when job does not exist", async () => {
+      mockJobsFindFirst.mockResolvedValue(null);
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe("Job not found");
+    });
+  });
+
+  describe("successful delete", () => {
+    it("deletes existing job returns 200", async () => {
+      mockDeleteSuccess();
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.success).toBe(true);
+    });
+
+    it("response is exactly { success: true }", async () => {
+      mockDeleteSuccess();
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(data).toEqual({ success: true });
+    });
+
+    it("delete is called with correct job ID", async () => {
+      mockDeleteSuccess();
+
+      const request = makeDeleteRequest(VALID_ID);
+      await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(mockDbDelete).toHaveBeenCalled();
+    });
+  });
+
+  describe("error handling", () => {
+    it("database error returns 500", async () => {
+      mockJobsFindFirst.mockResolvedValue({ id: VALID_ID });
+      mockDbDelete.mockReturnValue({
+        where: vi.fn().mockRejectedValue(new Error("DB connection failed")),
+      });
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe("Internal server error");
+    });
+
+    it("DB error details are not leaked", async () => {
+      mockJobsFindFirst.mockResolvedValue({ id: VALID_ID });
+      mockDbDelete.mockReturnValue({
+        where: vi.fn().mockRejectedValue(
+          new Error("SECRET_DB_PASSWORD=xyz connection refused"),
+        ),
+      });
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const body = await response.text();
+
+      expect(body).not.toContain("SECRET_DB_PASSWORD");
+      expect(body).not.toContain("xyz");
+    });
+  });
+});
   });
 });
