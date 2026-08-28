@@ -16,6 +16,7 @@ export async function GET(request: Request) {
     limit: searchParams.get("limit") ?? undefined,
     status: searchParams.get("status") ?? undefined,
     employmentType: searchParams.get("employmentType") ?? undefined,
+    organizationId: searchParams.get("organizationId") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
     return jsonError(`${path}${issue.message}`, 400);
   }
 
-  const { page, limit, status, employmentType } = parsed.data;
+  const { page, limit, status, employmentType, organizationId } = parsed.data;
   const offset = (page - 1) * limit;
 
   try {
@@ -34,6 +35,9 @@ export async function GET(request: Request) {
     }
     if (employmentType) {
       conditions.push(eq(jobs.employmentType, employmentType));
+    }
+    if (organizationId) {
+      conditions.push(eq(jobs.organizationId, organizationId));
     }
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;

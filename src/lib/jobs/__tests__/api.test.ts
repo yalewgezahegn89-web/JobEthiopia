@@ -47,6 +47,7 @@ vi.mock("../../../db/schema/jobs", () => ({
     id: "jobs.id",
     title: "jobs.title",
     slug: "jobs.slug",
+    organizationId: "jobs.organizationId",
     status: "jobs.status",
     verificationStatus: "jobs.verificationStatus",
     employmentType: "jobs.employmentType",
@@ -197,6 +198,15 @@ describe("GET /api/jobs", () => {
       expect(response.status).toBe(400);
       expect(data.error).toContain("employmentType");
     });
+
+    it("invalid organizationId returns 400", async () => {
+      const request = makeJobListRequest({ organizationId: "not-a-uuid" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("organizationId");
+    });
   });
 
   describe("filtering", () => {
@@ -212,6 +222,78 @@ describe("GET /api/jobs", () => {
       const response = await GET(request);
 
       expect(response.status).toBe(200);
+    });
+
+    it("organizationId filter is passed to DB query", async () => {
+      const orgId = "123e4567-e89b-12d3-a456-426614174000";
+      const request = makeJobListRequest({ organizationId: orgId });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+    });
+
+    it("organizationId combines with status", async () => {
+      const orgId = "123e4567-e89b-12d3-a456-426614174000";
+      const request = makeJobListRequest({
+        organizationId: orgId,
+        status: "PUBLISHED",
+      });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+    });
+
+    it("organizationId combines with employmentType", async () => {
+      const orgId = "123e4567-e89b-12d3-a456-426614174000";
+      const request = makeJobListRequest({
+        organizationId: orgId,
+        employmentType: "FULL_TIME",
+      });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+    });
+
+    it("organizationId combines with status and employmentType", async () => {
+      const orgId = "123e4567-e89b-12d3-a456-426614174000";
+      const request = makeJobListRequest({
+        organizationId: orgId,
+        status: "PUBLISHED",
+        employmentType: "FULL_TIME",
+      });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+    });
+
+    it("nonexistent organizationId returns empty results", async () => {
+      mockJobsFindMany.mockResolvedValue([]);
+      mockDbSelect.mockReturnValue({
+        from: vi.fn().mockResolvedValue([{ count: 0 }]),
+      });
+
+      const orgId = "00000000-0000-0000-0000-000000000000";
+      const request = makeJobListRequest({ organizationId: orgId });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(0);
+      expect(data.pagination.total).toBe(0);
+    });
+
+    it("omitted organizationId preserves existing behavior", async () => {
+      mockJobsFindMany.mockResolvedValue([SAMPLE_JOB]);
+      mockDbSelect.mockReturnValue({
+        from: vi.fn().mockResolvedValue([{ count: 1 }]),
+      });
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(1);
     });
   });
 
@@ -374,7 +456,10 @@ describe("PATCH /api/jobs/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("INGESTION_API_KEY", API_KEY);
-    mockJobsFindFirst.mockResolvedValue({ id: "550e8400-e29b-41d4-a716-446655440000" });
+    mockJobsFindFirst.mockResolvedValue({
+      id: "550e8400-e29b-41d4-a716-446655440000",
+      status: "DRAFT",
+    });
   });
 
   describe("authentication", () => {
@@ -545,6 +630,377 @@ describe("PATCH /api/jobs/[id]", () => {
 
       expect(body).not.toContain("SECRET_DB_PASSWORD");
       expect(body).not.toContain("xyz");
+    });
+  });
+
+  describe("status transition rules", () => {
+    describe("valid transitions", () => {
+      it("DRAFT → PENDING_REVIEW returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+        mockUpdateSuccess({ ...UPDATED_JOB, status: "PENDING_REVIEW", verificationStatus: undefined as never });
+
+        const request = makePatchRequest(VALID_ID, { status: "PENDING_REVIEW" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("PENDING_REVIEW");
+      });
+
+      it("DRAFT → PUBLISHED returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+        mockUpdateSuccess(UPDATED_JOB);
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("PUBLISHED");
+      });
+
+      it("DRAFT → REMOVED returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+        mockUpdateSuccess({ ...UPDATED_JOB, status: "REMOVED", verificationStatus: undefined as never });
+
+        const request = makePatchRequest(VALID_ID, { status: "REMOVED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("REMOVED");
+      });
+
+      it("PENDING_REVIEW → DRAFT returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PENDING_REVIEW" });
+        mockUpdateSuccess({ ...UPDATED_JOB, status: "DRAFT", verificationStatus: undefined as never });
+
+        const request = makePatchRequest(VALID_ID, { status: "DRAFT" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("DRAFT");
+      });
+
+      it("PENDING_REVIEW → PUBLISHED returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PENDING_REVIEW" });
+        mockUpdateSuccess(UPDATED_JOB);
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("PUBLISHED");
+      });
+
+      it("PENDING_REVIEW → REMOVED returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PENDING_REVIEW" });
+        mockUpdateSuccess({ ...UPDATED_JOB, status: "REMOVED", verificationStatus: undefined as never });
+
+        const request = makePatchRequest(VALID_ID, { status: "REMOVED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("REMOVED");
+      });
+
+      it("PUBLISHED → EXPIRED returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PUBLISHED" });
+        mockUpdateSuccess({ ...UPDATED_JOB, status: "EXPIRED", verificationStatus: undefined as never });
+
+        const request = makePatchRequest(VALID_ID, { status: "EXPIRED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("EXPIRED");
+      });
+
+      it("PUBLISHED → REMOVED returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PUBLISHED" });
+        mockUpdateSuccess({ ...UPDATED_JOB, status: "REMOVED", verificationStatus: undefined as never });
+
+        const request = makePatchRequest(VALID_ID, { status: "REMOVED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("REMOVED");
+      });
+
+      it("EXPIRED → REMOVED returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "EXPIRED" });
+        mockUpdateSuccess({ ...UPDATED_JOB, status: "REMOVED", verificationStatus: undefined as never });
+
+        const request = makePatchRequest(VALID_ID, { status: "REMOVED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("REMOVED");
+      });
+    });
+
+    describe("invalid transitions", () => {
+      it("PUBLISHED → DRAFT returns 409", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PUBLISHED" });
+
+        const request = makePatchRequest(VALID_ID, { status: "DRAFT" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(data.error).toBe("Invalid status transition from PUBLISHED to DRAFT");
+      });
+
+      it("PUBLISHED → PENDING_REVIEW returns 409", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PUBLISHED" });
+
+        const request = makePatchRequest(VALID_ID, { status: "PENDING_REVIEW" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(data.error).toBe("Invalid status transition from PUBLISHED to PENDING_REVIEW");
+      });
+
+      it("EXPIRED → PUBLISHED returns 409", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "EXPIRED" });
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(data.error).toBe("Invalid status transition from EXPIRED to PUBLISHED");
+      });
+
+      it("EXPIRED → DRAFT returns 409", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "EXPIRED" });
+
+        const request = makePatchRequest(VALID_ID, { status: "DRAFT" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(data.error).toBe("Invalid status transition from EXPIRED to DRAFT");
+      });
+
+      it("EXPIRED → PENDING_REVIEW returns 409", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "EXPIRED" });
+
+        const request = makePatchRequest(VALID_ID, { status: "PENDING_REVIEW" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(data.error).toBe("Invalid status transition from EXPIRED to PENDING_REVIEW");
+      });
+
+      it("REMOVED → PUBLISHED returns 409", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "REMOVED" });
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(data.error).toBe("Invalid status transition from REMOVED to PUBLISHED");
+      });
+
+      it("REMOVED → DRAFT returns 409", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "REMOVED" });
+
+        const request = makePatchRequest(VALID_ID, { status: "DRAFT" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(data.error).toBe("Invalid status transition from REMOVED to DRAFT");
+      });
+
+      it("REMOVED → EXPIRED returns 409", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "REMOVED" });
+
+        const request = makePatchRequest(VALID_ID, { status: "EXPIRED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(data.error).toBe("Invalid status transition from REMOVED to EXPIRED");
+      });
+
+      it("DRAFT → EXPIRED returns 409", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+
+        const request = makePatchRequest(VALID_ID, { status: "EXPIRED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(data.error).toBe("Invalid status transition from DRAFT to EXPIRED");
+      });
+
+      it("invalid transition does not call DB update", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "REMOVED" });
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+        await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+
+        expect(mockDbUpdate).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("same-status updates", () => {
+      it("PUBLISHED → PUBLISHED returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PUBLISHED" });
+        mockUpdateSuccess(UPDATED_JOB);
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("PUBLISHED");
+      });
+
+      it("DRAFT → DRAFT returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+        mockUpdateSuccess({ ...UPDATED_JOB, status: "DRAFT", verificationStatus: undefined as never });
+
+        const request = makePatchRequest(VALID_ID, { status: "DRAFT" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("DRAFT");
+      });
+
+      it("REMOVED → REMOVED returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "REMOVED" });
+        mockUpdateSuccess({ ...UPDATED_JOB, status: "REMOVED", verificationStatus: undefined as never });
+
+        const request = makePatchRequest(VALID_ID, { status: "REMOVED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("REMOVED");
+      });
+    });
+
+    describe("verificationStatus independence", () => {
+      it("verificationStatus-only update works from any status", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "REMOVED" });
+        mockUpdateSuccess({ ...UPDATED_JOB, status: "REMOVED", verificationStatus: "VERIFIED" });
+
+        const request = makePatchRequest(VALID_ID, { verificationStatus: "VERIFIED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.verificationStatus).toBe("VERIFIED");
+      });
+
+      it("combined valid status + verificationStatus returns 200", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+        mockUpdateSuccess(UPDATED_JOB);
+
+        const request = makePatchRequest(VALID_ID, {
+          status: "PUBLISHED",
+          verificationStatus: "VERIFIED",
+        });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("PUBLISHED");
+        expect(data.item.verificationStatus).toBe("VERIFIED");
+      });
+
+      it("combined invalid status + verificationStatus returns 409", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "REMOVED" });
+
+        const request = makePatchRequest(VALID_ID, {
+          status: "PUBLISHED",
+          verificationStatus: "VERIFIED",
+        });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(data.error).toBe("Invalid status transition from REMOVED to PUBLISHED");
+      });
+    });
+
+    describe("error response shape", () => {
+      it("invalid transition response has exact expected error", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "EXPIRED" });
+
+        const request = makePatchRequest(VALID_ID, { status: "PENDING_REVIEW" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(409);
+        expect(data).toEqual({
+          error: "Invalid status transition from EXPIRED to PENDING_REVIEW",
+        });
+      });
     });
   });
 });

@@ -24,6 +24,7 @@ export const jobListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   status: z.enum(jobStatusValues).optional(),
   employmentType: z.enum(employmentTypeValues).optional(),
+  organizationId: z.string().uuid().optional(),
 });
 
 export type JobListQuery = z.infer<typeof jobListQuerySchema>;

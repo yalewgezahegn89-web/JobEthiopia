@@ -5,6 +5,16 @@ import { jobs } from "@/db/schema/jobs";
 import { jobIdParamSchema } from "@/lib/validations/jobQuery";
 import { updateJobSchema } from "@/lib/validations";
 
+type JobStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "EXPIRED" | "REMOVED";
+
+const VALID_STATUS_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
+  DRAFT: ["PENDING_REVIEW", "PUBLISHED", "REMOVED"],
+  PENDING_REVIEW: ["DRAFT", "PUBLISHED", "REMOVED"],
+  PUBLISHED: ["EXPIRED", "REMOVED"],
+  EXPIRED: ["REMOVED"],
+  REMOVED: [],
+};
+
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -86,11 +96,26 @@ export async function PATCH(
   try {
     const existing = await db.query.jobs.findFirst({
       where: eq(jobs.id, parsedId.data.id),
-      columns: { id: true },
+      columns: { id: true, status: true },
     });
 
     if (!existing) {
       return jsonError("Job not found", 404);
+    }
+
+    if (parsed.data.status !== undefined) {
+      const currentStatus = existing.status as JobStatus;
+      const requestedStatus = parsed.data.status;
+
+      if (currentStatus !== requestedStatus) {
+        const allowed = VALID_STATUS_TRANSITIONS[currentStatus];
+        if (!allowed.includes(requestedStatus)) {
+          return jsonError(
+            `Invalid status transition from ${currentStatus} to ${requestedStatus}`,
+            409,
+          );
+        }
+      }
     }
 
     const [updated] = await db
