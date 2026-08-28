@@ -3,9 +3,71 @@ import { desc, eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { sources } from "@/db/schema/sources";
 import { sourceListQuerySchema } from "@/lib/validations/sourceQuery";
+import { createSourceSchema } from "@/lib/validations";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function checkApiKey(request: Request): Response | null {
+  const configuredKey = process.env.INGESTION_API_KEY;
+
+  if (!configuredKey) {
+    return jsonError("Server configuration error", 500);
+  }
+
+  const providedKey = request.headers.get("x-api-key");
+
+  if (!providedKey || providedKey !== configuredKey) {
+    return jsonError("Unauthorized", 401);
+  }
+
+  return null;
+}
+
+export async function POST(request: Request) {
+  const authError = checkApiKey(request);
+  if (authError) return authError;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError("Invalid JSON body", 400);
+  }
+
+  const parsed = createSourceSchema.safeParse(body);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+    return jsonError(`${path}${issue.message}`, 400);
+  }
+
+  try {
+    const [created] = await db
+      .insert(sources)
+      .values(parsed.data)
+      .returning({
+        id: sources.id,
+        name: sources.name,
+        sourceType: sources.sourceType,
+        baseUrl: sources.baseUrl,
+        isActive: sources.isActive,
+        trustLevel: sources.trustLevel,
+        createdAt: sources.createdAt,
+        updatedAt: sources.updatedAt,
+      });
+
+    return NextResponse.json({ item: created }, { status: 201 });
+  } catch (err: unknown) {
+    if (
+      err instanceof Error &&
+      err.message.includes("sources_name_unique")
+    ) {
+      return jsonError("Source name already exists", 409);
+    }
+    return jsonError("Internal server error", 500);
+  }
 }
 
 export async function GET(request: Request) {
