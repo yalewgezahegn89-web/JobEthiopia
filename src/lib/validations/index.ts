@@ -134,7 +134,10 @@ export const createJobSourceSchema = z.object({
 });
 
 export type CreateLocationInput = z.infer<typeof createLocationSchema>;
+export const updateOrganizationSchema = createOrganizationSchema.partial();
+
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
+export type UpdateOrganizationInput = z.infer<typeof updateOrganizationSchema>;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type CreateProfessionInput = z.infer<typeof createProfessionSchema>;
 export type CreateSourceInput = z.infer<typeof createSourceSchema>;
