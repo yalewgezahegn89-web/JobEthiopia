@@ -31,6 +31,8 @@ export const createLocationSchema = z.object({
   isActive: z.boolean().optional().default(true),
 });
 
+export const updateLocationSchema = createLocationSchema.partial();
+
 export const createOrganizationSchema = z.object({
   name: z.string().min(1, "Name is required"),
   slug: z.string().regex(slugRegex, "Slug must be lowercase alphanumeric with hyphens"),
@@ -134,6 +136,7 @@ export const createJobSourceSchema = z.object({
 });
 
 export type CreateLocationInput = z.infer<typeof createLocationSchema>;
+export type UpdateLocationInput = z.infer<typeof updateLocationSchema>;
 export const updateOrganizationSchema = createOrganizationSchema.partial();
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
