@@ -3,9 +3,26 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { jobIdParamSchema } from "@/lib/validations/jobQuery";
+import { updateJobSchema } from "@/lib/validations";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function checkApiKey(request: Request): Response | null {
+  const configuredKey = process.env.INGESTION_API_KEY;
+
+  if (!configuredKey) {
+    return jsonError("Server configuration error", 500);
+  }
+
+  const providedKey = request.headers.get("x-api-key");
+
+  if (!providedKey || providedKey !== configuredKey) {
+    return jsonError("Unauthorized", 401);
+  }
+
+  return null;
 }
 
 export async function GET(
@@ -32,6 +49,72 @@ export async function GET(
 
     return NextResponse.json({ item: job });
   } catch {
+    return jsonError("Internal server error", 500);
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const authError = checkApiKey(request);
+  if (authError) return authError;
+
+  const { id } = await params;
+
+  const parsedId = jobIdParamSchema.safeParse({ id });
+  if (!parsedId.success) {
+    const issue = parsedId.error.issues[0];
+    const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+    return jsonError(`${path}${issue.message}`, 400);
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError("Invalid JSON body", 400);
+  }
+
+  const parsed = updateJobSchema.safeParse(body);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
+    return jsonError(`${path}${issue.message}`, 400);
+  }
+
+  try {
+    const existing = await db.query.jobs.findFirst({
+      where: eq(jobs.id, parsedId.data.id),
+      columns: { id: true },
+    });
+
+    if (!existing) {
+      return jsonError("Job not found", 404);
+    }
+
+    const [updated] = await db
+      .update(jobs)
+      .set(parsed.data)
+      .where(eq(jobs.id, parsedId.data.id))
+      .returning({
+        id: jobs.id,
+        title: jobs.title,
+        slug: jobs.slug,
+        status: jobs.status,
+        verificationStatus: jobs.verificationStatus,
+        createdAt: jobs.createdAt,
+        updatedAt: jobs.updatedAt,
+      });
+
+    return NextResponse.json({ item: updated });
+  } catch (err: unknown) {
+    if (
+      err instanceof Error &&
+      err.message.includes("jobs_slug_unique")
+    ) {
+      return jsonError("Job slug already exists", 409);
+    }
     return jsonError("Internal server error", 500);
   }
 }

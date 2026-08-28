@@ -5,6 +5,7 @@ const mockJobsFindFirst = vi.fn();
 const mockDbSelect = vi.fn();
 const mockDbFrom = vi.fn();
 const mockDbWhere = vi.fn();
+const mockDbUpdate = vi.fn();
 
 vi.mock("../../../db", () => {
   const chainable = {
@@ -36,6 +37,7 @@ vi.mock("../../../db", () => {
           },
         };
       },
+      update: (...args: unknown[]) => mockDbUpdate(...args),
     },
   };
 });
@@ -43,14 +45,18 @@ vi.mock("../../../db", () => {
 vi.mock("../../../db/schema/jobs", () => ({
   jobs: {
     id: "jobs.id",
+    title: "jobs.title",
+    slug: "jobs.slug",
     status: "jobs.status",
+    verificationStatus: "jobs.verificationStatus",
     employmentType: "jobs.employmentType",
     createdAt: "jobs.createdAt",
+    updatedAt: "jobs.updatedAt",
   },
 }));
 
 import { GET } from "../../../app/api/jobs/route";
-import { GET as GET_BY_ID } from "../../../app/api/jobs/[id]/route";
+import { GET as GET_BY_ID, PATCH } from "../../../app/api/jobs/[id]/route";
 
 const SAMPLE_JOB = {
   id: "550e8400-e29b-41d4-a716-446655440000",
@@ -305,6 +311,234 @@ describe("GET /api/jobs/[id]", () => {
 
       const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
       const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const body = await response.text();
+
+      expect(body).not.toContain("SECRET_DB_PASSWORD");
+      expect(body).not.toContain("xyz");
+    });
+  });
+});
+
+const API_KEY = "test-api-key-123";
+const VALID_ID = "550e8400-e29b-41d4-a716-446655440000";
+
+const UPDATED_JOB = {
+  id: "550e8400-e29b-41d4-a716-446655440000",
+  title: "Staff Nurse",
+  slug: "staff-nurse-black-lion",
+  status: "PUBLISHED",
+  verificationStatus: "VERIFIED",
+  createdAt: new Date("2026-01-15"),
+  updatedAt: new Date("2026-01-20"),
+};
+
+function makePatchRequest(
+  id: string,
+  body: unknown,
+  headers?: Record<string, string>,
+): Request {
+  return new Request(`http://localhost/api/jobs/${id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": API_KEY,
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
+}
+
+function mockUpdateSuccess(updated: typeof UPDATED_JOB) {
+  mockDbUpdate.mockReturnValue({
+    set: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([updated]),
+      }),
+    }),
+  });
+}
+
+function mockUpdateError(errorMessage: string) {
+  mockDbUpdate.mockReturnValue({
+    set: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockRejectedValue(new Error(errorMessage)),
+      }),
+    }),
+  });
+}
+
+describe("PATCH /api/jobs/[id]", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubEnv("INGESTION_API_KEY", API_KEY);
+    mockJobsFindFirst.mockResolvedValue({ id: "550e8400-e29b-41d4-a716-446655440000" });
+  });
+
+  describe("authentication", () => {
+    it("missing API key returns 401", async () => {
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" }, { "x-api-key": "" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("invalid API key returns 401", async () => {
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" }, { "x-api-key": "wrong-key" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("API key is not reflected in error response", async () => {
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" }, { "x-api-key": "secret-key-value" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const body = await response.text();
+
+      expect(body).not.toContain("secret-key-value");
+    });
+  });
+
+  describe("validation", () => {
+    it("invalid UUID returns 400", async () => {
+      const request = makePatchRequest("not-a-uuid", { status: "PUBLISHED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: "not-a-uuid" }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("id");
+    });
+
+    it("malformed JSON returns 400", async () => {
+      const request = new Request(`http://localhost/api/jobs/${VALID_ID}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": API_KEY,
+        },
+        body: "not valid json",
+      });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toBe("Invalid JSON body");
+    });
+
+    it("invalid status returns 400", async () => {
+      const request = makePatchRequest(VALID_ID, { status: "INVALID_STATUS" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("status");
+    });
+
+    it("invalid verificationStatus returns 400", async () => {
+      const request = makePatchRequest(VALID_ID, { verificationStatus: "COMPLETELY_INVALID" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("verificationStatus");
+    });
+  });
+
+  describe("not found", () => {
+    it("returns 404 when job does not exist", async () => {
+      mockJobsFindFirst.mockResolvedValue(null);
+
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe("Job not found");
+    });
+  });
+
+  describe("successful update", () => {
+    it("valid status update returns 200", async () => {
+      mockUpdateSuccess(UPDATED_JOB);
+
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item.status).toBe("PUBLISHED");
+      expect(data.item.verificationStatus).toBe("VERIFIED");
+    });
+
+    it("valid verificationStatus update returns 200", async () => {
+      mockUpdateSuccess({ ...UPDATED_JOB, verificationStatus: "VERIFIED" });
+
+      const request = makePatchRequest(VALID_ID, { verificationStatus: "VERIFIED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item.verificationStatus).toBe("VERIFIED");
+    });
+
+    it("response has { item } shape", async () => {
+      mockUpdateSuccess(UPDATED_JOB);
+
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(Object.keys(data)).toEqual(["item"]);
+    });
+  });
+
+  describe("error handling", () => {
+    it("unrelated DB error returns 500", async () => {
+      mockUpdateError("DB connection failed");
+
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(500);
+      expect(data.error).toBe("Internal server error");
+    });
+
+    it("DB error details are not leaked", async () => {
+      mockUpdateError("SECRET_DB_PASSWORD=xyz connection refused");
+
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PATCH(request, {
         params: Promise.resolve({ id: VALID_ID }),
       });
       const body = await response.text();

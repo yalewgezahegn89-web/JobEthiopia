@@ -139,6 +139,15 @@ export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type CreateProfessionInput = z.infer<typeof createProfessionSchema>;
 export type CreateSourceInput = z.infer<typeof createSourceSchema>;
 export type UpdateSourceInput = z.infer<typeof updateSourceSchema>;
+
+export const updateJobSchema = z
+  .object({
+    status: JobStatus,
+    verificationStatus: VerificationStatus,
+  })
+  .partial();
+
+export type UpdateJobInput = z.infer<typeof updateJobSchema>;
 export type CreateJobInput = z.infer<typeof createJobSchema>;
 export type CreateJobSourceInput = z.infer<typeof createJobSourceSchema>;
 export type CreateCareerArticleInput = z.infer<typeof createCareerArticleSchema>;
