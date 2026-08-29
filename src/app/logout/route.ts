@@ -3,8 +3,19 @@ import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 import { revokeSession } from "@/lib/auth/session";
 import { writeAuditLog } from "@/lib/auth/audit";
+import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 
-export async function GET(request: Request) {
+function jsonError(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status });
+}
+
+export async function POST(request: Request) {
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return jsonError("Forbidden", 403);
+  }
+
   const store = await cookies();
   const rawToken = store.get(SESSION_COOKIE_NAME)?.value ?? "";
 
@@ -30,4 +41,8 @@ export async function GET(request: Request) {
 
   const loginUrl = new URL("/login", request.url);
   return NextResponse.redirect(loginUrl);
+}
+
+export async function GET() {
+  return jsonError("Method Not Allowed", 405);
 }

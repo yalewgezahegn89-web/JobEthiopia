@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { verifySession, SESSION_COOKIE_NAME, revokeSession } from "./session";
+import { verifySession, SESSION_COOKIE_NAME } from "./session";
 import { STAFF_ROLES, isStaffRole } from "./roles";
 import type { AuthUser } from "./roles";
 
@@ -99,18 +99,6 @@ export function parseCookie(header: string, name: string): string | null {
     }
   }
   return null;
-}
-
-/**
- * Revokes the current request's session cookie, if any. Safe when logged out.
- */
-export async function logoutCurrentUser(): Promise<void> {
-  const store = await cookies();
-  const rawToken = store.get(SESSION_COOKIE_NAME)?.value ?? "";
-  if (rawToken) {
-    await revokeSession(rawToken);
-  }
-  store.delete(SESSION_COOKIE_NAME);
 }
 
 export { isStaffRole };

@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   mockCookieStoreSet: vi.fn(),
   mockUsersFindFirst: vi.fn(),
   mockInsert: vi.fn(),
+  mockCsrf: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({
@@ -18,6 +19,11 @@ vi.mock("next/navigation", () => ({
   redirect: (url: string): never => {
     throw new Error(`REDIRECT:${url}`);
   },
+}));
+
+vi.mock("@/lib/auth/csrf", () => ({
+  assertTrustedCsrfFromRequest: () => mocks.mockCsrf(),
+  CsrfError: class CsrfError extends Error {},
 }));
 
 vi.mock("@/db", () => {
@@ -42,6 +48,7 @@ vi.mock("@/db", () => {
 const mockCookieStoreSet = mocks.mockCookieStoreSet;
 const mockUsersFindFirst = mocks.mockUsersFindFirst;
 const mockInsert = mocks.mockInsert;
+const mockCsrf = mocks.mockCsrf;
 
 import { loginAction } from "@/app/login/actions";
 import { hashPassword } from "../password";
@@ -68,6 +75,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockCsrf.mockResolvedValue(true);
   mockInsert.mockImplementation(() => ({
     values: async (values: Record<string, unknown>) => [
       { ...values, id: "new-id" },
@@ -142,5 +150,43 @@ describe("login server action", () => {
     const serialized = JSON.stringify(state);
     expect(serialized).not.toContain(hash);
     expect(serialized).not.toContain("wrong-password");
+  });
+
+  it("returns a generic error for a cross-origin request without setting a cookie", async () => {
+    const { CsrfError } = await import("@/lib/auth/csrf");
+    mockCsrf.mockRejectedValueOnce(new CsrfError());
+
+    const state = await loginAction(
+      { error: null },
+      formWith("admin@example.com", "correct-password-123"),
+    );
+
+    expect(state.error).toBe("Invalid email or password");
+    expect(mockCookieStoreSet).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic error when the origin is missing", async () => {
+    const { CsrfError } = await import("@/lib/auth/csrf");
+    mockCsrf.mockRejectedValueOnce(new CsrfError());
+
+    const state = await loginAction(
+      { error: null },
+      formWith("admin@example.com", "correct-password-123"),
+    );
+
+    expect(state.error).toBe("Invalid email or password");
+    expect(mockCookieStoreSet).not.toHaveBeenCalled();
+  });
+
+  it("continues the normal flow when the request origin is trusted", async () => {
+    await expect(
+      loginAction(
+        { error: null },
+        formWith("admin@example.com", "correct-password-123"),
+      ),
+    ).rejects.toThrow("REDIRECT:/admin");
+
+    expect(mockCsrf).toHaveBeenCalledTimes(1);
+    expect(mockCookieStoreSet).toHaveBeenCalledTimes(1);
   });
 });

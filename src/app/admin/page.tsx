@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/context";
 
 export const metadata: Metadata = {
@@ -20,9 +19,11 @@ export default async function AdminPage() {
         Job moderation, organization verification, and source management are
         available above.
       </p>
-      <Link href="/logout" className="mt-8 inline-block text-sm underline">
-        Sign out
-      </Link>
+      <form action="/logout" method="POST" className="mt-8">
+        <button type="submit" className="inline-block text-sm underline">
+          Sign out
+        </button>
+      </form>
     </section>
   );
 }
