@@ -85,6 +85,7 @@ const SAMPLE_SOURCE = {
 function makeGetRequest(id: string): Request {
   return new Request(`http://localhost/api/sources/${id}/health`, {
     method: "GET",
+    headers: { "x-api-key": API_KEY },
   });
 }
 
@@ -116,6 +117,58 @@ beforeEach(() => {
 });
 
 describe("GET /api/sources/[id]/health", () => {
+  describe("authentication", () => {
+    it("returns 401 when x-api-key header is missing", async () => {
+      const request = new Request(
+        `http://localhost/api/sources/${VALID_ID}/health`,
+        { method: "GET" },
+      );
+      const response = await GET(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("returns 401 when x-api-key is wrong", async () => {
+      const request = new Request(
+        `http://localhost/api/sources/${VALID_ID}/health`,
+        { method: "GET", headers: { "x-api-key": "wrong-key" } },
+      );
+      const response = await GET(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("does not access the database before authentication", async () => {
+      const request = new Request(
+        `http://localhost/api/sources/${VALID_ID}/health`,
+        { method: "GET" },
+      );
+      const response = await GET(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(401);
+      expect(mockGetSourceHealth).not.toHaveBeenCalled();
+    });
+
+    it("accepts a valid API key", async () => {
+      const request = makeGetRequest(VALID_ID);
+      const response = await GET(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(200);
+    });
+  });
+
   describe("successful retrieval", () => {
     it("returns 200 with health data for valid UUID", async () => {
       const request = makeGetRequest(VALID_ID);

@@ -46,6 +46,7 @@ vi.mock("../../../db/schema/sources", () => ({
 import { GET, PUT, DELETE } from "../../../app/api/sources/[id]/route";
 
 const VALID_ID = "550e8400-e29b-41d4-a716-446655440000";
+const API_KEY = "test-api-key-123";
 
 const SAMPLE_SOURCE = {
   id: VALID_ID,
@@ -61,6 +62,7 @@ const SAMPLE_SOURCE = {
 function makeGetRequest(id: string): Request {
   return new Request(`http://localhost/api/sources/${id}`, {
     method: "GET",
+    headers: { "x-api-key": API_KEY },
   });
 }
 
@@ -70,6 +72,62 @@ beforeEach(() => {
 });
 
 describe("GET /api/sources/[id]", () => {
+  beforeEach(() => {
+    vi.stubEnv("INGESTION_API_KEY", API_KEY);
+  });
+
+  describe("authentication", () => {
+    it("returns 401 when x-api-key header is missing", async () => {
+      const request = new Request(
+        `http://localhost/api/sources/${VALID_ID}`,
+        { method: "GET" },
+      );
+      const response = await GET(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("returns 401 when x-api-key is wrong", async () => {
+      const request = new Request(
+        `http://localhost/api/sources/${VALID_ID}`,
+        { method: "GET", headers: { "x-api-key": "wrong-key" } },
+      );
+      const response = await GET(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("does not access the database before authentication", async () => {
+      const request = new Request(
+        `http://localhost/api/sources/${VALID_ID}`,
+        { method: "GET" },
+      );
+      const response = await GET(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(401);
+      expect(mockFindFirst).not.toHaveBeenCalled();
+    });
+
+    it("accepts a valid API key", async () => {
+      const request = makeGetRequest(VALID_ID);
+      const response = await GET(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(200);
+    });
+  });
+
   describe("successful retrieval", () => {
     it("returns 200 with source for valid UUID", async () => {
       const request = makeGetRequest(VALID_ID);
@@ -210,8 +268,6 @@ describe("GET /api/sources/[id]", () => {
     });
   });
 });
-
-const API_KEY = "test-api-key-123";
 
 const UPDATED_SOURCE = {
   id: VALID_ID,

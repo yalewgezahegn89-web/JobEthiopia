@@ -140,23 +140,13 @@ export default function SourcesList({
       )}
 
       <div className="mt-6">
-        <CreateSourceForm />
+        <Link
+          href="/admin/sources/create"
+          className="inline-block rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
+        >
+          Create new source
+        </Link>
       </div>
     </div>
-  );
-}
-
-function CreateSourceForm() {
-  return (
-    <details className="rounded-lg border border-neutral-200 p-4">
-      <summary className="cursor-pointer text-sm font-medium text-neutral-700">
-        Create new source
-      </summary>
-      <form action="/admin/sources/create" method="GET" className="mt-3 space-y-3">
-        <p className="text-xs text-neutral-500">
-          Opens the source creation form.
-        </p>
-      </form>
-    </details>
   );
 }

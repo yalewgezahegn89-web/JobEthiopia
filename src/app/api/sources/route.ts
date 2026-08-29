@@ -75,6 +75,9 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const keyCheck = checkApiKey(request);
+  if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
+
   const { searchParams } = new URL(request.url);
 
   const parsed = sourceListQuerySchema.safeParse({

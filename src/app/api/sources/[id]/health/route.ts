@@ -18,9 +18,12 @@ function jsonError(message: string, status: number) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const keyCheck = checkApiKey(request);
+  if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
+
   const { id } = await params;
 
   const parsed = sourceIdParamSchema.safeParse({ id });

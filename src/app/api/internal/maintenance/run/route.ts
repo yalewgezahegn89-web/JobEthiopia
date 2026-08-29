@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { runMaintenance } from "@/lib/maintenance/run";
+import { writeAuditLog } from "@/lib/auth/audit";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -36,6 +37,24 @@ export async function POST(request: Request) {
   try {
     const now = new Date();
     const result = await runMaintenance(now);
+
+    try {
+      await writeAuditLog({
+        action: "MAINTENANCE_RUN",
+        targetType: "maintenance",
+        targetId: "run",
+        metadata: {
+          expiredJobs: result.expiredJobs,
+          sourcesChecked: result.sourcesChecked,
+          sourcesSucceeded: result.sourcesSucceeded,
+          sourcesFailed: result.sourcesFailed,
+          sourcesSkipped: result.sourcesSkipped,
+        },
+      });
+    } catch {
+      // Best-effort audit: a logging failure must not fail the run.
+    }
+
     return NextResponse.json(result);
   } catch {
     return jsonError("Internal server error", 500);

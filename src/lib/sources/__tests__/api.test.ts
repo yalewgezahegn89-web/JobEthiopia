@@ -39,6 +39,8 @@ vi.mock("../../../db/schema/sources", () => ({
 
 import { GET, POST } from "../../../app/api/sources/route";
 
+const API_KEY = "test-api-key-123";
+
 const SAMPLE_SOURCE = {
   id: "550e8400-e29b-41d4-a716-446655440000",
   name: "Manual Entry",
@@ -57,7 +59,10 @@ function makeGetRequest(searchParams?: Record<string, string>): Request {
       url.searchParams.set(key, value);
     }
   }
-  return new Request(url.toString(), { method: "GET" });
+  return new Request(url.toString(), {
+    method: "GET",
+    headers: { "x-api-key": API_KEY },
+  });
 }
 
 function mockDbSuccess(count: number, items: unknown[]) {
@@ -91,6 +96,52 @@ beforeEach(() => {
 });
 
 describe("GET /api/sources", () => {
+  beforeEach(() => {
+    vi.stubEnv("INGESTION_API_KEY", API_KEY);
+  });
+
+  describe("authentication", () => {
+    it("returns 401 when x-api-key header is missing", async () => {
+      const request = new Request("http://localhost/api/sources", {
+        method: "GET",
+      });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("returns 401 when x-api-key is wrong", async () => {
+      const request = new Request("http://localhost/api/sources", {
+        method: "GET",
+        headers: { "x-api-key": "wrong-key" },
+      });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(data.error).toBe("Unauthorized");
+    });
+
+    it("does not access the database before authentication", async () => {
+      const request = new Request("http://localhost/api/sources", {
+        method: "GET",
+      });
+      const response = await GET(request);
+
+      expect(response.status).toBe(401);
+      expect(mockDbSelect).not.toHaveBeenCalled();
+    });
+
+    it("accepts a valid API key", async () => {
+      const request = makeGetRequest();
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+    });
+  });
+
   describe("successful listing", () => {
     it("returns 200 with source items", async () => {
       const request = makeGetRequest();
@@ -317,8 +368,6 @@ const CREATED_SOURCE = {
   createdAt: new Date("2026-01-20"),
   updatedAt: new Date("2026-01-20"),
 };
-
-const API_KEY = "test-api-key-123";
 
 function makePostRequest(
   body: unknown,

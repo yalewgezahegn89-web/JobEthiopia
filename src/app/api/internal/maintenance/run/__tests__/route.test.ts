@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockRunMaintenance = vi.fn();
+const mockWriteAuditLog = vi.fn();
 
 vi.mock("@/lib/maintenance/run", () => ({
   runMaintenance: (...args: unknown[]) => mockRunMaintenance(...args),
+}));
+
+vi.mock("@/lib/auth/audit", () => ({
+  writeAuditLog: (...args: unknown[]) => mockWriteAuditLog(...args),
 }));
 
 import { POST } from "../route";
@@ -31,6 +36,7 @@ beforeEach(() => {
     sourcesFailed: 1,
     sourcesSkipped: 0,
   });
+  mockWriteAuditLog.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -96,6 +102,51 @@ describe("POST /api/internal/maintenance/run", () => {
     });
   });
 
+  describe("audit logging", () => {
+    it("successful run writes MAINTENANCE_RUN audit event with summary", async () => {
+      const request = makeRequest(MAINTENANCE_KEY);
+      await POST(request);
+
+      expect(mockWriteAuditLog).toHaveBeenCalledTimes(1);
+      expect(mockWriteAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: "MAINTENANCE_RUN",
+          targetType: "maintenance",
+          targetId: "run",
+          metadata: {
+            expiredJobs: 3,
+            sourcesChecked: 5,
+            sourcesSucceeded: 4,
+            sourcesFailed: 1,
+            sourcesSkipped: 0,
+          },
+        }),
+      );
+    });
+
+    it("audit metadata does not leak the maintenance key", async () => {
+      const request = makeRequest(MAINTENANCE_KEY);
+      await POST(request);
+
+      const serialized = JSON.stringify(mockWriteAuditLog.mock.calls);
+      expect(serialized).not.toContain(MAINTENANCE_KEY);
+    });
+
+    it("failed maintenance run does not write an audit event", async () => {
+      mockRunMaintenance.mockRejectedValue(new Error("boom"));
+      const request = makeRequest(MAINTENANCE_KEY);
+      await POST(request);
+      expect(mockWriteAuditLog).not.toHaveBeenCalled();
+    });
+
+    it("audit logging failure does not break the maintenance operation", async () => {
+      mockWriteAuditLog.mockRejectedValue(new Error("audit db down"));
+      const request = makeRequest(MAINTENANCE_KEY);
+      const response = await POST(request);
+      expect(response.status).toBe(200);
+    });
+  });
+
   describe("security", () => {
     it("generic unauthorized response does not leak timing information", async () => {
       const request = makeRequest("a");
@@ -103,6 +154,12 @@ describe("POST /api/internal/maintenance/run", () => {
       expect(response.status).toBe(401);
       const body = await response.json();
       expect(body).toEqual({ error: "Unauthorized" });
+    });
+
+    it("unauthorized requests do not write an audit event", async () => {
+      const request = makeRequest("wrong-key");
+      await POST(request);
+      expect(mockWriteAuditLog).not.toHaveBeenCalled();
     });
 
     it("generic 500 response does not leak internal errors", async () => {
