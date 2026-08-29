@@ -108,6 +108,53 @@ function setupRedirectMockSequence(
   );
 }
 
+type CapturedLookupFn = (
+  hostname: string,
+  options: { family?: number; all?: boolean },
+  callback: (
+    err: unknown,
+    address?: string | Array<{ address: string; family: number }>,
+    family?: number,
+  ) => void,
+) => void;
+
+type CapturedRequestOpts = {
+  hostname?: string;
+  port?: number;
+  path?: string;
+  method?: string;
+  rejectUnauthorized?: unknown;
+  lookup?: CapturedLookupFn;
+};
+
+function setupCapturingHttp(
+  responses: Array<{ statusCode: number; headers: Record<string, string> }> = [
+    { statusCode: 200, headers: {} },
+  ],
+): CapturedRequestOpts[] {
+  const captured: CapturedRequestOpts[] = [];
+  mocks.mockRequest.mockImplementation(
+    (opts: unknown, cb: unknown) => {
+      captured.push(
+        (opts ?? {}) as CapturedRequestOpts,
+      );
+      if (typeof cb !== "function") {
+        return { on: vi.fn(), end: vi.fn(), destroy: vi.fn() };
+      }
+      const resp =
+        responses[captured.length - 1] || responses[responses.length - 1];
+      const fakeResponse = { statusCode: resp.statusCode, headers: resp.headers, resume: vi.fn() };
+      const fakeReq = {
+        on: vi.fn(),
+        end: vi.fn(() => { cb(fakeResponse); }),
+        destroy: vi.fn(),
+      };
+      return fakeReq;
+    },
+  );
+  return captured;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.mockIsIPv4.mockImplementation((ip: string) => /^\d+\.\d+\.\d+\.\d+$/.test(ip));
@@ -474,5 +521,163 @@ describe("ssrfFetch", () => {
       const result = await ssrfFetch("http://example.com");
       expect(result).toMatchObject({ ok: false, status: 500 });
     });
+  });
+});
+
+describe("ssrfFetch DNS-rebinding pinning", () => {
+  it("connects through the validated IP via a pinned lookup callback", async () => {
+    mocks.mockResolve4.mockImplementation(
+      (h: string, cb: (err: Error | null, addrs?: string[]) => void) => {
+        if (h === "example.com") cb(null, ["93.184.216.34"]);
+        else cb(new Error("ENOTFOUND"));
+      },
+    );
+    const captured = setupCapturingHttp();
+
+    const result = await ssrfFetch("http://example.com");
+    expect(result.ok).toBe(true);
+
+    expect(captured).toHaveLength(1);
+    const opts = captured[0];
+    expect(opts.hostname).toBe("example.com");
+    expect(typeof opts.lookup).toBe("function");
+
+    const one: { err?: unknown; address?: string; family?: number } = {};
+    opts.lookup!("example.com", { family: 0, all: false }, (err, address, family) => {
+      one.err = err;
+      one.address = typeof address === "string" ? address : undefined;
+      one.family = family;
+    });
+    expect(one.err).toBeNull();
+    expect(one.address).toBe("93.184.216.34");
+    expect(one.family).toBe(4);
+
+    const all: { err?: unknown; addresses?: Array<{ address: string; family: number }> } = {};
+    opts.lookup!("example.com", { family: 0, all: true }, (err, address) => {
+      all.err = err;
+      if (Array.isArray(address)) {
+        all.addresses = address as Array<{ address: string; family: number }>;
+      }
+    });
+    expect(all.err).toBeNull();
+    expect(all.addresses).toContainEqual({ address: "93.184.216.34", family: 4 });
+  });
+
+  it("does not perform a second DNS resolution for the connection", async () => {
+    mocks.mockResolve4.mockImplementation(
+      (h: string, cb: (err: Error | null, addrs?: string[]) => void) => {
+        if (h === "example.com") cb(null, ["93.184.216.34"]);
+        else cb(new Error("ENOTFOUND"));
+      },
+    );
+    const captured = setupCapturingHttp();
+
+    const result = await ssrfFetch("http://example.com");
+    expect(result.ok).toBe(true);
+
+    const opts = captured[0];
+    expect(typeof opts.lookup).toBe("function");
+    opts.lookup!("example.com", { family: 0, all: false }, () => {});
+
+    expect(mocks.mockResolve4).toHaveBeenCalledTimes(1);
+    expect(mocks.mockResolve6).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves the original hostname for HTTPS while pinning the socket address", async () => {
+    mocks.mockResolve4.mockImplementation(
+      (h: string, cb: (err: Error | null, addrs?: string[]) => void) => {
+        if (h === "example.com") cb(null, ["93.184.216.34"]);
+        else cb(new Error("ENOTFOUND"));
+      },
+    );
+    const captured = setupCapturingHttp();
+
+    const result = await ssrfFetch("https://example.com");
+    expect(result.ok).toBe(true);
+
+    const opts = captured[0];
+    expect(opts.hostname).toBe("example.com");
+    expect(opts.port).toBe(443);
+    expect(opts.rejectUnauthorized).not.toBe(false);
+
+    const one: { err?: unknown; address?: string; family?: number } = {};
+    opts.lookup!("example.com", { family: 0, all: false }, (err, address, family) => {
+      one.err = err;
+      one.address = typeof address === "string" ? address : undefined;
+      one.family = family;
+    });
+    expect(one.err).toBeNull();
+    expect(one.address).toBe("93.184.216.34");
+    expect(one.family).toBe(4);
+  });
+
+  it("follows a redirect with an explicit port without failing on the port", async () => {
+    mocks.mockResolve4.mockImplementation(
+      (h: string, cb: (err: Error | null, addrs?: string[]) => void) => {
+        if (h === "a.com") cb(null, ["8.8.8.8"]);
+        else if (h === "example.com") cb(null, ["93.184.216.34"]);
+        else cb(new Error("ENOTFOUND"));
+      },
+    );
+    const captured = setupCapturingHttp([
+      { statusCode: 302, headers: { location: "https://example.com:8443/final" } },
+      { statusCode: 200, headers: {} },
+    ]);
+
+    const result = await ssrfFetch("http://a.com");
+    expect(result.ok).toBe(true);
+
+    expect(captured).toHaveLength(2);
+    expect(captured[0].hostname).toBe("a.com");
+    expect(captured[1].hostname).toBe("example.com");
+    expect(captured[1].port).toBe("8443");
+
+    const one: { err?: unknown; address?: string; family?: number } = {};
+    captured[1].lookup!("example.com", { family: 0, all: false }, (err, address, family) => {
+      one.err = err;
+      one.address = typeof address === "string" ? address : undefined;
+      one.family = family;
+    });
+    expect(one.err).toBeNull();
+    expect(one.address).toBe("93.184.216.34");
+    expect(one.family).toBe(4);
+  });
+
+  it("pins each redirect hop to its own validated address set", async () => {
+    mocks.mockResolve4.mockImplementation(
+      (h: string, cb: (err: Error | null, addrs?: string[]) => void) => {
+        if (h === "a.com") cb(null, ["8.8.8.8"]);
+        else if (h === "b.com") cb(null, ["1.1.1.1"]);
+        else cb(new Error("ENOTFOUND"));
+      },
+    );
+    const captured = setupCapturingHttp([
+      { statusCode: 301, headers: { location: "http://b.com/final" } },
+      { statusCode: 200, headers: {} },
+    ]);
+
+    const result = await ssrfFetch("http://a.com");
+    expect(result.ok).toBe(true);
+
+    expect(captured).toHaveLength(2);
+    expect(captured[0].hostname).toBe("a.com");
+    expect(captured[1].hostname).toBe("b.com");
+    expect(captured[0].lookup).not.toBe(captured[1].lookup);
+
+    const first: { address?: string; family?: number } = {};
+    captured[0].lookup!("a.com", { family: 0, all: false }, (_err, address, family) => {
+      first.address = typeof address === "string" ? address : undefined;
+      first.family = family;
+    });
+    expect(first.address).toBe("8.8.8.8");
+    expect(first.family).toBe(4);
+
+    const second: { address?: string; family?: number } = {};
+    captured[1].lookup!("b.com", { family: 0, all: false }, (_err, address, family) => {
+      second.address = typeof address === "string" ? address : undefined;
+      second.family = family;
+    });
+    expect(second.address).toBe("1.1.1.1");
+    expect(second.family).toBe(4);
   });
 });

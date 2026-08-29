@@ -83,21 +83,74 @@ function resolveIp(hostname: string): Promise<string[]> {
   });
 }
 
-async function resolveAndValidateIp(hostname: string): Promise<void> {
+async function resolveAndValidateIp(hostname: string): Promise<string[]> {
   const addresses = await resolveIp(hostname);
   for (const addr of addresses) {
     if (isPrivateIP(addr)) {
       throw new SsrfError(
-        `Resolved hostname "${hostname}" to private/reserved IP ${addr}`,
+        `Resolved hostname "${hostname}" to a blocked private/reserved address`,
       );
     }
   }
+  return addresses;
+}
+
+function assertWithinBudget(deadline: number): void {
+  if (Date.now() > deadline) {
+    throw new SsrfError("Request timed out");
+  }
+}
+
+function buildValidatedLookup(addresses: string[]) {
+  const pool = addresses.map((address) => ({
+    address,
+    family: net.isIPv4(address) ? 4 : 6,
+  }));
+
+  return (
+    _hostname: string,
+    options: dns.LookupOptions,
+    callback: (
+      err: NodeJS.ErrnoException | null,
+      address: string | dns.LookupAddress[],
+      family?: number,
+    ) => void,
+  ) => {
+    const requestedFamily =
+      typeof options.family === "number" ? options.family : 0;
+    const candidates =
+      requestedFamily === 0
+        ? pool
+        : pool.filter((entry) => entry.family === requestedFamily);
+
+    if (candidates.length === 0) {
+      callback(
+        new SsrfError(
+          "No validated address available for the requested address family",
+        ) as NodeJS.ErrnoException,
+        [],
+      );
+      return;
+    }
+
+    if (options.all) {
+      callback(null, candidates.map((entry) => ({ ...entry })));
+      return;
+    }
+
+    const chosen =
+      requestedFamily === 0
+        ? (candidates.find((entry) => entry.family === 4) ?? candidates[0])
+        : candidates[0];
+    callback(null, chosen.address, chosen.family);
+  };
 }
 
 function fetchOnce(
   url: URL,
   method: string,
   signal: AbortSignal,
+  validatedAddresses: string[],
 ): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const mod = url.protocol === "https:" ? https : http;
@@ -108,6 +161,7 @@ function fetchOnce(
       method,
       signal,
       timeout: TIMEOUT_MS,
+      lookup: buildValidatedLookup(validatedAddresses),
     };
     const req = mod.request(opts, (res) => {
       res.resume();
@@ -137,17 +191,23 @@ export async function ssrfFetch(
   const parsed = validateScheme(rawUrl);
   const method = (options.method ?? "GET").toUpperCase();
 
-  await resolveAndValidateIp(parsed.hostname);
-
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const deadline = Date.now() + TIMEOUT_MS;
 
   try {
     let currentUrl = parsed;
+    let validatedAddresses = await resolveAndValidateIp(currentUrl.hostname);
+    assertWithinBudget(deadline);
     let hops = 0;
 
     while (hops <= MAX_REDIRECTS) {
-      const result = await fetchOnce(currentUrl, method, controller.signal);
+      const result = await fetchOnce(
+        currentUrl,
+        method,
+        controller.signal,
+        validatedAddresses,
+      );
 
       if (
         result.statusCode >= 300 &&
@@ -163,7 +223,8 @@ export async function ssrfFetch(
 
         const redirectUrl = resolveLocation(result.headers.location, currentUrl);
         validateScheme(redirectUrl.toString());
-        await resolveAndValidateIp(redirectUrl.host);
+        validatedAddresses = await resolveAndValidateIp(redirectUrl.hostname);
+        assertWithinBudget(deadline);
         currentUrl = redirectUrl;
         continue;
       }
