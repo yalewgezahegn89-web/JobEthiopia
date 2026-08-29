@@ -1694,7 +1694,7 @@ describe("POST /api/jobs", () => {
       const data = await response.json();
 
       expect(response.status).toBe(500);
-      expect(data.error).toBe("API key not configured");
+      expect(data.error).toBe("Server configuration error");
     });
 
     it("API key is not reflected in error response", async () => {

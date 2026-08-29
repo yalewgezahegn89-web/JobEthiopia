@@ -8,6 +8,7 @@ import { professions } from "@/db/schema/professions";
 import { locations } from "@/db/schema/locations";
 import { jobIdParamSchema } from "@/lib/validations/jobQuery";
 import { updateJobSchema } from "@/lib/validations";
+import { checkApiKey } from "@/lib/auth/apiKey";
 
 type JobStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "EXPIRED" | "REMOVED";
 
@@ -21,22 +22,6 @@ const VALID_STATUS_TRANSITIONS: Record<JobStatus, JobStatus[]> = {
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
-}
-
-function checkApiKey(request: Request): Response | null {
-  const configuredKey = process.env.INGESTION_API_KEY;
-
-  if (!configuredKey) {
-    return jsonError("Server configuration error", 500);
-  }
-
-  const providedKey = request.headers.get("x-api-key");
-
-  if (!providedKey || providedKey !== configuredKey) {
-    return jsonError("Unauthorized", 401);
-  }
-
-  return null;
 }
 
 export async function GET(
@@ -113,8 +98,8 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const authError = checkApiKey(request);
-  if (authError) return authError;
+  const keyCheck = checkApiKey(request);
+  if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
 
   const { id } = await params;
 
@@ -149,8 +134,8 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const authError = checkApiKey(request);
-  if (authError) return authError;
+  const keyCheck = checkApiKey(request);
+  if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
 
   const { id } = await params;
 

@@ -4,30 +4,15 @@ import { db } from "@/db";
 import { professions } from "@/db/schema/professions";
 import { professionListQuerySchema } from "@/lib/validations/professionQuery";
 import { createProfessionSchema } from "@/lib/validations";
+import { checkApiKey } from "@/lib/auth/apiKey";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-function checkApiKey(request: Request): Response | null {
-  const configuredKey = process.env.INGESTION_API_KEY;
-
-  if (!configuredKey) {
-    return jsonError("API key not configured", 500);
-  }
-
-  const providedKey = request.headers.get("x-api-key");
-
-  if (!providedKey || providedKey !== configuredKey) {
-    return jsonError("Unauthorized", 401);
-  }
-
-  return null;
-}
-
 export async function POST(request: Request) {
-  const authError = checkApiKey(request);
-  if (authError) return authError;
+  const keyCheck = checkApiKey(request);
+  if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
 
   let body: unknown;
   try {

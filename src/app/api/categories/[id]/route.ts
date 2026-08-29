@@ -4,25 +4,10 @@ import { db } from "@/db";
 import { categories } from "@/db/schema/categories";
 import { categoryIdParamSchema } from "@/lib/validations/categoryQuery";
 import { updateCategorySchema } from "@/lib/validations";
+import { checkApiKey } from "@/lib/auth/apiKey";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
-}
-
-function checkApiKey(request: Request): Response | null {
-  const configuredKey = process.env.INGESTION_API_KEY;
-
-  if (!configuredKey) {
-    return jsonError("API key not configured", 500);
-  }
-
-  const providedKey = request.headers.get("x-api-key");
-
-  if (!providedKey || providedKey !== configuredKey) {
-    return jsonError("Unauthorized", 401);
-  }
-
-  return null;
 }
 
 export async function GET(
@@ -55,8 +40,8 @@ export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const authError = checkApiKey(request);
-  if (authError) return authError;
+  const keyCheck = checkApiKey(request);
+  if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
 
   const { id } = await params;
 
@@ -121,8 +106,8 @@ export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const authError = checkApiKey(_request);
-  if (authError) return authError;
+  const keyCheck = checkApiKey(_request);
+  if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
 
   const { id } = await params;
 
