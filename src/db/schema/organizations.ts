@@ -9,6 +9,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { organizationStatusEnum } from "./enums";
 import { locations } from "./locations";
+import { users } from "./users";
 
 export const organizations = pgTable(
   "organizations",
@@ -25,6 +26,11 @@ export const organizations = pgTable(
     }),
     isVerified: boolean("is_verified").notNull().default(false),
     status: organizationStatusEnum("status").notNull().default("ACTIVE"),
+    verifiedAt: timestamp("verified_at", { withTimezone: true }),
+    verifiedBy: uuid("verified_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    verificationNotes: text("verification_notes"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

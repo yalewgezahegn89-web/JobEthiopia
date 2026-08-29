@@ -10,6 +10,7 @@ export default function AdminNav() {
   const links = [
     { href: "/admin", label: "Admin Home" },
     { href: "/admin/jobs", label: "Job Moderation" },
+    { href: "/admin/organizations", label: "Organizations" },
   ];
 
   return (
