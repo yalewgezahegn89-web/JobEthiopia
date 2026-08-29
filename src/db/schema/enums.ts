@@ -67,3 +67,11 @@ export const articleStatusEnum = pgEnum("article_status", [
   "PUBLISHED",
   "ARCHIVED",
 ]);
+
+export const userRoleEnum = pgEnum("user_role", [
+  "SUPER_ADMIN",
+  "ADMIN",
+  "MODERATOR",
+  "ORGANIZATION_ADMIN",
+  "CANDIDATE",
+]);

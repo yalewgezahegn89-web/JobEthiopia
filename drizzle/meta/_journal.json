@@ -22,6 +22,13 @@
       "when": 1787838000000,
       "tag": "0002_add_sources_operational_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787996247382,
+      "tag": "0003_add_users_sessions_audit_log",
+      "breakpoints": true
     }
   ]
 }
