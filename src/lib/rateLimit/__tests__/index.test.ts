@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import {
+  buildRateLimitKey,
   checkRateLimit,
   resetRateLimitState,
   type RateLimitConfig,
@@ -12,6 +13,35 @@ const MAINTENANCE: RateLimitConfig = { limit: 3, windowMs: 5 * 60_000 };
 
 beforeEach(() => {
   resetRateLimitState();
+});
+
+describe("buildRateLimitKey", () => {
+  it("maps the same bucket + client IP to the same deterministic key", () => {
+    expect(buildRateLimitKey("login", "203.0.113.9")).toBe(
+      buildRateLimitKey("login", "203.0.113.9"),
+    );
+    expect(buildRateLimitKey("api", "10.0.0.1")).toBe(
+      buildRateLimitKey("api", "10.0.0.1"),
+    );
+  });
+
+  it("maps different client IPs to different keys within a bucket", () => {
+    expect(buildRateLimitKey("login", "203.0.113.9")).not.toBe(
+      buildRateLimitKey("login", "203.0.113.10"),
+    );
+    expect(buildRateLimitKey("maintenance", "2001:db8::1")).not.toBe(
+      buildRateLimitKey("maintenance", "2001:db8::2"),
+    );
+  });
+
+  it("preserves the existing bucket key prefixes", () => {
+    expect(buildRateLimitKey("login", "127.0.0.1")).toBe("login:127.0.0.1");
+    expect(buildRateLimitKey("ingest", "127.0.0.1")).toBe("ingest:127.0.0.1");
+    expect(buildRateLimitKey("api", "127.0.0.1")).toBe("api:127.0.0.1");
+    expect(buildRateLimitKey("maintenance", "127.0.0.1")).toBe(
+      "maintenance:127.0.0.1",
+    );
+  });
 });
 
 describe("checkRateLimit", () => {

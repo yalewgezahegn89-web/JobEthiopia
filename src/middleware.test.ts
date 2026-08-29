@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { NextRequest } from "next/server";
 import { resetRateLimitState } from "@/lib/rateLimit";
 
@@ -54,6 +54,10 @@ function fakeRequest(
 beforeEach(() => {
   vi.clearAllMocks();
   resetRateLimitState();
+});
+
+afterEach(() => {
+  delete process.env.TRUSTED_CLIENT_IP_HEADER;
 });
 
 describe("middleware — matcher", () => {
@@ -320,10 +324,10 @@ describe("middleware — rate limiting", () => {
     });
   });
 
-  describe("different IPs are independent", () => {
-    it("does not share limits across IPs", () => {
+  describe("shared default bucket", () => {
+    it("different spoofed x-forwarded-for values no longer create independent buckets", () => {
       mockNext.mockReturnValue({ passed: true });
-      // Use up the API limit for IP A
+      // Use up the API limit with one spoofed XFF value
       for (let i = 0; i < 30; i++) {
         middleware(
           fakeRequest({
@@ -333,17 +337,179 @@ describe("middleware — rate limiting", () => {
           }),
         );
       }
-      // IP B should still be allowed
-      mockJson.mockClear();
-      const result = middleware(
+      // A different spoofed XFF is still blocked — they share the default bucket
+      mockJson.mockReturnValue({ status: 429 });
+      middleware(
         fakeRequest({
           pathname: "/api/jobs",
           method: "POST",
           headers: { "x-forwarded-for": "20.0.0.2" },
         }),
       );
+      expect(mockJson).toHaveBeenCalled();
+    });
+  });
+
+  describe("trusted client-IP resolution (Batch 63)", () => {
+    it("ignores spoofed x-forwarded-for: rotating XFF cannot bypass the limit", () => {
+      mockJson.mockReturnValue({ status: 429 });
+      // Five login attempts, each with a different spoofed XFF
+      for (let i = 0; i < 5; i++) {
+        middleware(
+          fakeRequest({
+            pathname: "/login",
+            method: "POST",
+            headers: { "x-forwarded-for": `10.0.0.${i + 1}` },
+          }),
+        );
+        expect(mockJson).not.toHaveBeenCalled();
+      }
+      // A sixth login with yet another spoofed XFF is blocked: the attacker
+      // cannot rotate the rate-limit identity.
+      middleware(
+        fakeRequest({
+          pathname: "/login",
+          method: "POST",
+          headers: { "x-forwarded-for": "10.0.0.99" },
+        }),
+      );
+      expect(mockJson).toHaveBeenCalled();
+      expect(mockJson.mock.calls[0][1].status).toBe(429);
+    });
+
+    it("uses the configured TRUSTED_CLIENT_IP_HEADER even when XFF conflicts", () => {
+      process.env.TRUSTED_CLIENT_IP_HEADER = "x-real-ip";
+      mockNext.mockReturnValue({ passed: true });
+      mockJson.mockReturnValue({ status: 429 });
+      // Five attempts with a fixed trusted IP and rotating spoofed XFF
+      for (let i = 0; i < 5; i++) {
+        const result = middleware(
+          fakeRequest({
+            pathname: "/login",
+            method: "POST",
+            headers: {
+              "x-real-ip": "203.0.113.9",
+              "x-forwarded-for": `198.51.100.${i + 1}`,
+            },
+          }),
+        );
+        expect(result).toEqual({ passed: true });
+      }
+      // A sixth attempt (new XFF, same trusted IP) is blocked
+      middleware(
+        fakeRequest({
+          pathname: "/login",
+          method: "POST",
+          headers: {
+            "x-real-ip": "203.0.113.9",
+            "x-forwarded-for": "198.51.100.99",
+          },
+        }),
+      );
+      expect(mockJson).toHaveBeenCalled();
+    });
+
+    it("trusted header restores per-client identity", () => {
+      process.env.TRUSTED_CLIENT_IP_HEADER = "x-real-ip";
+      mockNext.mockReturnValue({ passed: true });
+      mockJson.mockReturnValue({ status: 429 });
+      // Exhaust the login limit for client A
+      for (let i = 0; i < 5; i++) {
+        middleware(
+          fakeRequest({
+            pathname: "/login",
+            method: "POST",
+            headers: { "x-real-ip": "203.0.113.9" },
+          }),
+        );
+      }
+      // Client B is not affected — distinct trusted identity
+      const result = middleware(
+        fakeRequest({
+          pathname: "/login",
+          method: "POST",
+          headers: { "x-real-ip": "203.0.113.10" },
+        }),
+      );
       expect(result).toEqual({ passed: true });
       expect(mockJson).not.toHaveBeenCalled();
+    });
+
+    it("selects the leftmost value from a comma-separated trusted header", () => {
+      process.env.TRUSTED_CLIENT_IP_HEADER = "x-forwarded-for";
+      mockNext.mockReturnValue({ passed: true });
+      mockJson.mockReturnValue({ status: 429 });
+      // Five attempts whose trusted header shares a leftmost client IP but
+      // differs in the proxy chain that follows it
+      for (let i = 0; i < 5; i++) {
+        const result = middleware(
+          fakeRequest({
+            pathname: "/login",
+            method: "POST",
+            headers: {
+              "x-forwarded-for": `203.0.113.9, 10.0.0.${i + 1}`,
+            },
+          }),
+        );
+        expect(result).toEqual({ passed: true });
+      }
+      // A sixth attempt with the same leftmost client IP is blocked
+      middleware(
+        fakeRequest({
+          pathname: "/login",
+          method: "POST",
+          headers: { "x-forwarded-for": "203.0.113.9, 10.0.0.99" },
+        }),
+      );
+      expect(mockJson).toHaveBeenCalled();
+    });
+
+    it("accepts IPv6 values in the trusted header", () => {
+      process.env.TRUSTED_CLIENT_IP_HEADER = "x-real-ip";
+      mockJson.mockReturnValue({ status: 429 });
+      for (let i = 0; i < 5; i++) {
+        middleware(
+          fakeRequest({
+            pathname: "/login",
+            method: "POST",
+            headers: { "x-real-ip": "2001:db8::1" },
+          }),
+        );
+      }
+      middleware(
+        fakeRequest({
+          pathname: "/login",
+          method: "POST",
+          headers: { "x-real-ip": "2001:db8::1" },
+        }),
+      );
+      expect(mockJson).toHaveBeenCalled();
+    });
+
+    it("falls back to the shared bucket when the trusted header is malformed or empty", () => {
+      process.env.TRUSTED_CLIENT_IP_HEADER = "x-real-ip";
+      mockJson.mockReturnValue({ status: 429 });
+      // Five attempts with a malformed trusted-header value
+      for (let i = 0; i < 5; i++) {
+        middleware(
+          fakeRequest({
+            pathname: "/login",
+            method: "POST",
+            headers: { "x-real-ip": "not-an-ip 123" },
+          }),
+        );
+        expect(mockJson).not.toHaveBeenCalled();
+      }
+      // A sixth attempt with an empty trusted-header value shares the same
+      // fallback bucket and is blocked
+      middleware(
+        fakeRequest({
+          pathname: "/login",
+          method: "POST",
+          headers: { "x-real-ip": "" },
+        }),
+      );
+      expect(mockJson).toHaveBeenCalled();
     });
   });
 

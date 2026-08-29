@@ -16,6 +16,32 @@ export type RateLimitResult = {
   retryAfterSeconds?: number;
 };
 
+/**
+ * Rate-limit bucket families. The string prefixes produced by
+ * `buildRateLimitKey` are part of the limiting contract and must not change.
+ */
+export type RateLimitBucket =
+  | "login"
+  | "ingest"
+  | "api"
+  | "maintenance";
+
+/**
+ * Builds the deterministic in-memory bucket key for a bucket + client identity.
+ *
+ * This is the single canonical key builder: middleware must not construct
+ * keys inline. The client identity is resolved by the middleware (Batch 63);
+ * this helper only derives the storage key so that the same identity and
+ * bucket always map to the same key and different identities map to
+ * different keys.
+ */
+export function buildRateLimitKey(
+  bucket: RateLimitBucket,
+  clientIp: string,
+): string {
+  return `${bucket}:${clientIp}`;
+}
+
 const buckets = new Map<string, number[]>();
 
 /**
