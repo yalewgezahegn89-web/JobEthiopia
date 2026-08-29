@@ -1,18 +1,23 @@
 import Link from "next/link";
 import { fetchJobs } from "@/lib/jobs/public";
 import { fetchCareerArticles } from "@/lib/careerArticles/public";
+import { selectClosingJobs } from "@/lib/jobs/closing";
 import JobCard from "@/components/job-card";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [jobsResult, articlesResult] = await Promise.all([
+  const [jobsResult, articlesResult, closingResult] = await Promise.all([
     fetchJobs({ limit: 5 }).catch(() => null),
     fetchCareerArticles({ limit: 3 }).catch(() => null),
+    fetchJobs({ page: 1, limit: 20, status: "PUBLISHED" }).catch(() => null),
   ]);
 
   const jobs = jobsResult?.items ?? [];
   const articles = articlesResult?.items ?? [];
+  const closingJobs = selectClosingJobs(closingResult?.items ?? [], {
+    count: 5,
+  });
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-8">
@@ -124,6 +129,35 @@ export default async function Home() {
           </div>
         )}
       </section>
+
+      {closingJobs.length > 0 && (
+        <section className="mt-12" aria-labelledby="closing-soon-heading">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2
+              id="closing-soon-heading"
+              className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-50"
+            >
+              Closing soon
+            </h2>
+            <Link
+              href="/jobs"
+              className="text-sm font-semibold text-blue-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-blue-400"
+            >
+              View all jobs
+            </Link>
+          </div>
+
+          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+            Application deadlines are approaching. Act quickly.
+          </p>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            {closingJobs.map((job) => (
+              <JobCard key={job.id} job={job} />
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mt-12">
         <div className="flex flex-wrap items-center justify-between gap-2">

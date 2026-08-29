@@ -7,6 +7,10 @@ import {
   toPublicJobSummary,
   toPublicJobDetail,
   PublicApiError,
+  daysSince,
+  freshnessLabel,
+  closingState,
+  buildShareLinks,
 } from "../public";
 
 const BASE_URL = "https://example.com";
@@ -518,6 +522,52 @@ describe("view model mappers", () => {
     expect(detail.salaryText).toBeNull();
     expect(detail.experienceMin).toBeNull();
     expect(detail.verificationStatus).toBeNull();
+    expect(detail.lastVerifiedAt).toBeNull();
+    expect(detail.firstSeenAt).toBeNull();
+    expect(detail.createdAt).toBeNull();
+  });
+
+  it("toPublicJobSummary maps verificationStatus and raw deadline", () => {
+    const summary = toPublicJobSummary({
+      verificationStatus: "VERIFIED",
+      deadline: "2026-02-15T00:00:00.000Z",
+      postedAt: "2026-01-15T00:00:00.000Z",
+    });
+
+    expect(summary.verificationStatus).toBe("VERIFIED");
+    expect(summary.deadline).toBe("2026-02-15T00:00:00.000Z");
+    expect(summary.postedAt).toBe("2026-01-15T00:00:00.000Z");
+  });
+
+  it("toPublicJobSummary maps missing verificationStatus and deadline to null", () => {
+    const summary = toPublicJobSummary({});
+
+    expect(summary.verificationStatus).toBeNull();
+    expect(summary.deadline).toBeNull();
+    expect(summary.postedAt).toBeNull();
+    expect(summary.status).toBeNull();
+  });
+
+  it("toPublicJobSummary maps non-string verificationStatus to null and status defensively", () => {
+    const summary = toPublicJobSummary({ verificationStatus: 42, deadline: 123, status: "PUBLISHED" });
+
+    expect(summary.verificationStatus).toBeNull();
+    expect(summary.deadline).toBe("123");
+    expect(summary.status).toBe("PUBLISHED");
+  });
+
+  it("toPublicJobDetail maps lastVerifiedAt, firstSeenAt, createdAt and status", () => {
+    const detail = toPublicJobDetail({
+      lastVerifiedAt: "2026-02-10T00:00:00.000Z",
+      firstSeenAt: "2026-01-14T00:00:00.000Z",
+      createdAt: "2026-01-14T00:00:00.000Z",
+      status: "PUBLISHED",
+    });
+
+    expect(detail.lastVerifiedAt).toBe("2026-02-10T00:00:00.000Z");
+    expect(detail.firstSeenAt).toBe("2026-01-14T00:00:00.000Z");
+    expect(detail.createdAt).toBe("2026-01-14T00:00:00.000Z");
+    expect(detail.status).toBe("PUBLISHED");
   });
 
   it("toPublicJobDetail maps verificationStatus", () => {
@@ -530,5 +580,142 @@ describe("view model mappers", () => {
     const detail = toPublicJobDetail({ description: "Job description" });
 
     expect(detail.description).toBe("Job description");
+  });
+});
+
+describe("daysSince", () => {
+  it("returns null for null input", () => {
+    expect(daysSince(null, new Date("2026-02-15T00:00:00.000Z"))).toBeNull();
+  });
+
+  it("returns null for an invalid date", () => {
+    expect(daysSince("not-a-date", new Date("2026-02-15T00:00:00.000Z"))).toBeNull();
+  });
+
+  it("returns 0 for today", () => {
+    expect(
+      daysSince("2026-02-15T00:00:00.000Z", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBe(0);
+  });
+
+  it("returns 1 for one day ago", () => {
+    expect(
+      daysSince("2026-02-14T00:00:00.000Z", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBe(1);
+  });
+
+  it("returns the number of days for multiple days", () => {
+    expect(
+      daysSince("2026-02-10T00:00:00.000Z", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBe(5);
+  });
+
+  it("returns 0 for a future date (never negative)", () => {
+    expect(
+      daysSince("2026-02-20T00:00:00.000Z", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBe(0);
+  });
+
+  it("defaults now when not provided", () => {
+    expect(typeof daysSince("2026-02-15T00:00:00.000Z")).toBe("number");
+  });
+});
+
+describe("freshnessLabel", () => {
+  it("returns null for null input", () => {
+    expect(freshnessLabel(null, new Date("2026-02-15T00:00:00.000Z"))).toBeNull();
+  });
+
+  it("returns null for an invalid date", () => {
+    expect(
+      freshnessLabel("not-a-date", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBeNull();
+  });
+
+  it("returns Today for today", () => {
+    expect(
+      freshnessLabel("2026-02-15T00:00:00.000Z", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBe("Today");
+  });
+
+  it("returns 1 day ago for one day", () => {
+    expect(
+      freshnessLabel("2026-02-14T00:00:00.000Z", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBe("1 day ago");
+  });
+
+  it("returns n days ago for multiple days", () => {
+    expect(
+      freshnessLabel("2026-02-10T00:00:00.000Z", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBe("5 days ago");
+  });
+});
+
+describe("closingState", () => {
+  it("returns null for a null deadline when not expired", () => {
+    expect(closingState(null, "PUBLISHED", new Date("2026-02-15T00:00:00.000Z"))).toBeNull();
+  });
+
+  it("returns null for an invalid deadline when not expired", () => {
+    expect(
+      closingState("not-a-date", "PUBLISHED", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBeNull();
+  });
+
+  it("returns EXPIRED when status is EXPIRED regardless of deadline", () => {
+    expect(closingState("2026-02-20T00:00:00.000Z", "EXPIRED", new Date("2026-02-15T00:00:00.000Z"))).toBe("EXPIRED");
+    expect(closingState(null, "EXPIRED", new Date("2026-02-15T00:00:00.000Z"))).toBe("EXPIRED");
+  });
+
+  it("returns EXPIRED for a past deadline", () => {
+    expect(
+      closingState("2026-02-10T00:00:00.000Z", "PUBLISHED", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBe("EXPIRED");
+  });
+
+  it("returns CLOSING for a deadline within 7 days", () => {
+    expect(
+      closingState("2026-02-20T00:00:00.000Z", "PUBLISHED", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBe("CLOSING");
+  });
+
+  it("returns CLOSING for a deadline exactly 7 days away", () => {
+    expect(
+      closingState("2026-02-22T00:00:00.000Z", "PUBLISHED", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBe("CLOSING");
+  });
+
+  it("returns OPEN for a deadline more than 7 days away", () => {
+    expect(
+      closingState("2026-03-01T00:00:00.000Z", "PUBLISHED", new Date("2026-02-15T00:00:00.000Z")),
+    ).toBe("OPEN");
+  });
+});
+
+describe("buildShareLinks", () => {
+  it("builds a correctly encoded WhatsApp URL with title and url", () => {
+    const links = buildShareLinks("Staff Nurse", "https://jobs.et/jobs/123");
+
+    expect(links.whatsappUrl).toBe(
+      "https://wa.me/?text=Staff+Nurse%0Ahttps%3A%2F%2Fjobs.et%2Fjobs%2F123",
+    );
+  });
+
+  it("encodes a title with special characters using URLSearchParams rules", () => {
+    const title = "Nurse & Engineer / (FT)";
+    const url = "https://jobs.et/jobs/a";
+    const links = buildShareLinks(title, url);
+
+    const encodedText = new URLSearchParams({ text: `${title}\n${url}` }).toString();
+    expect(links.whatsappUrl).toBe(`https://wa.me/?${encodedText}`);
+    expect(links.whatsappUrl).toContain("https%3A%2F%2Fjobs.et%2Fjobs%2Fa");
+  });
+
+  it("exposes only title and url (no applicationUrl/internal fields)", () => {
+    const links = buildShareLinks("Staff Nurse", "https://jobs.et/jobs/123");
+
+    expect(links.whatsappUrl).not.toContain("applicationUrl");
+    expect(links.whatsappUrl).not.toContain("lastVerifiedAt");
+    expect(links.whatsappUrl).not.toContain("firstSeenAt");
   });
 });

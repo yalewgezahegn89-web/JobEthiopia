@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { fetchJobById, formatDate, type PublicJobDetail } from "@/lib/jobs/public";
+import { fetchJobById, fetchJobs, formatDate, freshnessLabel, closingState, type PublicJobDetail, type PublicJobSummary } from "@/lib/jobs/public";
+import { selectRelatedJobs } from "@/lib/jobs/related";
+import JobShare from "@/components/job-share";
 
 export const dynamic = "force-dynamic";
 
@@ -74,6 +76,29 @@ export default async function JobPage({
   const employmentType = formatEmploymentType(job.employmentType);
   const experience = experienceText(job.experienceMin, job.experienceMax);
   const postedText = formatDate(job.postedAt);
+  const freshness = freshnessLabel(job.postedAt);
+  const verifiedFreshness = freshnessLabel(job.lastVerifiedAt);
+  const closing = closingState(job.deadline, job.status);
+
+  let relatedItems: PublicJobSummary[] = [];
+  try {
+    const relatedResult = await fetchJobs({
+      page: 1,
+      limit: 8,
+      status: "PUBLISHED",
+    });
+    relatedItems = selectRelatedJobs(
+      relatedResult.items,
+      job.id,
+      {
+        category: job.categoryName ?? null,
+        profession: job.professionName ?? null,
+      },
+      3,
+    );
+  } catch {
+    relatedItems = [];
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8">
@@ -122,9 +147,29 @@ export default async function JobPage({
                 Posted {postedText}
               </span>
             )}
+            {freshness && (
+              <span className="rounded-md bg-gray-100 px-2 py-1 dark:bg-gray-800">
+                {freshness}
+              </span>
+            )}
             {job.verificationStatus === "VERIFIED" && (
               <span className="rounded-md bg-green-100 px-2 py-1 font-semibold text-green-800 dark:bg-green-900 dark:text-green-200">
                 Verified
+              </span>
+            )}
+            {verifiedFreshness && (
+              <span className="rounded-md bg-gray-100 px-2 py-1 dark:bg-gray-800">
+                Verified {verifiedFreshness}
+              </span>
+            )}
+            {closing === "CLOSING" && (
+              <span className="rounded-md bg-amber-100 px-2 py-1 font-semibold text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                Closing soon
+              </span>
+            )}
+            {closing === "EXPIRED" && (
+              <span className="rounded-md bg-red-100 px-2 py-1 font-semibold text-red-800 dark:bg-red-900 dark:text-red-200">
+                Expired
               </span>
             )}
           </div>
@@ -159,6 +204,10 @@ export default async function JobPage({
               </p>
             </div>
           )}
+
+          <div className="mt-4">
+            <JobShare title={job.title} />
+          </div>
         </header>
 
         <div className="mt-8 space-y-6 text-sm leading-7 text-gray-700 dark:text-gray-200">
@@ -218,6 +267,79 @@ export default async function JobPage({
           )}
         </div>
       </article>
+
+      {relatedItems.length > 0 && (
+        <section className="mt-10" aria-labelledby="related-jobs-heading">
+          <h2
+            id="related-jobs-heading"
+            className="text-xl font-bold tracking-tight"
+          >
+            Related jobs
+          </h2>
+          <ul className="mt-4 space-y-3">
+            {relatedItems.map((relatedJob) => {
+              const relatedEmployment = formatEmploymentType(
+                relatedJob.employmentType,
+              );
+              const relatedFreshness = freshnessLabel(relatedJob.postedAt);
+              const relatedClosing = closingState(
+                relatedJob.deadline,
+                relatedJob.status,
+              );
+
+              return (
+                <li key={relatedJob.id}>
+                  <Link
+                    href={`/jobs/${relatedJob.id}`}
+                    className="block rounded-lg border border-gray-200 p-4 transition-colors hover:border-blue-400 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-800 dark:hover:bg-gray-900"
+                  >
+                    <span className="font-semibold text-blue-700 dark:text-blue-400">
+                      {relatedJob.title}
+                    </span>
+                    {relatedJob.organizationName && (
+                      <span className="mt-1 block text-sm text-gray-700 dark:text-gray-200">
+                        {relatedJob.organizationName}
+                      </span>
+                    )}
+                    <span className="mt-1 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
+                      {relatedJob.locationName && (
+                        <span className="rounded-md bg-gray-100 px-2 py-0.5 dark:bg-gray-800">
+                          {relatedJob.locationName}
+                        </span>
+                      )}
+                      {relatedEmployment && (
+                        <span className="rounded-md bg-gray-100 px-2 py-0.5 dark:bg-gray-800">
+                          {relatedEmployment}
+                        </span>
+                      )}
+                      {relatedJob.salaryText && (
+                        <span className="rounded-md bg-gray-100 px-2 py-0.5 dark:bg-gray-800">
+                          {relatedJob.salaryText}
+                        </span>
+                      )}
+                      {relatedFreshness && (
+                        <span className="rounded-md bg-gray-100 px-2 py-0.5 dark:bg-gray-800">
+                          {relatedFreshness}
+                        </span>
+                      )}
+                      {relatedClosing === "CLOSING" && (
+                        <span className="rounded-md bg-amber-100 px-2 py-0.5 font-semibold text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                          Closing soon
+                        </span>
+                      )}
+                      {relatedClosing === "EXPIRED" && (
+                        <span className="rounded-md bg-red-100 px-2 py-0.5 font-semibold text-red-800 dark:bg-red-900 dark:text-red-200">
+                          Expired
+                        </span>
+                      )}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

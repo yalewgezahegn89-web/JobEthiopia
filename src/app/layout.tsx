@@ -14,8 +14,18 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+function siteUrl(): URL {
+  return new URL(
+    process.env.APP_BASE_URL?.trim() || "http://localhost:3000",
+  );
+}
+
 export const metadata: Metadata = {
-  title: "JobEthiopia",
+  metadataBase: siteUrl(),
+  title: {
+    default: "JobEthiopia",
+    template: "%s | JobEthiopia",
+  },
   description: "An Ethiopian job and career platform.",
 };
 

@@ -33,6 +33,9 @@ export type PublicJobSummary = {
   salaryText: string | null;
   deadlineText: string | null;
   postedAt: string | null;
+  deadline: string | null;
+  verificationStatus: string | null;
+  status: string | null;
 };
 
 export type PublicJobDetail = {
@@ -57,6 +60,10 @@ export type PublicJobDetail = {
   postedAt: string | null;
   applicationUrl: string | null;
   verificationStatus: string | null;
+  lastVerifiedAt: string | null;
+  firstSeenAt: string | null;
+  createdAt: string | null;
+  status: string | null;
 };
 
 export type PublicJobList = {
@@ -140,6 +147,87 @@ export function formatDate(
   });
 }
 
+function toDate(value: string | null, now?: Date): { value: Date; now: Date } | null {
+  if (value == null) {
+    return null;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+  return { value: date, now: now ?? new Date() };
+}
+
+export function daysSince(
+  date: string | null,
+  now?: Date,
+): number | null {
+  const parsed = toDate(date, now);
+  if (!parsed) {
+    return null;
+  }
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const days = Math.floor(
+    (parsed.now.getTime() - parsed.value.getTime()) / msPerDay,
+  );
+  return days > 0 ? days : 0;
+}
+
+export function freshnessLabel(
+  date: string | null,
+  now?: Date,
+): string | null {
+  const parsed = toDate(date, now);
+  if (!parsed) {
+    return null;
+  }
+  const days = daysSince(date, now);
+  if (days == null) {
+    return null;
+  }
+  if (days === 0) {
+    return "Today";
+  }
+  if (days === 1) {
+    return "1 day ago";
+  }
+  return `${days} days ago`;
+}
+
+export function closingState(
+  deadline: string | null,
+  status: string | null,
+  now?: Date,
+): "OPEN" | "CLOSING" | "EXPIRED" | null {
+  if (status === "EXPIRED") {
+    return "EXPIRED";
+  }
+  const parsed = toDate(deadline, now);
+  if (!parsed) {
+    return null;
+  }
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const diffMs = parsed.value.getTime() - parsed.now.getTime();
+  if (diffMs < 0) {
+    return "EXPIRED";
+  }
+  const daysUntil = diffMs / msPerDay;
+  if (daysUntil <= 7) {
+    return "CLOSING";
+  }
+  return "OPEN";
+}
+
+export function buildShareLinks(
+  title: string,
+  url: string,
+): { whatsappUrl: string } {
+  const text = `${title}\n${url}`;
+  const params = new URLSearchParams({ text });
+  return { whatsappUrl: `https://wa.me/?${params.toString()}` };
+}
+
+
 function entityName(entity: EntityRef): string | null {
   return entity?.name ?? null;
 }
@@ -178,7 +266,13 @@ export function toPublicJobSummary(raw: Record<string, unknown>): PublicJobSumma
       raw.salaryPeriod as string | null | undefined,
     ),
     deadlineText: formatDate(raw.deadline as string | null | undefined),
-    postedAt: formatDate(raw.postedAt as string | null | undefined),
+    postedAt: raw.postedAt != null ? String(raw.postedAt) : null,
+    deadline: raw.deadline != null ? String(raw.deadline) : null,
+    verificationStatus:
+      typeof raw.verificationStatus === "string"
+        ? raw.verificationStatus
+        : null,
+    status: typeof raw.status === "string" ? raw.status : null,
   };
 }
 
@@ -228,6 +322,11 @@ export function toPublicJobDetail(raw: Record<string, unknown>): PublicJobDetail
       typeof raw.verificationStatus === "string"
         ? raw.verificationStatus
         : null,
+    lastVerifiedAt:
+      raw.lastVerifiedAt != null ? String(raw.lastVerifiedAt) : null,
+    firstSeenAt: raw.firstSeenAt != null ? String(raw.firstSeenAt) : null,
+    createdAt: raw.createdAt != null ? String(raw.createdAt) : null,
+    status: typeof raw.status === "string" ? raw.status : null,
   };
 }
 
