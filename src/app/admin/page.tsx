@@ -17,8 +17,8 @@ export default async function AdminPage() {
         {user?.role ?? "STAFF"}).
       </p>
       <p className="mt-6 text-neutral-600">
-        Moderation, verification, source health, and management tools will be
-        added in later batches.
+        Job moderation, organization verification, and source management are
+        available above.
       </p>
       <Link href="/logout" className="mt-8 inline-block text-sm underline">
         Sign out
