@@ -16,6 +16,20 @@ vi.mock("../../../db", () => ({
   },
 }));
 
+const { mockAssertTrustedCsrfFromRequest } = vi.hoisted(() => ({
+  mockAssertTrustedCsrfFromRequest: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/csrf", () => ({
+  assertTrustedCsrfFromRequest: mockAssertTrustedCsrfFromRequest,
+  CsrfError: class CsrfError extends Error {
+    constructor() {
+      super("Unexpected request origin");
+      this.name = "CsrfError";
+    }
+  },
+}));
+
 vi.mock("../../../db/schema/sources", () => ({
   sources: {
     id: "sources.id",

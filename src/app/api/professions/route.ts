@@ -5,6 +5,9 @@ import { professions } from "@/db/schema/professions";
 import { professionListQuerySchema } from "@/lib/validations/professionQuery";
 import { createProfessionSchema } from "@/lib/validations";
 import { checkApiKey } from "@/lib/auth/apiKey";
+import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
+import { writeAuditLog } from "@/lib/auth/audit";
+import { checkBodySize } from "@/lib/apiUtils";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -13,6 +16,15 @@ function jsonError(message: string, status: number) {
 export async function POST(request: Request) {
   const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return jsonError("Forbidden", 403);
+  }
+
+  const bodySizeError = checkBodySize(request);
+  if (bodySizeError) return bodySizeError;
 
   let body: unknown;
   try {
@@ -42,6 +54,13 @@ export async function POST(request: Request) {
         createdAt: professions.createdAt,
         updatedAt: professions.updatedAt,
       });
+
+    await writeAuditLog({
+      action: "PROFESSION_CREATED",
+      targetType: "profession",
+      targetId: created.id,
+      metadata: { source: "api_key", name: created.name },
+    });
 
     return NextResponse.json({ item: created }, { status: 201 });
   } catch (err: unknown) {

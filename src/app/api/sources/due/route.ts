@@ -4,12 +4,16 @@ import { db } from "@/db";
 import { sources } from "@/db/schema/sources";
 import { isSourceDueForCheck } from "@/lib/sources/health";
 import { dueListQuerySchema } from "@/lib/validations/sourceQuery";
+import { checkApiKey } from "@/lib/auth/apiKey";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
 export async function GET(request: Request) {
+  const keyCheck = checkApiKey(request);
+  if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
+
   const { searchParams } = new URL(request.url);
 
   const parsed = dueListQuerySchema.safeParse({

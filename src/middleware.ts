@@ -54,10 +54,10 @@ export function middleware(request: NextRequest) {
   if (pathname.startsWith("/api/")) {
     const ip = resolveIp(request);
 
-    // Internal maintenance — rate-limited despite being GET
+    // Internal maintenance — rate-limited POST endpoint
     if (
       pathname === "/api/internal/maintenance/run" &&
-      method === "GET"
+      method === "POST"
     ) {
       const result = checkRateLimit(`maintenance:${ip}`, MAINTENANCE);
       if (!result.allowed) {

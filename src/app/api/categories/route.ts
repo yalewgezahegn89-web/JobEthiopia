@@ -5,6 +5,9 @@ import { categories } from "@/db/schema/categories";
 import { categoryListQuerySchema } from "@/lib/validations/categoryQuery";
 import { createCategorySchema } from "@/lib/validations";
 import { checkApiKey } from "@/lib/auth/apiKey";
+import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
+import { writeAuditLog } from "@/lib/auth/audit";
+import { checkBodySize } from "@/lib/apiUtils";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -13,6 +16,15 @@ function jsonError(message: string, status: number) {
 export async function POST(request: Request) {
   const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return jsonError("Forbidden", 403);
+  }
+
+  const bodySizeError = checkBodySize(request);
+  if (bodySizeError) return bodySizeError;
 
   let body: unknown;
   try {
@@ -43,6 +55,13 @@ export async function POST(request: Request) {
         createdAt: categories.createdAt,
         updatedAt: categories.updatedAt,
       });
+
+    await writeAuditLog({
+      action: "CATEGORY_CREATED",
+      targetType: "category",
+      targetId: created.id,
+      metadata: { source: "api_key", name: created.name },
+    });
 
     return NextResponse.json({ item: created }, { status: 201 });
   } catch (err: unknown) {

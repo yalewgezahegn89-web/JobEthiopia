@@ -10,6 +10,9 @@ import { jobListQuerySchema } from "@/lib/validations/jobQuery";
 import { createJobSchema } from "@/lib/validations";
 import { createJobDirect } from "@/lib/ingestion/createJobDirect";
 import { checkApiKey } from "@/lib/auth/apiKey";
+import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
+import { writeAuditLog } from "@/lib/auth/audit";
+import { checkBodySize, escapeLikePattern } from "@/lib/apiUtils";
 
 function toEntityMap<T extends { id: string }>(rows: T[]): Map<string, T> {
   return new Map(rows.map((row) => [row.id, row]));
@@ -22,6 +25,15 @@ function jsonError(message: string, status: number) {
 export async function POST(request: Request) {
   const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return jsonError("Forbidden", 403);
+  }
+
+  const bodySizeError = checkBodySize(request);
+  if (bodySizeError) return bodySizeError;
 
   let body: unknown;
   try {
@@ -39,6 +51,13 @@ export async function POST(request: Request) {
 
   try {
     const created = await createJobDirect(parsed.data);
+
+    await writeAuditLog({
+      action: "JOB_CREATED",
+      targetType: "job",
+      targetId: created.id,
+      metadata: { source: "api_key" },
+    });
 
     return NextResponse.json({ item: created }, { status: 201 });
   } catch (err: unknown) {
@@ -91,9 +110,10 @@ export async function GET(request: Request) {
 
     let organizationNameIds: string[] = [];
     if (keyword) {
+      const escapedKeyword = escapeLikePattern(keyword);
       const matches = await db.query.organizations.findMany({
         columns: { id: true },
-        where: ilike(organizations.name, `%${keyword}%`),
+        where: ilike(organizations.name, `%${escapedKeyword}%`),
       });
       organizationNameIds = matches.map((match) => match.id);
     }
@@ -118,7 +138,8 @@ export async function GET(request: Request) {
       conditions.push(eq(jobs.locationId, locationId));
     }
     if (keyword) {
-      const pattern = `%${keyword}%`;
+      const escapedKeyword = escapeLikePattern(keyword);
+      const pattern = `%${escapedKeyword}%`;
       const titleOrDescription = or(
         ilike(jobs.title, pattern),
         ilike(jobs.description, pattern),

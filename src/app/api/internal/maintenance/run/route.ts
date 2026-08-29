@@ -29,7 +29,7 @@ function checkMaintenanceKey(request: Request): Response | null {
   return null;
 }
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   const authError = checkMaintenanceKey(request);
   if (authError) return authError;
 

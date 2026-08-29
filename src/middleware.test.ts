@@ -283,13 +283,13 @@ describe("middleware — rate limiting", () => {
   });
 
   describe("maintenance", () => {
-    it("allows GET /api/internal/maintenance/run within limit", () => {
+    it("allows POST /api/internal/maintenance/run within limit", () => {
       mockNext.mockReturnValue({ passed: true });
       for (let i = 0; i < 3; i++) {
         const result = middleware(
           fakeRequest({
             pathname: "/api/internal/maintenance/run",
-            method: "GET",
+            method: "POST",
             headers: { "x-forwarded-for": "12.0.0.1" },
           }),
         );
@@ -298,13 +298,13 @@ describe("middleware — rate limiting", () => {
       expect(mockJson).not.toHaveBeenCalled();
     });
 
-    it("blocks GET /api/internal/maintenance/run after 3 attempts", () => {
+    it("blocks POST /api/internal/maintenance/run after 3 attempts", () => {
       mockJson.mockReturnValue({ status: 429 });
       for (let i = 0; i < 3; i++) {
         middleware(
           fakeRequest({
             pathname: "/api/internal/maintenance/run",
-            method: "GET",
+            method: "POST",
             headers: { "x-forwarded-for": "12.0.0.1" },
           }),
         );
@@ -312,7 +312,7 @@ describe("middleware — rate limiting", () => {
       middleware(
         fakeRequest({
           pathname: "/api/internal/maintenance/run",
-          method: "GET",
+          method: "POST",
           headers: { "x-forwarded-for": "12.0.0.1" },
         }),
       );

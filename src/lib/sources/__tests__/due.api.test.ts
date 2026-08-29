@@ -42,6 +42,7 @@ vi.mock("../../../lib/sources/health", () => ({
 import { GET } from "../../../app/api/sources/due/route";
 
 const VALID_ID_1 = "550e8400-e29b-41d4-a716-446655440000";
+const API_KEY = "test-api-key-123";
 
 function makeGetRequest(searchParams?: Record<string, string>): Request {
   const url = new URL("http://localhost/api/sources/due");
@@ -50,7 +51,10 @@ function makeGetRequest(searchParams?: Record<string, string>): Request {
       url.searchParams.set(key, value);
     }
   }
-  return new Request(url.toString(), { method: "GET" });
+  return new Request(url.toString(), {
+    method: "GET",
+    headers: { "x-api-key": API_KEY },
+  });
 }
 
 function mockDbSuccess(count: number, items: unknown[]) {
@@ -80,6 +84,7 @@ function mockDbSuccess(count: number, items: unknown[]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubEnv("INGESTION_API_KEY", API_KEY);
   mockDbSuccess(1, []);
   mockIsSourceDueForCheck.mockResolvedValue(true);
 });

@@ -6,6 +6,9 @@ import { ingestJobs } from "@/lib/ingestion/batch";
 import { batchIngestionRequestSchema } from "@/lib/validations/batchIngestion";
 import type { RawJobInput } from "@/lib/ingestion/types";
 import { checkApiKey } from "@/lib/auth/apiKey";
+import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
+import { writeAuditLog } from "@/lib/auth/audit";
+import { checkBodySize, INGESTION_MAX_BODY_BYTES } from "@/lib/apiUtils";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -14,6 +17,15 @@ function jsonError(message: string, status: number) {
 export async function POST(request: Request) {
   const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return jsonError("Forbidden", 403);
+  }
+
+  const bodySizeError = checkBodySize(request, INGESTION_MAX_BODY_BYTES);
+  if (bodySizeError) return bodySizeError;
 
   let body: unknown;
   try {
@@ -44,6 +56,19 @@ export async function POST(request: Request) {
     const result = await ingestJobs({
       sourceId,
       jobs: jobs as RawJobInput[],
+    });
+
+    await writeAuditLog({
+      action: "JOB_INGESTED",
+      targetType: "source",
+      targetId: sourceId,
+      metadata: {
+        source: "api_key",
+        created: result.summary.created,
+        updated: result.summary.updated,
+        duplicate: result.summary.duplicate,
+        failed: result.summary.failed,
+      },
     });
 
     return NextResponse.json(result);

@@ -3,6 +3,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockDbSelect = vi.fn();
 const mockDbInsert = vi.fn();
 
+const { mockAssertTrustedCsrfFromRequest } = vi.hoisted(() => ({
+  mockAssertTrustedCsrfFromRequest: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/csrf", () => ({
+  assertTrustedCsrfFromRequest: mockAssertTrustedCsrfFromRequest,
+  CsrfError: class CsrfError extends Error {
+    constructor() {
+      super("Unexpected request origin");
+      this.name = "CsrfError";
+    }
+  },
+}));
+
 vi.mock("../../../db", () => ({
   db: {
     select: (...args: unknown[]) => mockDbSelect(...args),

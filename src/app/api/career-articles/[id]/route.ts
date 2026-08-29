@@ -5,6 +5,9 @@ import { careerArticles } from "@/db/schema/careerArticles";
 import { careerArticleIdParamSchema } from "@/lib/validations/careerArticleQuery";
 import { updateCareerArticleSchema } from "@/lib/validations";
 import { checkApiKey } from "@/lib/auth/apiKey";
+import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
+import { writeAuditLog } from "@/lib/auth/audit";
+import { checkBodySize } from "@/lib/apiUtils";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -42,6 +45,15 @@ export async function PUT(
 ) {
   const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return jsonError("Forbidden", 403);
+  }
+
+  const bodySizeError = checkBodySize(request);
+  if (bodySizeError) return bodySizeError;
 
   const { id } = await params;
 
@@ -99,6 +111,13 @@ export async function PUT(
         updatedAt: careerArticles.updatedAt,
       });
 
+    await writeAuditLog({
+      action: "CAREER_ARTICLE_UPDATED",
+      targetType: "career_article",
+      targetId: parsedId.data.id,
+      metadata: { source: "api_key", fields: Object.keys(parsed.data) },
+    });
+
     return NextResponse.json({ item: updated });
   } catch (err: unknown) {
     if (
@@ -112,11 +131,17 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const keyCheck = checkApiKey(_request);
+  const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return jsonError("Forbidden", 403);
+  }
 
   const { id } = await params;
 
@@ -138,6 +163,13 @@ export async function DELETE(
     await db
       .delete(careerArticles)
       .where(eq(careerArticles.id, parsedId.data.id));
+
+    await writeAuditLog({
+      action: "CAREER_ARTICLE_DELETED",
+      targetType: "career_article",
+      targetId: parsedId.data.id,
+      metadata: { source: "api_key" },
+    });
 
     return NextResponse.json({ success: true });
   } catch {

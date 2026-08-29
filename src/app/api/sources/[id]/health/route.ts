@@ -9,6 +9,8 @@ import {
 } from "@/lib/sources/health";
 import { sourceIdParamSchema } from "@/lib/validations/sourceParams";
 import { checkApiKey } from "@/lib/auth/apiKey";
+import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
+import { writeAuditLog } from "@/lib/auth/audit";
 import { ssrfFetch, SsrfError } from "@/lib/ssrf";
 
 function jsonError(message: string, status: number) {
@@ -54,6 +56,12 @@ export async function POST(
 ) {
   const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return jsonError("Forbidden", 403);
+  }
 
   const { id } = await params;
 
@@ -107,6 +115,13 @@ export async function POST(
     if (!health) {
       return jsonError("Source not found", 404);
     }
+
+    await writeAuditLog({
+      action: "SOURCE_HEALTH_CHECKED",
+      targetType: "source",
+      targetId: parsed.data.id,
+      metadata: { source: "api_key", reachable },
+    });
 
     return NextResponse.json({
       item: {

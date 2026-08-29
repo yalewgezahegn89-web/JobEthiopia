@@ -9,6 +9,9 @@ import { locations } from "@/db/schema/locations";
 import { jobIdParamSchema } from "@/lib/validations/jobQuery";
 import { updateJobSchema } from "@/lib/validations";
 import { checkApiKey } from "@/lib/auth/apiKey";
+import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
+import { writeAuditLog } from "@/lib/auth/audit";
+import { checkBodySize } from "@/lib/apiUtils";
 
 type JobStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "EXPIRED" | "REMOVED";
 
@@ -101,6 +104,12 @@ export async function DELETE(
   const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
 
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return jsonError("Forbidden", 403);
+  }
+
   const { id } = await params;
 
   const parsedId = jobIdParamSchema.safeParse({ id });
@@ -124,6 +133,13 @@ export async function DELETE(
       .delete(jobs)
       .where(eq(jobs.id, parsedId.data.id));
 
+    await writeAuditLog({
+      action: "JOB_DELETED",
+      targetType: "job",
+      targetId: parsedId.data.id,
+      metadata: { source: "api_key" },
+    });
+
     return NextResponse.json({ success: true });
   } catch {
     return jsonError("Internal server error", 500);
@@ -136,6 +152,15 @@ export async function PATCH(
 ) {
   const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return jsonError("Forbidden", 403);
+  }
+
+  const bodySizeError = checkBodySize(request);
+  if (bodySizeError) return bodySizeError;
 
   const { id } = await params;
 
@@ -198,6 +223,13 @@ export async function PATCH(
         createdAt: jobs.createdAt,
         updatedAt: jobs.updatedAt,
       });
+
+    await writeAuditLog({
+      action: "JOB_UPDATED",
+      targetType: "job",
+      targetId: parsedId.data.id,
+      metadata: { source: "api_key", fields: Object.keys(parsed.data) },
+    });
 
     return NextResponse.json({ item: updated });
   } catch (err: unknown) {

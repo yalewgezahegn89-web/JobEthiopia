@@ -6,12 +6,24 @@ const {
   mockRecordFailedCheck,
   mockSsrfFetch,
   mockFindFirst,
+  mockAssertTrustedCsrfFromRequest,
 } = vi.hoisted(() => ({
   mockGetSourceHealth: vi.fn(),
   mockRecordSuccessfulCheck: vi.fn(),
   mockRecordFailedCheck: vi.fn(),
   mockSsrfFetch: vi.fn(),
   mockFindFirst: vi.fn(),
+  mockAssertTrustedCsrfFromRequest: vi.fn(),
+}));
+
+vi.mock("@/lib/auth/csrf", () => ({
+  assertTrustedCsrfFromRequest: mockAssertTrustedCsrfFromRequest,
+  CsrfError: class CsrfError extends Error {
+    constructor() {
+      super("Unexpected request origin");
+      this.name = "CsrfError";
+    }
+  },
 }));
 
 vi.mock("@/lib/ssrf", () => ({
