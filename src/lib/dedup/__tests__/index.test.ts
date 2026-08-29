@@ -14,6 +14,26 @@ vi.mock("../../../db", () => ({
 
 import { detectDuplicate } from "../index";
 
+function collectSqlParams(chunk: unknown): unknown[] {
+  const params: unknown[] = [];
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+    } else if (value && typeof value === "object") {
+      if ("value" in value && "encoder" in value) {
+        params.push((value as { value: unknown }).value);
+      }
+      if ("queryChunks" in value) {
+        visit((value as { queryChunks: unknown[] }).queryChunks);
+      }
+    } else if (typeof value === "string") {
+      params.push(value);
+    }
+  };
+  visit(chunk);
+  return params;
+}
+
 beforeEach(() => {
   mockJobSourcesFindFirst.mockReset();
   mockJobsFindFirst.mockReset();
@@ -171,6 +191,21 @@ describe("detectDuplicate", () => {
 
       expect(result.classification).toBe("POSSIBLE_DUPLICATE");
       expect(result.level).toBe("ORG_TITLE_LOCATION");
+    });
+
+    it("passes the escaped title pattern to the ILIKE query", async () => {
+      mockJobsFindFirst.mockResolvedValueOnce({ id: "job-6" });
+
+      const result = await detectDuplicate({
+        ...baseInput,
+        normalizedTitle: "Front_End%Developer\\",
+      });
+
+      expect(result.level).toBe("ORG_TITLE_LOCATION");
+      const where = mockJobsFindFirst.mock.calls[0][0].where;
+      const params = collectSqlParams(where);
+      expect(params).toContain("Front\\_End\\%Developer\\\\");
+      expect(params).not.toContain("Front_End%Developer\\");
     });
   });
 

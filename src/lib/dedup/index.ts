@@ -3,6 +3,7 @@ import { db } from "../../db";
 import { jobSources } from "../../db/schema/jobSources";
 import { jobs } from "../../db/schema/jobs";
 import { canonicalizeUrl } from "./canonicalUrl";
+import { escapeLikePattern } from "../apiUtils";
 import type {
   DuplicateDetectionInput,
   DuplicateDetectionResult,
@@ -109,7 +110,7 @@ export async function detectDuplicate(
     const match = await db.query.jobs.findFirst({
       where: and(
         eq(jobs.organizationId, organizationId),
-        ilike(jobs.title, titleNormalized),
+        ilike(jobs.title, escapeLikePattern(titleNormalized)),
         locationCondition,
       ),
       orderBy: [desc(jobs.updatedAt), desc(jobs.createdAt)],
