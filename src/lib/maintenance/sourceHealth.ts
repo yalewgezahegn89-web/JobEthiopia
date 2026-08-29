@@ -6,6 +6,7 @@ import {
   recordSuccessfulCheck,
   recordFailedCheck,
 } from "@/lib/sources/health";
+import { ssrfFetch, SsrfError } from "@/lib/ssrf";
 
 const MAX_SOURCES_PER_RUN = 100;
 
@@ -77,27 +78,23 @@ export async function checkDueSources(now: Date): Promise<SourceHealthResult> {
     result.checked += 1;
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10_000);
+      const ssrfResult = await ssrfFetch(source.baseUrl, { method: "HEAD" });
 
-      const response = await fetch(source.baseUrl, {
-        method: "HEAD",
-        signal: controller.signal,
-        redirect: "follow",
-      });
-
-      clearTimeout(timeout);
-
-      if (response.ok) {
+      if (ssrfResult.ok) {
         await recordSuccessfulCheck(source.id);
         result.succeeded += 1;
       } else {
-        await recordFailedCheck(source.id, `HTTP ${response.status}`);
+        await recordFailedCheck(source.id, `HTTP ${ssrfResult.status}`);
         result.failed += 1;
       }
     } catch (err: unknown) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Connection failed";
+      let errorMessage: string;
+      if (err instanceof SsrfError) {
+        errorMessage = err.message;
+      } else {
+        errorMessage =
+          err instanceof Error ? err.message : "Connection failed";
+      }
       try {
         await recordFailedCheck(source.id, errorMessage);
       } catch {

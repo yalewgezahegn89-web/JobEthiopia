@@ -9,6 +9,7 @@ import {
 } from "@/lib/sources/health";
 import { sourceIdParamSchema } from "@/lib/validations/sourceParams";
 import { checkApiKey } from "@/lib/auth/apiKey";
+import { ssrfFetch, SsrfError } from "@/lib/ssrf";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -84,24 +85,19 @@ export async function POST(
     let errorMessage = "";
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10_000);
-
-      const response = await fetch(source.baseUrl, {
-        method: "HEAD",
-        signal: controller.signal,
-        redirect: "follow",
-      });
-
-      clearTimeout(timeout);
-      reachable = response.ok;
+      const result = await ssrfFetch(source.baseUrl, { method: "HEAD" });
+      reachable = result.ok;
       if (!reachable) {
-        errorMessage = `HTTP ${response.status}`;
+        errorMessage = `HTTP ${result.status}`;
       }
     } catch (err: unknown) {
       reachable = false;
-      errorMessage =
-        err instanceof Error ? err.message : "Connection failed";
+      if (err instanceof SsrfError) {
+        errorMessage = err.message;
+      } else {
+        errorMessage =
+          err instanceof Error ? err.message : "Connection failed";
+      }
     }
 
     const health = reachable

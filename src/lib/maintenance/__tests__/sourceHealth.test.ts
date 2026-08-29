@@ -1,10 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   mockSelect: vi.fn(),
   mockIsSourceDueForCheck: vi.fn(),
   mockRecordSuccessfulCheck: vi.fn(),
   mockRecordFailedCheck: vi.fn(),
+  mockSsrfFetch: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
@@ -34,6 +35,16 @@ vi.mock("@/lib/sources/health", () => ({
     mocks.mockRecordFailedCheck(...args),
 }));
 
+vi.mock("@/lib/ssrf", () => ({
+  ssrfFetch: mocks.mockSsrfFetch,
+  SsrfError: class SsrfError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "SsrfError";
+    }
+  },
+}));
+
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
   asc: vi.fn((val: unknown) => val),
@@ -46,23 +57,8 @@ vi.mock("drizzle-orm", () => ({
 
 import { checkDueSources } from "../sourceHealth";
 
-const originalFetch = globalThis.fetch;
-
-function mockSelectReturn(rows: unknown[]) {
-  mocks.mockSelect.mockReturnValue({
-    from: vi.fn().mockReturnValue({
-      where: vi.fn().mockReturnValue({
-        orderBy: vi.fn().mockReturnValue({
-          limit: vi.fn().mockResolvedValue(rows),
-        }),
-      }),
-    }),
-  });
-}
-
 beforeEach(() => {
   vi.clearAllMocks();
-  globalThis.fetch = vi.fn();
   mocks.mockRecordSuccessfulCheck.mockResolvedValue({
     sourceId: "src-1",
     lastSuccessfulCheck: new Date(),
@@ -81,9 +77,17 @@ beforeEach(() => {
   });
 });
 
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
+function mockSelectReturn(rows: unknown[]) {
+  mocks.mockSelect.mockReturnValue({
+    from: vi.fn().mockReturnValue({
+      where: vi.fn().mockReturnValue({
+        orderBy: vi.fn().mockReturnValue({
+          limit: vi.fn().mockResolvedValue(rows),
+        }),
+      }),
+    }),
+  });
+}
 
 function makeSourceRow(
   id: string,
@@ -104,7 +108,7 @@ describe("checkDueSources", () => {
       const source = makeSourceRow("src-1");
       mockSelectReturn([source]);
       mocks.mockIsSourceDueForCheck.mockResolvedValue(true);
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      mocks.mockSsrfFetch.mockResolvedValue({
         ok: true,
       });
 
@@ -120,7 +124,7 @@ describe("checkDueSources", () => {
 
       const result = await checkDueSources(new Date("2026-06-01T00:00:00Z"));
       expect(result.checked).toBe(0);
-      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(mocks.mockSsrfFetch).not.toHaveBeenCalled();
     });
 
     it("marks never-successfully-checked source as due", async () => {
@@ -128,7 +132,7 @@ describe("checkDueSources", () => {
       source.lastSuccessfulCheck = null;
       mockSelectReturn([source]);
       mocks.mockIsSourceDueForCheck.mockResolvedValue(true);
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      mocks.mockSsrfFetch.mockResolvedValue({
         ok: true,
       });
 
@@ -141,7 +145,7 @@ describe("checkDueSources", () => {
       source.checkFrequencyMinutes = null as unknown as number;
       mockSelectReturn([source]);
       mocks.mockIsSourceDueForCheck.mockResolvedValue(true);
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      mocks.mockSsrfFetch.mockResolvedValue({
         ok: true,
       });
 
@@ -155,7 +159,7 @@ describe("checkDueSources", () => {
       const source = makeSourceRow("src-1");
       mockSelectReturn([source]);
       mocks.mockIsSourceDueForCheck.mockResolvedValue(true);
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      mocks.mockSsrfFetch.mockResolvedValue({
         ok: true,
       });
 
@@ -168,7 +172,7 @@ describe("checkDueSources", () => {
       const source = makeSourceRow("src-1");
       mockSelectReturn([source]);
       mocks.mockIsSourceDueForCheck.mockResolvedValue(true);
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      mocks.mockSsrfFetch.mockResolvedValue({
         ok: false,
         status: 500,
       });
@@ -185,7 +189,7 @@ describe("checkDueSources", () => {
       const source = makeSourceRow("src-1");
       mockSelectReturn([source]);
       mocks.mockIsSourceDueForCheck.mockResolvedValue(true);
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(
+      mocks.mockSsrfFetch.mockRejectedValue(
         new Error("DNS lookup failed"),
       );
 
@@ -205,7 +209,7 @@ describe("checkDueSources", () => {
       mockSelectReturn([source1, source2]);
       mocks.mockIsSourceDueForCheck.mockResolvedValue(true);
 
-      (globalThis.fetch as ReturnType<typeof vi.fn>)
+      mocks.mockSsrfFetch
         .mockRejectedValueOnce(new Error("timeout"))
         .mockResolvedValueOnce({ ok: true });
 
@@ -243,7 +247,7 @@ describe("checkDueSources", () => {
       const result = await checkDueSources(new Date("2026-06-01T00:00:00Z"));
       expect(result.skipped).toBe(1);
       expect(result.checked).toBe(0);
-      expect(globalThis.fetch).not.toHaveBeenCalled();
+      expect(mocks.mockSsrfFetch).not.toHaveBeenCalled();
     });
   });
 
@@ -266,7 +270,7 @@ describe("checkDueSources", () => {
       mockSelectReturn(sources);
       mocks.mockIsSourceDueForCheck.mockResolvedValue(true);
 
-      (globalThis.fetch as ReturnType<typeof vi.fn>)
+      mocks.mockSsrfFetch
         .mockResolvedValueOnce({ ok: true })
         .mockResolvedValueOnce({ ok: false, status: 503 });
 

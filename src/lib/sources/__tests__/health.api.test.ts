@@ -1,8 +1,28 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockGetSourceHealth = vi.fn();
-const mockRecordSuccessfulCheck = vi.fn();
-const mockRecordFailedCheck = vi.fn();
+const {
+  mockGetSourceHealth,
+  mockRecordSuccessfulCheck,
+  mockRecordFailedCheck,
+  mockSsrfFetch,
+  mockFindFirst,
+} = vi.hoisted(() => ({
+  mockGetSourceHealth: vi.fn(),
+  mockRecordSuccessfulCheck: vi.fn(),
+  mockRecordFailedCheck: vi.fn(),
+  mockSsrfFetch: vi.fn(),
+  mockFindFirst: vi.fn(),
+}));
+
+vi.mock("@/lib/ssrf", () => ({
+  ssrfFetch: mockSsrfFetch,
+  SsrfError: class SsrfError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "SsrfError";
+    }
+  },
+}));
 
 vi.mock("../../sources/health", () => ({
   getSourceHealth: (...args: unknown[]) => mockGetSourceHealth(...args),
@@ -14,8 +34,6 @@ vi.mock("../../sources/health", () => ({
 vi.mock("drizzle-orm", () => ({
   eq: vi.fn(),
 }));
-
-const mockFindFirst = vi.fn();
 
 vi.mock("@/db", () => ({
   db: {
@@ -68,8 +86,6 @@ function makePostRequest(
   });
 }
 
-const originalFetch = globalThis.fetch;
-
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("INGESTION_API_KEY", API_KEY);
@@ -85,11 +101,6 @@ beforeEach(() => {
     lastError: "Connection failed",
     lastAttemptedCheck: new Date(),
   });
-  globalThis.fetch = vi.fn();
-});
-
-afterEach(() => {
-  globalThis.fetch = originalFetch;
 });
 
 describe("GET /api/sources/[id]/health", () => {
@@ -329,10 +340,10 @@ describe("POST /api/sources/[id]/health", () => {
 
   describe("successful check", () => {
     it("returns 200 when source is reachable", async () => {
-      vi.mocked(globalThis.fetch).mockResolvedValue({
+      mockSsrfFetch.mockResolvedValue({
         ok: true,
         status: 200,
-      } as Response);
+      });
 
       const request = makePostRequest(VALID_ID);
       const response = await POST(request, {
@@ -346,10 +357,10 @@ describe("POST /api/sources/[id]/health", () => {
     });
 
     it("records success when HTTP status is 200", async () => {
-      vi.mocked(globalThis.fetch).mockResolvedValue({
+      mockSsrfFetch.mockResolvedValue({
         ok: true,
         status: 200,
-      } as Response);
+      });
 
       const request = makePostRequest(VALID_ID);
       await POST(request, {
@@ -360,30 +371,30 @@ describe("POST /api/sources/[id]/health", () => {
       expect(mockRecordFailedCheck).not.toHaveBeenCalled();
     });
 
-    it("calls fetch with HEAD method", async () => {
-      vi.mocked(globalThis.fetch).mockResolvedValue({
+    it("calls ssrfFetch with HEAD method", async () => {
+      mockSsrfFetch.mockResolvedValue({
         ok: true,
         status: 200,
-      } as Response);
+      });
 
       const request = makePostRequest(VALID_ID);
       await POST(request, {
         params: Promise.resolve({ id: VALID_ID }),
       });
 
-      expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect(mockSsrfFetch).toHaveBeenCalledWith(
         SAMPLE_SOURCE.baseUrl,
-        expect.objectContaining({ method: "HEAD" }),
+        { method: "HEAD" },
       );
     });
   });
 
   describe("unreachable source", () => {
     it("returns 200 with reachable=false when HTTP status is 500", async () => {
-      vi.mocked(globalThis.fetch).mockResolvedValue({
+      mockSsrfFetch.mockResolvedValue({
         ok: false,
         status: 500,
-      } as Response);
+      });
 
       const request = makePostRequest(VALID_ID);
       const response = await POST(request, {
@@ -397,7 +408,7 @@ describe("POST /api/sources/[id]/health", () => {
     });
 
     it("returns 200 with reachable=false on connection error", async () => {
-      vi.mocked(globalThis.fetch).mockRejectedValue(
+      mockSsrfFetch.mockRejectedValue(
         new Error("ECONNREFUSED"),
       );
 
@@ -416,7 +427,7 @@ describe("POST /api/sources/[id]/health", () => {
     });
 
     it("returns 200 with reachable=false on abort/timeout", async () => {
-      vi.mocked(globalThis.fetch).mockRejectedValue(
+      mockSsrfFetch.mockRejectedValue(
         new Error("The operation was aborted"),
       );
 
@@ -431,10 +442,10 @@ describe("POST /api/sources/[id]/health", () => {
     });
 
     it("records failure with error message on HTTP 404", async () => {
-      vi.mocked(globalThis.fetch).mockResolvedValue({
+      mockSsrfFetch.mockResolvedValue({
         ok: false,
         status: 404,
-      } as Response);
+      });
 
       const request = makePostRequest(VALID_ID);
       await POST(request, {
@@ -448,10 +459,10 @@ describe("POST /api/sources/[id]/health", () => {
 
   describe("response shape", () => {
     it("returns health fields in response", async () => {
-      vi.mocked(globalThis.fetch).mockResolvedValue({
+      mockSsrfFetch.mockResolvedValue({
         ok: true,
         status: 200,
-      } as Response);
+      });
 
       const request = makePostRequest(VALID_ID);
       const response = await POST(request, {
@@ -499,10 +510,10 @@ describe("POST /api/sources/[id]/health", () => {
     });
 
     it("returns 404 when recordSuccessfulCheck returns null", async () => {
-      vi.mocked(globalThis.fetch).mockResolvedValue({
+      mockSsrfFetch.mockResolvedValue({
         ok: true,
         status: 200,
-      } as Response);
+      });
       mockRecordSuccessfulCheck.mockResolvedValue(null);
 
       const request = makePostRequest(VALID_ID);
@@ -516,10 +527,10 @@ describe("POST /api/sources/[id]/health", () => {
     });
 
     it("returns 404 when recordFailedCheck returns null", async () => {
-      vi.mocked(globalThis.fetch).mockResolvedValue({
+      mockSsrfFetch.mockResolvedValue({
         ok: false,
         status: 500,
-      } as Response);
+      });
       mockRecordFailedCheck.mockResolvedValue(null);
 
       const request = makePostRequest(VALID_ID);
