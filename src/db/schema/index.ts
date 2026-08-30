@@ -21,4 +21,5 @@ export { jobSources } from "./jobSources";
 export { careerArticles } from "./careerArticles";
 export { users } from "./users";
 export { sessions } from "./sessions";
+export { passwordResetTokens } from "./passwordResetTokens";
 export { auditLog } from "./auditLog";

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
 import { createElement, type ReactNode } from "react";
 
 const mocks = vi.hoisted(() => ({
@@ -26,6 +27,7 @@ vi.mock("@/lib/admin/audit", () => ({
 }));
 
 import AdminAuditPage from "@/app/admin/audit/page";
+import AuditList from "@/app/admin/audit/audit-list";
 
 const AUDIT_RESULT = {
   items: [
@@ -111,6 +113,23 @@ describe("AdminAuditPage", () => {
         action: undefined,
         targetType: undefined,
       }),
+    );
+  });
+
+  it("offers PASSWORD_RESET_* actions in the filter dropdown", () => {
+    const markup = renderToStaticMarkup(
+      createElement(AuditList, {
+        result: AUDIT_RESULT,
+        currentAction: undefined,
+        currentTargetType: undefined,
+        currentActorUserId: undefined,
+      }),
+    );
+    expect(markup).toContain(
+      'value="PASSWORD_RESET_REQUESTED"',
+    );
+    expect(markup).toContain(
+      'value="PASSWORD_RESET_COMPLETED"',
     );
   });
 });
