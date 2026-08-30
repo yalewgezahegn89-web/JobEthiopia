@@ -1,0 +1,133 @@
+# Deployment Guide
+
+## Requirements
+
+- Node.js 20 LTS recommended (minimum 18.18.0)
+- PostgreSQL
+- npm
+
+## Required Environment Variables
+
+| Variable | Purpose | Required | Secret |
+|---|---|---|---|
+| `DATABASE_URL` | PostgreSQL connection string (e.g. `postgresql://user:pass@host:5432/dbname`) | Yes | Yes |
+| `APP_BASE_URL` | Public origin for CSRF, sitemap, robots, and password-reset links (e.g. `https://jobs.example.com`) | Yes | No |
+| `INGESTION_API_KEY` | API key required for job ingestion endpoints | Yes | Yes |
+| `MAINTENANCE_API_KEY` | API key required for the maintenance run endpoint | Yes | Yes |
+
+### Optional
+
+| Variable | Purpose | Required | Secret |
+|---|---|---|---|
+| `TRUSTED_CLIENT_IP_HEADER` | Header name overwritten by a trusted reverse proxy with the real client IP (e.g. `x-real-ip`). Only set when a proxy is in use. | No | No |
+
+### Bootstrap-Only
+
+These are only used when manually running the first-admin bootstrap command. They are not read at application startup.
+
+| Variable | Purpose | Required | Secret |
+|---|---|---|---|
+| `ADMIN_BOOTSTRAP_EMAIL` | Email for the initial SUPER_ADMIN account | For bootstrap | Yes |
+| `ADMIN_BOOTSTRAP_PASSWORD` | Password for the initial SUPER_ADMIN account | For bootstrap | Yes |
+
+## Production Environment Notes
+
+- `APP_BASE_URL` must be the real production origin (e.g. `https://jobs.example.com`).
+- HTTPS should be used in production. Secure session cookies depend on `NODE_ENV=production`.
+- API keys must be stored in the hosting platform's secret/env system, never in code.
+- `TRUSTED_CLIENT_IP_HEADER` should only be configured when the proxy sanitizes/overwrites that header.
+
+## Database Deployment
+
+1. Configure `DATABASE_URL`.
+2. Apply migrations:
+   ```bash
+   npm run db:migrate
+   ```
+3. Build:
+   ```bash
+   npm run build
+   ```
+4. Start:
+   ```bash
+   npm run start
+   ```
+
+### Migration Notes
+
+- `npm run db:migrate` applies tracked Drizzle migrations. This is the correct production workflow.
+- `npm run db:push` pushes schema directly and bypasses the migration chain. Do **not** use it in production.
+- Migrations are forward-only. There are no rollback SQL scripts. Take a database backup before risky production schema changes.
+
+## First Admin Bootstrap
+
+The first SUPER_ADMIN must be created manually after database setup:
+
+1. Set `ADMIN_BOOTSTRAP_EMAIL` and `ADMIN_BOOTSTRAP_PASSWORD` environment variables.
+2. Run:
+   ```bash
+   npx tsx src/db/bootstrapAdmin.ts
+   ```
+
+Notes:
+- This command does **not** run automatically at application startup.
+- It is idempotent: if an account with that email already exists, it is a no-op.
+- The password is hashed with scrypt and never stored in plaintext.
+
+## Seeding (Development Only)
+
+```bash
+npm run db:seed
+```
+
+This populates development data. Do **not** run this against a production database.
+
+## Health Check
+
+`GET /api/health` returns:
+
+- `200` with `{"status":"ok"}` when the database is reachable.
+- `503` with `{"status":"error"}` when the database is unreachable.
+
+No authentication is required. This endpoint is suitable for uptime and readiness monitoring. It contains no internal diagnostic details.
+
+## Observability
+
+- Structured JSON is emitted to stdout/stderr.
+- Each request is assigned a correlation ID via the `x-request-id` response header.
+- Logs are redacted of sensitive fields (passwords, tokens, API keys, etc.).
+- Platform log capture (Vercel function logs, Docker stdout, systemd journal, etc.) is expected.
+
+## Password Reset / Email
+
+Password reset infrastructure exists, but live email transport is not configured by this batch.
+
+- No live email provider is required for CI or basic deployment.
+- Production password-reset email requires a verified email provider and a production HTTPS `APP_BASE_URL`.
+- Email provider configuration is a separate follow-up.
+
+## Vercel Readiness
+
+Vercel is a plausible deployment target because this is a Next.js application using the Node runtime.
+
+Batch 78 does **not** configure Vercel. If deploying to Vercel:
+
+- No `vercel.json` is required for this foundation.
+- Node runtime is required (not Edge runtime).
+- PostgreSQL connection pooling should be validated for serverless deployment before high-concurrency production use.
+- Platform-specific DB SSL settings are deployment-specific.
+- Live deployment requires production environment variables to be configured in the Vercel dashboard.
+
+## Generic Node Deployment
+
+```bash
+npm ci
+npm run db:migrate
+npm run build
+npm run start
+```
+
+Notes:
+- `DATABASE_URL` is required for migration and runtime.
+- `PORT` can be supplied by the host; Next.js defaults to 3000.
+- Use a reverse proxy for HTTPS in production.
