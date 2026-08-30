@@ -8,6 +8,12 @@ import {
   CSP_HEADER_NAME,
   CSP_REPORT_ONLY_HEADER_NAME,
 } from "@/lib/csp";
+import { logWarn } from "@/lib/observability/logger";
+import {
+  generateRequestId,
+  REQUEST_ID_HEADER,
+  applyRequestIdToHeaders,
+} from "@/lib/observability/requestId";
 
 /* ── CSP (Batch 72) ────────────────────────────────────────────────────── */
 
@@ -37,12 +43,26 @@ function applyCsp(
   return response;
 }
 
+/**
+ * Echoes the server-generated request correlation ID on the response. Uses
+ * the same guarded pattern as applyCsp so tests that stub NextResponse with
+ * plain objects remain unaffected.
+ */
+function applyRequestId(response: NextResponse, requestId: string): NextResponse {
+  applyRequestIdToHeaders(
+    (response as { headers?: Headers }).headers,
+    requestId,
+  );
+  return response;
+}
+
 /* ── Rate-limit configs ────────────────────────────────────────────────── */
 
 const LOGIN = { limit: 5, windowMs: 15 * 60_000 } as const;
 const INGESTION = { limit: 10, windowMs: 60_000 } as const;
 const API_MUTATION = { limit: 30, windowMs: 60_000 } as const;
 const MAINTENANCE = { limit: 3, windowMs: 5 * 60_000 } as const;
+const APPLICATIONS = { limit: 10, windowMs: 60_000 } as const;
 
 /* ── Client-IP resolution ───────────────────────────────────────────────── */
 
@@ -118,6 +138,22 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const method = request.method;
 
+  /* ── Request correlation (Batch 76) ────────────────────────────────── */
+  // Always generate a fresh server-side ID; never trust an inbound header.
+  const requestId = generateRequestId();
+  const startedAt = performance.now();
+
+  const logRejected = (status: number, route: string, bucket: string): void => {
+    logWarn("rate_limit_rejected", {
+      requestId,
+      route,
+      method,
+      status,
+      bucket,
+      durationMs: Math.round(performance.now() - startedAt),
+    });
+  };
+
   /* ── Rate limiting ─────────────────────────────────────────────────── */
 
   // Login — only POST (Server Action submissions); GET navigation is open.
@@ -125,10 +161,14 @@ export function middleware(request: NextRequest) {
     const clientIp = resolveClientIp(request);
     const result = checkRateLimit(buildRateLimitKey("login", clientIp), LOGIN);
     if (!result.allowed) {
-      return applyCsp(
-        rateLimited(result.retryAfterSeconds!),
-        cspHeaderName,
-        cspValue,
+      logRejected(429, pathname, "login");
+      return applyRequestId(
+        applyCsp(
+          rateLimited(result.retryAfterSeconds!),
+          cspHeaderName,
+          cspValue,
+        ),
+        requestId,
       );
     }
   }
@@ -147,27 +187,58 @@ export function middleware(request: NextRequest) {
         MAINTENANCE,
       );
       if (!result.allowed) {
-        return applyCsp(
-          rateLimited(result.retryAfterSeconds!),
-          cspHeaderName,
-          cspValue,
+        logRejected(429, pathname, "maintenance");
+        return applyRequestId(
+          applyCsp(
+            rateLimited(result.retryAfterSeconds!),
+            cspHeaderName,
+            cspValue,
+          ),
+          requestId,
         );
       }
     }
 
-    // Mutations — POST, PUT, PATCH, DELETE (GET is always open)
-    if (method !== "GET" && method !== "HEAD") {
-      // Job ingestion has its own tighter limit
-      if (pathname === "/api/jobs/ingest" && method === "POST") {
+      // Application submission/withdrawal — tighten per-candidate limits
+      if (
+        (pathname === "/api/applications" ||
+          /^\/api\/applications\/[0-9a-f-]+$/i.test(pathname)) &&
+        method === "POST"
+      ) {
+        const result = checkRateLimit(
+          buildRateLimitKey("applications", clientIp),
+          APPLICATIONS,
+        );
+        if (!result.allowed) {
+          logRejected(429, pathname, "applications");
+          return applyRequestId(
+            applyCsp(
+              rateLimited(result.retryAfterSeconds!),
+              cspHeaderName,
+              cspValue,
+            ),
+            requestId,
+          );
+        }
+      }
+
+      // Mutations — POST, PUT, PATCH, DELETE (GET is always open)
+      if (method !== "GET" && method !== "HEAD") {
+        // Job ingestion has its own tighter limit
+        if (pathname === "/api/jobs/ingest" && method === "POST") {
         const result = checkRateLimit(
           buildRateLimitKey("ingest", clientIp),
           INGESTION,
         );
         if (!result.allowed) {
-          return applyCsp(
-            rateLimited(result.retryAfterSeconds!),
-            cspHeaderName,
-            cspValue,
+          logRejected(429, pathname, "ingest");
+          return applyRequestId(
+            applyCsp(
+              rateLimited(result.retryAfterSeconds!),
+              cspHeaderName,
+              cspValue,
+            ),
+            requestId,
           );
         }
       } else {
@@ -176,10 +247,14 @@ export function middleware(request: NextRequest) {
           API_MUTATION,
         );
         if (!result.allowed) {
-          return applyCsp(
-            rateLimited(result.retryAfterSeconds!),
-            cspHeaderName,
-            cspValue,
+          logRejected(429, pathname, "api");
+          return applyRequestId(
+            applyCsp(
+              rateLimited(result.retryAfterSeconds!),
+              cspHeaderName,
+              cspValue,
+            ),
+            requestId,
           );
         }
       }
@@ -197,10 +272,13 @@ export function middleware(request: NextRequest) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
       loginUrl.search = "";
-      return applyCsp(
-        NextResponse.redirect(loginUrl),
-        cspHeaderName,
-        cspValue,
+      return applyRequestId(
+        applyCsp(
+          NextResponse.redirect(loginUrl),
+          cspHeaderName,
+          cspValue,
+        ),
+        requestId,
       );
     }
   }
@@ -208,13 +286,15 @@ export function middleware(request: NextRequest) {
   /* ── Pass-through with CSP nonce ──────────────────────────────────── */
 
   // Clone the request headers so the downstream render can read the nonce
-  // from the CSP header (Next 16.3.3 resolves the nonce at render time).
+  // from the CSP header (Next 16.3.3 resolves the nonce at render time) and
+  // so route handlers can read the correlation ID.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(cspHeaderName, cspValue);
+  requestHeaders.set(REQUEST_ID_HEADER, requestId);
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
-  return applyCsp(response, cspHeaderName, cspValue);
+  return applyRequestId(applyCsp(response, cspHeaderName, cspValue), requestId);
 }
 
 export const config = {

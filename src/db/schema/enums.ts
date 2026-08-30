@@ -75,3 +75,8 @@ export const userRoleEnum = pgEnum("user_role", [
   "ORGANIZATION_ADMIN",
   "CANDIDATE",
 ]);
+
+export const applicationStatusEnum = pgEnum("application_status", [
+  "SUBMITTED",
+  "WITHDRAWN",
+]);

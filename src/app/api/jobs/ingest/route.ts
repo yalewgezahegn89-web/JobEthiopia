@@ -9,6 +9,8 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize, INGESTION_MAX_BODY_BYTES } from "@/lib/apiUtils";
+import { logError, logInfo } from "@/lib/observability/logger";
+import { getRequestId } from "@/lib/observability/requestId";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -43,6 +45,9 @@ export async function POST(request: Request) {
 
   const { sourceId, jobs } = parsed.data;
 
+  const start = performance.now();
+  const requestId = await getRequestId();
+
   try {
     const source = await db.query.sources.findFirst({
       where: eq(sources.id, sourceId),
@@ -53,7 +58,6 @@ export async function POST(request: Request) {
       return jsonError("Source not found or inactive", 404);
     }
 
-    const start = performance.now();
     const result = await ingestJobs({
       sourceId,
       jobs: jobs as RawJobInput[],
@@ -77,8 +81,34 @@ export async function POST(request: Request) {
       },
     });
 
+    logInfo("ingestion_completed", {
+      requestId,
+      sourceId,
+      route: "/api/jobs/ingest",
+      method: "POST",
+      status: 200,
+      durationMs,
+      total: result.summary.total,
+      created: result.summary.created,
+      updated: result.summary.updated,
+      duplicate: result.summary.duplicate,
+      linked: result.summary.linked,
+      possibleDuplicate: result.summary.possibleDuplicate,
+      failed: result.summary.failed,
+    });
+
     return NextResponse.json(result);
   } catch {
+    const durationMs = Math.round(performance.now() - start);
+    logError("ingestion_failed", {
+      requestId,
+      sourceId,
+      route: "/api/jobs/ingest",
+      method: "POST",
+      status: 500,
+      durationMs,
+      errorCode: "INTERNAL_ERROR",
+    });
     return jsonError("Internal server error", 500);
   }
 }

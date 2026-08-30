@@ -3,7 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { fetchJobById, fetchJobs, formatDate, freshnessLabel, closingState, type PublicJobDetail, type PublicJobSummary } from "@/lib/jobs/public";
 import { selectRelatedJobs } from "@/lib/jobs/related";
+import { getCurrentUser } from "@/lib/auth/context";
 import JobShare from "@/components/job-share";
+import { ApplyButton } from "@/components/applications/apply-button";
 
 export const dynamic = "force-dynamic";
 
@@ -79,6 +81,18 @@ export default async function JobPage({
   const freshness = freshnessLabel(job.postedAt);
   const verifiedFreshness = freshnessLabel(job.lastVerifiedAt);
   const closing = closingState(job.deadline, job.status);
+
+  let currentUser: Awaited<ReturnType<typeof getCurrentUser>> = null;
+  try {
+    currentUser = await getCurrentUser();
+  } catch {
+    currentUser = null;
+  }
+
+  const canApplyInternally =
+    currentUser?.role === "CANDIDATE" &&
+    closing !== "EXPIRED" &&
+    job.applicationUrl === null;
 
   let relatedItems: PublicJobSummary[] = [];
   try {
@@ -203,6 +217,10 @@ export default async function JobPage({
                 Opens an external application page.
               </p>
             </div>
+          )}
+
+          {canApplyInternally && (
+            <ApplyButton jobId={job.id} jobTitle={job.title} />
           )}
 
           <div className="mt-4">

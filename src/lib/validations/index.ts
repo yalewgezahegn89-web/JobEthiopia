@@ -165,3 +165,17 @@ export const updateCareerArticleSchema = createCareerArticleSchema.partial();
 
 export type CreateCareerArticleInput = z.infer<typeof createCareerArticleSchema>;
 export type UpdateCareerArticleInput = z.infer<typeof updateCareerArticleSchema>;
+
+export const createApplicationSchema = z
+  .object({
+    jobId: z.string().uuid("Job ID must be a valid UUID"),
+    coverLetter: z.string().trim().max(2000).optional(),
+  })
+  .strict();
+
+export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
+
+export const applicationIdParamSchema = z.object({
+  id: z.string().uuid("id must be a valid UUID"),
+});
+export type ApplicationIdParam = z.infer<typeof applicationIdParamSchema>;

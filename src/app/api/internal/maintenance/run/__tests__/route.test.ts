@@ -209,4 +209,61 @@ describe("POST /api/internal/maintenance/run", () => {
       expect(response.status).toBe(401);
     });
   });
+
+  describe("observability logs (Batch 76)", () => {
+    let infoSpy: ReturnType<typeof vi.spyOn>;
+    let errorSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+      errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function events(spy: ReturnType<typeof vi.spyOn>): string[] {
+      return spy.mock.calls.map(([arg]) => JSON.parse(arg as string).event);
+    }
+
+    it("emits maintenance_started and maintenance_completed on success", async () => {
+      const request = makeRequest(MAINTENANCE_KEY);
+      await POST(request);
+
+      expect(events(infoSpy)).toContain("maintenance_started");
+      expect(events(infoSpy)).toContain("maintenance_completed");
+    });
+
+    it("maintenance_completed includes counts and duration, but no key", async () => {
+      const request = makeRequest(MAINTENANCE_KEY);
+      await POST(request);
+
+      const records = infoSpy.mock.calls.map(([arg]) => JSON.parse(arg as string));
+      const completed = records.find(
+        (r) => r.event === "maintenance_completed",
+      );
+      expect(completed).toBeDefined();
+      expect(completed.durationMs).toBeGreaterThanOrEqual(0);
+      expect(completed.sourcesChecked).toBe(5);
+      expect(completed.sourcesFailed).toBe(1);
+      const raw = JSON.stringify(records);
+      expect(raw).not.toContain(MAINTENANCE_KEY);
+    });
+
+    it("emits maintenance_failed with stable errorCode on failure", async () => {
+      mockRunMaintenance.mockRejectedValue(new Error("boom"));
+      const request = makeRequest(MAINTENANCE_KEY);
+      await POST(request);
+
+      const records = errorSpy.mock.calls.map(([arg]) => JSON.parse(arg as string));
+      const failed = records.find((r) => r.event === "maintenance_failed");
+      expect(failed).toBeDefined();
+      expect(failed.errorCode).toBe("INTERNAL_ERROR");
+      expect(failed.status).toBe(500);
+      const raw = JSON.stringify(records);
+      expect(raw).toContain("maintenance_failed");
+      expect(raw).not.toContain("boom");
+    });
+  });
 });

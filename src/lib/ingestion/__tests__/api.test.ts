@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockSourcesFindFirst = vi.fn();
 const mockIngestJobs = vi.fn();
@@ -439,6 +439,80 @@ describe("POST /api/jobs/ingest", () => {
 
       expect(body).not.toContain("SECRET_DB_PASSWORD");
       expect(body).not.toContain("xyz");
+    });
+  });
+
+  describe("observability logs (Batch 76)", () => {
+    let infoSpy: ReturnType<typeof vi.spyOn>;
+    let errorSpy: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+      errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function records(spy: ReturnType<typeof vi.spyOn>): Array<Record<string, unknown>> {
+      return spy.mock.calls.map(([arg]) => JSON.parse(arg as string));
+    }
+
+    it("emits a single ingestion_completed batch log with counts and duration", async () => {
+      const request = makeRequest({
+        sourceId: VALID_SOURCE_ID,
+        jobs: [makeJob()],
+      });
+
+      await POST(request);
+
+      const emitted = records(infoSpy).filter(
+        (r) => r.event === "ingestion_completed",
+      );
+      expect(emitted).toHaveLength(1);
+      const completed = emitted[0];
+      expect(completed.sourceId).toBe(VALID_SOURCE_ID);
+      expect(completed.total).toBe(1);
+      expect(completed.created).toBe(1);
+      expect(completed.duplicate).toBe(0);
+      expect(completed.failed).toBe(0);
+      expect(completed.durationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it("emits no per-item logs", async () => {
+      const request = makeRequest({
+        sourceId: VALID_SOURCE_ID,
+        jobs: [makeJob(), makeJob()],
+      });
+
+      await POST(request);
+
+      const emitted = records(infoSpy);
+      const perItem = emitted.filter(
+        (r) => r.event === "ingestion_item_completed" || r.event === "ingestion_item_failed",
+      );
+      expect(perItem).toHaveLength(0);
+    });
+
+    it("emits ingestion_failed with stable errorCode on unexpected failure", async () => {
+      mockIngestJobs.mockRejectedValue(new Error("boom up"));
+      const request = makeRequest({
+        sourceId: VALID_SOURCE_ID,
+        jobs: [makeJob()],
+      });
+
+      await POST(request);
+
+      const emitted = records(errorSpy).filter(
+        (r) => r.event === "ingestion_failed",
+      );
+      expect(emitted).toHaveLength(1);
+      expect(emitted[0].errorCode).toBe("INTERNAL_ERROR");
+      expect(emitted[0].status).toBe(500);
+      expect(emitted[0].sourceId).toBe(VALID_SOURCE_ID);
+      const raw = JSON.stringify(emitted);
+      expect(raw).not.toContain("boom up");
     });
   });
 });

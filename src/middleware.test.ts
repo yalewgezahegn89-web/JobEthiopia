@@ -658,3 +658,89 @@ describe("middleware — CSP headers (Batch 72)", () => {
     expect(jsonHeaders.get("content-security-policy")).toContain("'nonce-");
   });
 });
+
+describe("middleware — request correlation ID (Batch 76)", () => {
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+  it("echoes a server-generated x-request-id on the pass-through response", () => {
+    const headers = new Headers();
+    mockNext.mockReturnValue({ passed: true, headers });
+    middleware(fakeRequest({ pathname: "/jobs", method: "GET" }));
+    expect(headers.get("x-request-id")).toMatch(UUID);
+  });
+
+  it("propagates the x-request-id in request headers for the downstream handler", () => {
+    cspAwareNext();
+    middleware(fakeRequest({ pathname: "/jobs", method: "GET" }));
+    const [init] = mockNext.mock.calls[mockNext.mock.calls.length - 1];
+    const requestHeaders = init.request.headers as Headers;
+    expect(requestHeaders.get("x-request-id")).toMatch(UUID);
+  });
+
+  it("is server-generated and does not trust an inbound x-request-id", () => {
+    const headers = new Headers();
+    mockNext.mockReturnValue({ passed: true, headers });
+    middleware(
+      fakeRequest({
+        pathname: "/jobs",
+        method: "GET",
+        headers: { "x-request-id": "attacker-supplied" },
+      }),
+    );
+
+    const responseId = headers.get("x-request-id");
+    expect(responseId).toMatch(UUID);
+    expect(responseId).not.toBe("attacker-supplied");
+
+    const [init] = mockNext.mock.calls[mockNext.mock.calls.length - 1];
+    const requestId = (init.request.headers as Headers).get("x-request-id");
+    expect(requestId).toMatch(UUID);
+    expect(requestId).not.toBe("attacker-supplied");
+  });
+
+  it("echoes x-request-id on rate-limited (429) responses", () => {
+    const jsonHeaders = new Headers();
+    mockJson.mockReturnValue({ status: 429, headers: jsonHeaders });
+    for (let i = 0; i < 6; i++) {
+      middleware(
+        fakeRequest({
+          pathname: "/login",
+          method: "POST",
+          headers: { "x-forwarded-for": "7.7.7.7" },
+        }),
+      );
+    }
+    expect(jsonHeaders.get("x-request-id")).toMatch(UUID);
+  });
+
+  it("echoes x-request-id on admin-gate redirect responses", () => {
+    const headers = new Headers();
+    mockRedirect.mockReturnValue({ redirected: true, headers });
+    middleware(fakeRequest({ pathname: "/admin", method: "GET" }));
+    expect(headers.get("x-request-id")).toMatch(UUID);
+  });
+
+  it("does not leak query strings, tokens, or request bodies in propagated headers", () => {
+    const headers = new Headers();
+    mockNext.mockReturnValue({ passed: true, headers });
+    middleware(
+      fakeRequest({
+        pathname: "/reset-password",
+        method: "GET",
+        headers: { "x-request-id": "spoof" },
+      }),
+    );
+
+    const [init] = mockNext.mock.calls[mockNext.mock.calls.length - 1];
+    const requestHeaders = init.request.headers as Headers;
+    const serialized = JSON.stringify(Object.fromEntries(requestHeaders.entries()));
+    expect(serialized).not.toContain("token=");
+    expect(serialized).not.toContain("spoof");
+    expect(requestHeaders.has("x-request-id")).toBe(true);
+  });
+
+  function cspAwareNext(): void {
+    const headers = new Headers();
+    mockNext.mockReturnValue({ passed: true, headers });
+  }
+});

@@ -4,6 +4,8 @@ import type {
   SendPasswordResetEmail,
 } from "./types";
 import { buildPasswordResetEmail } from "./passwordReset";
+import { logError } from "@/lib/observability/logger";
+import { getRequestId } from "@/lib/observability/requestId";
 
 export { buildPasswordResetEmail };
 export type { EmailTransport, PasswordResetEmail, SendPasswordResetEmail } from "./types";
@@ -45,5 +47,15 @@ export async function dispatchPasswordResetEmail(
   to: string,
   resetUrl: string,
 ): Promise<void> {
-  await sendPasswordResetEmail(buildPasswordResetEmail(to, resetUrl));
+  try {
+    await sendPasswordResetEmail(buildPasswordResetEmail(to, resetUrl));
+  } catch (err) {
+    // Operational logging only. Never log the URL/token/body/secret; emit a
+    // stable code and the correlation ID so failures remain diagnosable.
+    logError("email_reset_dispatch_failed", {
+      requestId: await getRequestId(),
+      errorCode: "EMAIL_DISPATCH_FAILED",
+    });
+    throw err;
+  }
 }

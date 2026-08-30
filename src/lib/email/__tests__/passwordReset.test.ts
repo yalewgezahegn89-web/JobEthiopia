@@ -54,4 +54,24 @@ describe("email transport injection", () => {
     const logged = spy.mock.calls.map((c) => c.join(" ")).join("\n");
     expect(logged).not.toContain("topsecret");
   });
+
+  it("logs email_reset_dispatch_failed without the token or URL on provider failure", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    send.mockRejectedValue(new Error("SMTP unreachable"));
+
+    await expect(
+      dispatchPasswordResetEmail(
+        "u@example.com",
+        "https://x.example/?token=shouldnotleak",
+      ),
+    ).rejects.toThrow("SMTP unreachable");
+
+    const records = errorSpy.mock.calls.map(([arg]) => JSON.parse(arg as string));
+    const failed = records.find((r) => r.event === "email_reset_dispatch_failed");
+    expect(failed).toBeDefined();
+    expect(failed.errorCode).toBe("EMAIL_DISPATCH_FAILED");
+    const raw = JSON.stringify(records);
+    expect(raw).not.toContain("shouldnotleak");
+    expect(raw).not.toContain("https://x.example/");
+  });
 });

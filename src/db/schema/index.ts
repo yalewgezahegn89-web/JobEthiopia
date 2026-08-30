@@ -9,6 +9,7 @@ export {
   verificationStatusEnum,
   articleStatusEnum,
   userRoleEnum,
+  applicationStatusEnum,
 } from "./enums";
 
 export { locations } from "./locations";
@@ -22,4 +23,5 @@ export { careerArticles } from "./careerArticles";
 export { users } from "./users";
 export { sessions } from "./sessions";
 export { passwordResetTokens } from "./passwordResetTokens";
+export { applications } from "./applications";
 export { auditLog } from "./auditLog";
