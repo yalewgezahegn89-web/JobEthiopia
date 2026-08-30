@@ -15,6 +15,7 @@ export default function AdminNav() {
     { href: "/admin/users", label: "Users" },
     { href: "/admin/audit", label: "Audit Log" },
     { href: "/admin/operations", label: "Operations" },
+    { href: "/admin/taxonomy", label: "Taxonomy" },
   ];
 
   return (
