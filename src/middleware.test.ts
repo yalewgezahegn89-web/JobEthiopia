@@ -36,6 +36,9 @@ function fakeRequest(
     method = "GET",
     headers = {},
   } = overrides;
+  const requestHeaders = new Headers(
+    Object.entries(headers).map(([name, value]) => [name, value]),
+  );
   return {
     cookies: {
       get: () => (cookieValue ? { value: cookieValue } : undefined),
@@ -45,9 +48,7 @@ function fakeRequest(
       clone: () => ({ pathname }),
     },
     method,
-    headers: {
-      get: (name: string) => headers[name.toLowerCase()] ?? null,
-    },
+    headers: requestHeaders,
   } as unknown as NextRequest;
 }
 
@@ -61,12 +62,16 @@ afterEach(() => {
 });
 
 describe("middleware — matcher", () => {
-  it("matches admin, api, and login routes", () => {
-    expect(config.matcher).toEqual([
-      "/admin/:path*",
-      "/api/:path*",
-      "/login",
-    ]);
+  it("keeps admin, api, and login routes", () => {
+    expect(config.matcher).toContain("/admin/:path*");
+    expect(config.matcher).toContain("/api/:path*");
+    expect(config.matcher).toContain("/login");
+  });
+
+  it("adds a public-page catch-all so CSP reaches non-admin routes", () => {
+    expect(config.matcher).toContain(
+      "/((?!api|_next/static|_next/image|favicon.ico).*)",
+    );
   });
 });
 
@@ -526,5 +531,130 @@ describe("middleware — rate limiting", () => {
       }
       expect(mockJson).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("middleware — CSP headers (Batch 72)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function cspAwareNext(): Headers {
+    const headers = new Headers();
+    mockNext.mockReturnValue({ passed: true, headers });
+    return headers;
+  }
+
+  function nonceFrom(headers: Headers): string {
+    const match = /'nonce-([^']+)'/.exec(headers.get("content-security-policy") ?? "");
+    if (!match) throw new Error("nonce not found in CSP header");
+    return match[1];
+  }
+
+  it("enforces CSP on pass-through responses in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const headers = cspAwareNext();
+    middleware(fakeRequest({ pathname: "/jobs", method: "GET" }));
+
+    const csp = headers.get("content-security-policy");
+    expect(csp).toBeTruthy();
+    expect(headers.get("content-security-policy-report-only")).toBeNull();
+    expect(csp).toContain("script-src 'self' 'nonce-");
+    expect(csp).not.toContain("'unsafe-inline'");
+    expect(csp).not.toContain("'unsafe-eval'");
+    expect(csp).not.toContain("*");
+    expect(csp).not.toContain("Strict-Transport");
+  });
+
+  it("sends report-only CSP in development", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const headers = cspAwareNext();
+    middleware(fakeRequest({ pathname: "/jobs", method: "GET" }));
+
+    expect(headers.get("content-security-policy")).toBeNull();
+    expect(headers.get("content-security-policy-report-only")).toContain(
+      "script-src 'self' 'nonce-",
+    );
+  });
+
+  it("propagates the CSP in request headers so the renderer can read the nonce", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    cspAwareNext();
+    middleware(fakeRequest({ pathname: "/jobs", method: "GET" }));
+
+    const [init] = mockNext.mock.calls[mockNext.mock.calls.length - 1];
+    const requestHeaders = init.request.headers as Headers;
+    expect(requestHeaders.get("content-security-policy")).toContain("'nonce-");
+  });
+
+  it("correlates response CSP, request CSP, and style-src to one nonce", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const headers = cspAwareNext();
+    middleware(fakeRequest({ pathname: "/jobs", method: "GET" }));
+
+    const responseCsp = headers.get("content-security-policy")!;
+    const [init] = mockNext.mock.calls[mockNext.mock.calls.length - 1];
+    const requestCsp = (init.request.headers as Headers).get(
+      "content-security-policy",
+    )!;
+    const scriptNonce = /script-src 'self' 'nonce-([^']+)'/.exec(responseCsp)?.[1];
+    const styleNonce = /style-src 'self' 'nonce-([^']+)'/.exec(responseCsp)?.[1];
+    const requestNonce = /script-src 'self' 'nonce-([^']+)'/.exec(requestCsp)?.[1];
+
+    expect(scriptNonce).toBeTruthy();
+    expect(styleNonce).toBe(scriptNonce);
+    expect(requestNonce).toBe(scriptNonce);
+  });
+
+  it("uses a fresh random nonce for every request", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const firstHeaders = cspAwareNext();
+    middleware(fakeRequest({ pathname: "/jobs", method: "GET" }));
+    const firstNonce = nonceFrom(firstHeaders);
+
+    const secondHeaders = cspAwareNext();
+    middleware(fakeRequest({ pathname: "/jobs", method: "GET" }));
+    const secondNonce = nonceFrom(secondHeaders);
+
+    expect(firstNonce).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+    expect(secondNonce).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+    expect(firstNonce).not.toBe(secondNonce);
+  });
+
+  it("attaches CSP to admin-gate redirect responses in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const headers = new Headers();
+    mockRedirect.mockReturnValue({ redirected: true, headers });
+
+    middleware(fakeRequest({ pathname: "/admin", method: "GET" }));
+
+    expect(mockRedirect).toHaveBeenCalledTimes(1);
+    expect(headers.get("content-security-policy")).toContain("'nonce-");
+  });
+
+  it("attaches CSP to rate-limited responses in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const jsonHeaders = new Headers();
+    mockJson.mockReturnValue({ status: 429, headers: jsonHeaders });
+
+    for (let i = 0; i < 5; i++) {
+      middleware(
+        fakeRequest({
+          pathname: "/login",
+          method: "POST",
+          headers: { "x-forwarded-for": "5.5.5.5" },
+        }),
+      );
+    }
+    middleware(
+      fakeRequest({
+        pathname: "/login",
+        method: "POST",
+        headers: { "x-forwarded-for": "5.5.5.5" },
+      }),
+    );
+
+    expect(mockJson).toHaveBeenCalledTimes(1);
+    expect(jsonHeaders.get("content-security-policy")).toContain("'nonce-");
   });
 });

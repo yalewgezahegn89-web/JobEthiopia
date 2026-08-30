@@ -2,6 +2,40 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 import { buildRateLimitKey, checkRateLimit } from "@/lib/rateLimit";
+import {
+  buildCspHeader,
+  generateCspNonce,
+  CSP_HEADER_NAME,
+  CSP_REPORT_ONLY_HEADER_NAME,
+} from "@/lib/csp";
+
+/* ── CSP (Batch 72) ────────────────────────────────────────────────────── */
+
+/**
+ * Development reports the policy instead of enforcing it so tooling
+ * regressions cannot take the app down; production enforces strictly.
+ */
+function cspResponseHeaderName(): string {
+  return process.env.NODE_ENV === "production"
+    ? CSP_HEADER_NAME
+    : CSP_REPORT_ONLY_HEADER_NAME;
+}
+
+/**
+ * Appends the CSP header to a response. The guard tolerates tests that stub
+ * NextResponse with plain objects; real responses always expose a Headers.
+ */
+function applyCsp(
+  response: NextResponse,
+  headerName: string,
+  value: string,
+): NextResponse {
+  const responseHeaders = (response as { headers?: Headers }).headers;
+  if (responseHeaders && typeof responseHeaders.set === "function") {
+    responseHeaders.set(headerName, value);
+  }
+  return response;
+}
 
 /* ── Rate-limit configs ────────────────────────────────────────────────── */
 
@@ -79,6 +113,8 @@ function rateLimited(retryAfterSeconds: number): NextResponse {
 /* ── Middleware ─────────────────────────────────────────────────────────── */
 
 export function middleware(request: NextRequest) {
+  const cspHeaderName = cspResponseHeaderName();
+  const cspValue = buildCspHeader(generateCspNonce());
   const { pathname } = request.nextUrl;
   const method = request.method;
 
@@ -89,7 +125,11 @@ export function middleware(request: NextRequest) {
     const clientIp = resolveClientIp(request);
     const result = checkRateLimit(buildRateLimitKey("login", clientIp), LOGIN);
     if (!result.allowed) {
-      return rateLimited(result.retryAfterSeconds!);
+      return applyCsp(
+        rateLimited(result.retryAfterSeconds!),
+        cspHeaderName,
+        cspValue,
+      );
     }
   }
 
@@ -107,7 +147,11 @@ export function middleware(request: NextRequest) {
         MAINTENANCE,
       );
       if (!result.allowed) {
-        return rateLimited(result.retryAfterSeconds!);
+        return applyCsp(
+          rateLimited(result.retryAfterSeconds!),
+          cspHeaderName,
+          cspValue,
+        );
       }
     }
 
@@ -120,7 +164,11 @@ export function middleware(request: NextRequest) {
           INGESTION,
         );
         if (!result.allowed) {
-          return rateLimited(result.retryAfterSeconds!);
+          return applyCsp(
+            rateLimited(result.retryAfterSeconds!),
+            cspHeaderName,
+            cspValue,
+          );
         }
       } else {
         const result = checkRateLimit(
@@ -128,7 +176,11 @@ export function middleware(request: NextRequest) {
           API_MUTATION,
         );
         if (!result.allowed) {
-          return rateLimited(result.retryAfterSeconds!);
+          return applyCsp(
+            rateLimited(result.retryAfterSeconds!),
+            cspHeaderName,
+            cspValue,
+          );
         }
       }
     }
@@ -145,13 +197,31 @@ export function middleware(request: NextRequest) {
       const loginUrl = request.nextUrl.clone();
       loginUrl.pathname = "/login";
       loginUrl.search = "";
-      return NextResponse.redirect(loginUrl);
+      return applyCsp(
+        NextResponse.redirect(loginUrl),
+        cspHeaderName,
+        cspValue,
+      );
     }
   }
 
-  return NextResponse.next();
+  /* ── Pass-through with CSP nonce ──────────────────────────────────── */
+
+  // Clone the request headers so the downstream render can read the nonce
+  // from the CSP header (Next 16.3.3 resolves the nonce at render time).
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(cspHeaderName, cspValue);
+  const response = NextResponse.next({
+    request: { headers: requestHeaders },
+  });
+  return applyCsp(response, cspHeaderName, cspValue);
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/:path*", "/login"],
+  matcher: [
+    "/admin/:path*",
+    "/api/:path*",
+    "/login",
+    "/((?!api|_next/static|_next/image|favicon.ico).*)",
+  ],
 };
