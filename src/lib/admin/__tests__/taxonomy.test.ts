@@ -40,12 +40,13 @@ vi.mock("@/db", () => ({
     },
     select: (fields: Record<string, unknown>) => ({
       from: () => ({
-        where: () => {
-          const result = fields && "count" in fields ? mocks.mockCountRows() : mocks.mockUsersSelect();
-          return {
-            ...result,
-            groupBy: () => mocks.mockCountRows(),
-          };
+        where: (whereArg: unknown) => {
+          if (fields && "count" in fields) {
+            return Object.assign(mocks.mockCountRows(whereArg), {
+              groupBy: () => mocks.mockCountRows(whereArg),
+            });
+          }
+          return mocks.mockUsersSelect(whereArg);
         },
         groupBy: () => mocks.mockCountRows(),
       }),
@@ -172,6 +173,26 @@ function makeTxMocks() {
   return { capturedInserts, capturedUpdates };
 }
 
+function collectSqlParams(chunk: unknown): unknown[] {
+  const params: unknown[] = [];
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+    } else if (value && typeof value === "object") {
+      if ("value" in value && "encoder" in value) {
+        params.push((value as { value: unknown }).value);
+      }
+      if ("queryChunks" in value) {
+        visit((value as { queryChunks: unknown[] }).queryChunks);
+      }
+    } else if (typeof value === "string") {
+      params.push(value);
+    }
+  };
+  visit(chunk);
+  return params;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.mockCountRows.mockResolvedValue([{ count: 0 }]);
@@ -212,6 +233,26 @@ describe("listCategories", () => {
     mocks.mockCategoriesFindMany.mockResolvedValue([]);
     await listCategories({ page: -1, limit: 200 });
     expect(mocks.mockCategoriesFindMany).toHaveBeenCalled();
+  });
+
+  it("filters categories by search at the DB level and counts only matches", async () => {
+    mocks.mockCountRows.mockResolvedValue([{ count: 2 }]);
+    mocks.mockCategoriesFindMany.mockResolvedValue([CATEGORY_ROW]);
+
+    const result = await listCategories({ search: "Team% _\\Z" });
+
+    const findManyArg = mocks.mockCategoriesFindMany.mock.calls[0][0];
+    const resultWhere = findManyArg.where;
+    expect(resultWhere).toBeDefined();
+    const resultParams = collectSqlParams(resultWhere).map(String);
+    expect(resultParams.join(" ")).toContain("%Team\\% \\_\\\\Z%");
+    expect(resultParams.join(" ")).not.toContain("Team% _\\Z");
+
+    const countWhere = mocks.mockCountRows.mock.calls[0][0];
+    const countParams = collectSqlParams(countWhere).map(String);
+    expect(countParams.join(" ")).toContain("%Team\\% \\_\\\\Z%");
+
+    expect(result.total).toBe(2);
   });
 });
 
@@ -351,6 +392,26 @@ describe("listProfessions", () => {
     expect(result.items).toHaveLength(1);
     expect(result.items[0].id).toBe(VALID_ID);
   });
+
+  it("filters professions by search at the DB level and counts only matches", async () => {
+    mocks.mockCountRows.mockResolvedValue([{ count: 3 }]);
+    mocks.mockProfessionsFindMany.mockResolvedValue([PROFESSION_ROW]);
+
+    const result = await listProfessions({ search: "Nurse% _\\X" });
+
+    const findManyArg = mocks.mockProfessionsFindMany.mock.calls[0][0];
+    const resultWhere = findManyArg.where;
+    expect(resultWhere).toBeDefined();
+    const resultParams = collectSqlParams(resultWhere).map(String);
+    expect(resultParams.join(" ")).toContain("%Nurse\\% \\_\\\\X%");
+    expect(resultParams.join(" ")).not.toContain("Nurse% _\\X");
+
+    const countWhere = mocks.mockCountRows.mock.calls[0][0];
+    const countParams = collectSqlParams(countWhere).map(String);
+    expect(countParams.join(" ")).toContain("%Nurse\\% \\_\\\\X%");
+
+    expect(result.total).toBe(3);
+  });
 });
 
 describe("getProfession", () => {
@@ -439,6 +500,26 @@ describe("listLocations", () => {
     const result = await listLocations({ page: 1, limit: 20 });
     expect(result.items).toHaveLength(1);
     expect(result.items[0].id).toBe(VALID_ID);
+  });
+
+  it("filters locations by search at the DB level and counts only matches", async () => {
+    mocks.mockCountRows.mockResolvedValue([{ count: 4 }]);
+    mocks.mockLocationsFindMany.mockResolvedValue([LOCATION_ROW]);
+
+    const result = await listLocations({ search: "Addis% _\\A" });
+
+    const findManyArg = mocks.mockLocationsFindMany.mock.calls[0][0];
+    const resultWhere = findManyArg.where;
+    expect(resultWhere).toBeDefined();
+    const resultParams = collectSqlParams(resultWhere).map(String);
+    expect(resultParams.join(" ")).toContain("%Addis\\% \\_\\\\A%");
+    expect(resultParams.join(" ")).not.toContain("Addis% _\\A");
+
+    const countWhere = mocks.mockCountRows.mock.calls[0][0];
+    const countParams = collectSqlParams(countWhere).map(String);
+    expect(countParams.join(" ")).toContain("%Addis\\% \\_\\\\A%");
+
+    expect(result.total).toBe(4);
   });
 });
 

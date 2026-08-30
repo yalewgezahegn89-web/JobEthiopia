@@ -6,13 +6,14 @@
  * authentication and role authorization. Identity is never taken from
  * client input.
  */
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { categories } from "@/db/schema/categories";
 import { professions } from "@/db/schema/professions";
 import { locations } from "@/db/schema/locations";
 import { jobs } from "@/db/schema/jobs";
 import { auditLog } from "@/db/schema/auditLog";
+import { escapeLikePattern } from "@/lib/apiUtils";
 import {
   createCategorySchema,
   updateCategorySchema,
@@ -78,6 +79,11 @@ export async function listCategories(input: {
   if (input.isActive !== undefined) {
     filters.push(eq(categories.isActive, input.isActive));
   }
+  if (input.search) {
+    filters.push(
+      ilike(categories.name, `%${escapeLikePattern(input.search)}%`),
+    );
+  }
   const where = filters.length > 0 ? and(...filters) : undefined;
 
   const [rows, totalRows] = await Promise.all([
@@ -134,7 +140,6 @@ export async function listCategories(input: {
   const professionCountMap = new Map(professionCounts.map((p) => [p.categoryId, p.count]));
 
   const items = rows
-    .filter((r) => !input.search || r.name.toLowerCase().includes(input.search.toLowerCase()))
     .map((r) => ({
       id: r.id,
       name: r.name,
@@ -527,6 +532,11 @@ export async function listProfessions(input: {
   if (input.categoryId) {
     filters.push(eq(professions.categoryId, input.categoryId));
   }
+  if (input.search) {
+    filters.push(
+      ilike(professions.name, `%${escapeLikePattern(input.search)}%`),
+    );
+  }
   const where = filters.length > 0 ? and(...filters) : undefined;
 
   const [rows, totalRows] = await Promise.all([
@@ -567,7 +577,6 @@ export async function listProfessions(input: {
   const jobCountMap = new Map(jobCounts.map((j) => [j.professionId, j.count]));
 
   const items = rows
-    .filter((r) => !input.search || r.name.toLowerCase().includes(input.search.toLowerCase()))
     .map((r) => ({
       id: r.id,
       name: r.name,
@@ -911,6 +920,11 @@ export async function listLocations(input: {
   if (input.type) {
     filters.push(eq(locations.type, input.type as never));
   }
+  if (input.search) {
+    filters.push(
+      ilike(locations.name, `%${escapeLikePattern(input.search)}%`),
+    );
+  }
   const where = filters.length > 0 ? and(...filters) : undefined;
 
   const [rows, totalRows] = await Promise.all([
@@ -959,7 +973,6 @@ export async function listLocations(input: {
   const jobCountMap = new Map(jobCounts.map((j) => [j.locationId, j.count]));
 
   const items = rows
-    .filter((r) => !input.search || r.name.toLowerCase().includes(input.search.toLowerCase()))
     .map((r) => ({
       id: r.id,
       name: r.name,
