@@ -16,7 +16,13 @@ import { auditLog } from "@/db/schema/auditLog";
 
 /* ── Status model (centralized) ───────────────────────────────────────── */
 
-export const APPLICATION_STATUSES = ["SUBMITTED", "WITHDRAWN"] as const;
+export const APPLICATION_STATUSES = [
+  "SUBMITTED",
+  "WITHDRAWN",
+  "REVIEWING",
+  "SHORTLISTED",
+  "REJECTED",
+] as const;
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
 
 /* ── Results ───────────────────────────────────────────────────────────── */
@@ -43,7 +49,7 @@ export type WithdrawApplicationResult =
         updatedAt: Date;
       };
     }
-  | { ok: false; code: "NOT_FOUND" | "ALREADY_WITHDRAWN" };
+  | { ok: false; code: "NOT_FOUND" | "ALREADY_WITHDRAWN" | "NOT_WITHDRAWABLE" };
 
 export type CandidateApplicationListItem = {
   id: string;
@@ -279,7 +285,11 @@ export async function withdrawApplication(
     if (existing.status === "WITHDRAWN") {
       return { ok: false as const, code: "ALREADY_WITHDRAWN" as const };
     }
+    if (existing.status !== "SUBMITTED" && existing.status !== "REVIEWING") {
+      return { ok: false as const, code: "NOT_WITHDRAWABLE" as const };
+    }
 
+    const fromStatus = existing.status;
     const now = new Date();
     const [updated] = await tx
       .update(applications)
@@ -298,7 +308,7 @@ export async function withdrawApplication(
       targetId: existing.id,
       metadata: {
         jobId: existing.jobId,
-        fromStatus: "SUBMITTED",
+        fromStatus,
         toStatus: "WITHDRAWN",
       },
     });

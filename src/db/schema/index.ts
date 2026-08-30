@@ -24,4 +24,5 @@ export { users } from "./users";
 export { sessions } from "./sessions";
 export { passwordResetTokens } from "./passwordResetTokens";
 export { applications } from "./applications";
+export { organizationMembers } from "./organizationMembers";
 export { auditLog } from "./auditLog";

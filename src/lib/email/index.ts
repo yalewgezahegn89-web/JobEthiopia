@@ -4,38 +4,87 @@ import type {
   SendPasswordResetEmail,
 } from "./types";
 import { buildPasswordResetEmail } from "./passwordReset";
-import { logError } from "@/lib/observability/logger";
+import { buildApplicationStatusEmail } from "./notification";
+import type { ApplicationStatusNotification } from "./notification";
+import { getAppBaseUrl } from "@/lib/auth/csrf";
+import { logInfo, logError } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
-export { buildPasswordResetEmail };
-export type { EmailTransport, PasswordResetEmail, SendPasswordResetEmail } from "./types";
+export { buildPasswordResetEmail, buildApplicationStatusEmail };
+export type {
+  EmailTransport,
+  PasswordResetEmail,
+  SendPasswordResetEmail,
+} from "./types";
+export type { ApplicationStatusNotification } from "./notification";
+
+/* ── Transport selection ──────────────────────────────────────────────── */
 
 /**
  * Default transport: a deliberate no-op.
  *
  * No live email is sent and nothing is logged (reset URLs/tokens are never
- * written to logs). A real provider must be registered via setEmailTransport
- * once a verified production domain/HTTPS URL exists (see REPORT: the
- * production domain is not yet established, so live provider wiring is
- * intentionally left isolated/out of this engine's default path).
+ * written to logs). A real provider becomes active when RESEND_API_KEY and
+ * EMAIL_FROM are configured in the environment.
  */
 const noopTransport: EmailTransport = {
   async sendPasswordResetEmail(): Promise<void> {
     // Intentionally does nothing.
   },
+  async sendEmail(): Promise<void> {
+    // Intentionally does nothing.
+  },
 };
 
 let transport: EmailTransport = noopTransport;
+let transportInitialized = false;
+
+/**
+ * Lazily initializes the email transport on first use. If RESEND_API_KEY
+ * and EMAIL_FROM are present, a Resend transport is created. Otherwise
+ * the noop transport remains active.
+ *
+ * This avoids module-level side effects that break tests.
+ */
+async function ensureTransport(): Promise<void> {
+  if (transportInitialized) return;
+  transportInitialized = true;
+
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM;
+
+  if (apiKey && from) {
+    try {
+      const { createResendTransport } = await import("./resend");
+      transport = createResendTransport();
+    } catch {
+      // If Resend transport creation fails, remain noop and log once
+      logError("email_transport_init_failed", {
+        errorCode: "RESEND_INIT_FAILED",
+      });
+    }
+  }
+}
 
 /** Registers the active transport. Tests use this to inject a mock. */
 export function setEmailTransport(next: EmailTransport): void {
   transport = next;
+  transportInitialized = true;
 }
+
+/** Resets transport state to noop. Used in test teardown. */
+export function resetEmailTransport(): void {
+  transport = noopTransport;
+  transportInitialized = false;
+}
+
+/* ── Password reset ───────────────────────────────────────────────────── */
 
 /** Overridable send entry point used by the forgot-password flow. */
 export const sendPasswordResetEmail: SendPasswordResetEmail = async (
   email: PasswordResetEmail,
 ): Promise<void> => {
+  await ensureTransport();
   await transport.sendPasswordResetEmail(email);
 };
 
@@ -49,13 +98,49 @@ export async function dispatchPasswordResetEmail(
 ): Promise<void> {
   try {
     await sendPasswordResetEmail(buildPasswordResetEmail(to, resetUrl));
+    logInfo("email_send_succeeded", {
+      requestId: await getRequestId(),
+      emailType: "password_reset",
+      recipientType: "user",
+    });
   } catch (err) {
     // Operational logging only. Never log the URL/token/body/secret; emit a
     // stable code and the correlation ID so failures remain diagnosable.
-    logError("email_reset_dispatch_failed", {
+    logError("email_send_failed", {
       requestId: await getRequestId(),
+      emailType: "password_reset",
       errorCode: "EMAIL_DISPATCH_FAILED",
     });
     throw err;
+  }
+}
+
+/* ── Application status notification ──────────────────────────────────── */
+
+/**
+ * Dispatches an application-status-change notification to the candidate.
+ * Must be called AFTER the business transaction has committed.
+ *
+ * Never throws: email failure is logged and swallowed so the caller's
+ * response is unaffected.
+ */
+export async function dispatchApplicationStatusNotification(
+  notification: ApplicationStatusNotification,
+): Promise<void> {
+  try {
+    await ensureTransport();
+    const email = buildApplicationStatusEmail(getAppBaseUrl(), notification);
+    await transport.sendEmail(email);
+    logInfo("email_send_succeeded", {
+      requestId: await getRequestId(),
+      emailType: "application_status",
+      recipientType: "candidate",
+    });
+  } catch {
+    logError("email_send_failed", {
+      requestId: await getRequestId(),
+      emailType: "application_status",
+      errorCode: "EMAIL_DISPATCH_FAILED",
+    });
   }
 }

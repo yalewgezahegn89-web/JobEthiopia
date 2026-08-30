@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema/users";
 import { sessions } from "@/db/schema/sessions";
 import { auditLog } from "@/db/schema/auditLog";
+import { organizationMembers } from "@/db/schema/organizationMembers";
 import { revokeSessionsForUser } from "@/lib/auth/session";
 import { USER_ROLES } from "@/lib/auth/roles";
 import type { UserRole } from "@/lib/auth/roles";
@@ -418,6 +419,12 @@ export async function changeUserRole(
         .update(users)
         .set({ role: newRole, updatedAt: new Date() })
         .where(eq(users.id, targetUserId));
+
+      if (oldRole === "ORGANIZATION_ADMIN" && newRole !== "ORGANIZATION_ADMIN") {
+        await tx
+          .delete(organizationMembers)
+          .where(eq(organizationMembers.userId, targetUserId));
+      }
 
       await tx.insert(auditLog).values({
         actorUserId,

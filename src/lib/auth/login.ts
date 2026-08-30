@@ -16,7 +16,7 @@ const DUMMY_PASSWORD_HASH =
   "scrypt$16384$8$1$8eead91961399145fab4eeebf55ebbfe$73c90be53f277d16eb2bfe294507ca72b048f4199c208f938edc67ae9966e0aa19e318a2056dc2cd0465a6e3d9605c2d45af85980c7c55cd09c2c5116b835b17";
 
 export type LoginResult =
-  | { ok: true; userId: string; userEmail: string; rawToken: string }
+  | { ok: true; userId: string; userEmail: string; rawToken: string; user: { role: string } }
   | { ok: false };
 
 export function normalizeEmail(email: string): string {
@@ -86,5 +86,5 @@ export async function loginUser(
     targetId: user.id,
   });
 
-  return { ok: true, userId: user.id, userEmail: user.email, rawToken };
+  return { ok: true, userId: user.id, userEmail: user.email, rawToken, user: { role: user.role } };
 }

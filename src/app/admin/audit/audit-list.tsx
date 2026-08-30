@@ -48,6 +48,9 @@ const ACTIONS = [
   "CAREER_ARTICLE_CREATED",
   "CAREER_ARTICLE_UPDATED",
   "CAREER_ARTICLE_DELETED",
+  "APPLICATION_SUBMITTED",
+  "APPLICATION_WITHDRAWN",
+  "APPLICATION_STATUS_CHANGED",
   "MAINTENANCE_RUN",
 ] as const;
 
@@ -60,6 +63,7 @@ const TARGET_TYPES = [
   "location",
   "profession",
   "career_article",
+  "application",
   "maintenance",
 ] as const;
 

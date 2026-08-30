@@ -100,11 +100,43 @@ No authentication is required. This endpoint is suitable for uptime and readines
 
 ## Password Reset / Email
 
-Password reset infrastructure exists, but live email transport is not configured by this batch.
+Batch 75 established the email transport abstraction. Batch 83 wires live
+transactional email via [Resend](https://resend.com).
 
-- No live email provider is required for CI or basic deployment.
-- Production password-reset email requires a verified email provider and a production HTTPS `APP_BASE_URL`.
-- Email provider configuration is a separate follow-up.
+### Without email provider configuration
+
+- Password-reset tokens are created and stored, but **no email is sent**.
+- Application-status change notifications are silently skipped.
+- The application continues to function normally; the noop transport is used.
+- Development and CI require no email provider setup.
+
+### With email provider configuration
+
+Set the following environment variables:
+
+| Variable | Purpose | Required | Secret |
+|---|---|---|---|
+| `RESEND_API_KEY` | Resend API authentication key | Yes | Yes |
+| `EMAIL_FROM` | Sender address (must be from a verified Resend domain) | Yes | No |
+| `EMAIL_REPLY_TO` | Optional reply-to address | No | No |
+
+**Domain verification:** Resend requires DNS-based domain verification before
+sending from a custom domain. During development, `onboarding@resend.dev` is
+available for testing (limited to 100 emails/day).
+
+**`APP_BASE_URL`** must be the production HTTPS origin (e.g. `https://jobs.example.com`).
+Password-reset links and application-status notification links use this as the base.
+
+### Email behavior
+
+- **Password reset:** A live reset email is sent when `RESEND_API_KEY` is configured.
+  On provider failure, the generic user-facing response is unchanged (no account enumeration).
+- **Application status change:** Candidates receive an email when their application
+  status changes to REVIEWING, SHORTLISTED, or REJECTED. Email failure does not
+  roll back the status change.
+- **No marketing email support.**
+- **No notification preferences system.**
+- **No retry queue or delivery status tracking.**
 
 ## Vercel Readiness
 

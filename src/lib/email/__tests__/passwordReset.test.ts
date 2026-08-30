@@ -32,11 +32,11 @@ describe("email transport injection", () => {
 
   beforeEach(() => {
     send.mockReset();
-    setEmailTransport({ sendPasswordResetEmail: send });
+    setEmailTransport({ sendPasswordResetEmail: send, sendEmail: vi.fn() });
   });
 
   afterEach(() => {
-    setEmailTransport({ sendPasswordResetEmail: async () => {} });
+    setEmailTransport({ sendPasswordResetEmail: async () => {}, sendEmail: async () => {} });
     vi.restoreAllMocks();
   });
 
@@ -55,7 +55,7 @@ describe("email transport injection", () => {
     expect(logged).not.toContain("topsecret");
   });
 
-  it("logs email_reset_dispatch_failed without the token or URL on provider failure", async () => {
+  it("logs email_send_failed without the token or URL on provider failure", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     send.mockRejectedValue(new Error("SMTP unreachable"));
 
@@ -67,7 +67,7 @@ describe("email transport injection", () => {
     ).rejects.toThrow("SMTP unreachable");
 
     const records = errorSpy.mock.calls.map(([arg]) => JSON.parse(arg as string));
-    const failed = records.find((r) => r.event === "email_reset_dispatch_failed");
+    const failed = records.find((r) => r.event === "email_send_failed");
     expect(failed).toBeDefined();
     expect(failed.errorCode).toBe("EMAIL_DISPATCH_FAILED");
     const raw = JSON.stringify(records);

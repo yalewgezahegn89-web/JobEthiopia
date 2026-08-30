@@ -199,11 +199,12 @@ export function middleware(request: NextRequest) {
       }
     }
 
-      // Application submission/withdrawal — tighten per-candidate limits
+      // Application submission/withdrawal/status — tighten per-candidate limits
       if (
         (pathname === "/api/applications" ||
-          /^\/api\/applications\/[0-9a-f-]+$/i.test(pathname)) &&
-        method === "POST"
+          /^\/api\/applications\/[0-9a-f-]+$/i.test(pathname) ||
+          /^\/api\/applications\/[0-9a-f-]+\/status$/i.test(pathname)) &&
+        (method === "POST" || method === "PATCH")
       ) {
         const result = checkRateLimit(
           buildRateLimitKey("applications", clientIp),
@@ -261,9 +262,9 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  /* ── Admin cookie-presence check ──────────────────────────────────── */
+  /* ── Cookie-presence check (admin + organization) ────────────────────── */
 
-  if (pathname.startsWith("/admin")) {
+  if (pathname.startsWith("/admin") || pathname.startsWith("/organization")) {
     const hasToken = Boolean(
       request.cookies.get(SESSION_COOKIE_NAME)?.value,
     );

@@ -79,4 +79,7 @@ export const userRoleEnum = pgEnum("user_role", [
 export const applicationStatusEnum = pgEnum("application_status", [
   "SUBMITTED",
   "WITHDRAWN",
+  "REVIEWING",
+  "SHORTLISTED",
+  "REJECTED",
 ]);

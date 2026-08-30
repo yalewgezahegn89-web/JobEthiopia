@@ -38,5 +38,11 @@ export async function loginAction(
     maxAge: SESSION_DURATION_MS / 1000,
   });
 
+  if (result.user.role === "ORGANIZATION_ADMIN") {
+    redirect("/organization/applications");
+  }
+  if (result.user.role === "CANDIDATE") {
+    redirect("/jobs");
+  }
   redirect("/admin");
 }

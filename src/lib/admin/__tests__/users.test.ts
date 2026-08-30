@@ -549,4 +549,64 @@ describe("changeUserRole", () => {
       expect(result.code).toBe("UNAUTHORIZED");
     }
   });
+
+  it("cleans up memberships when demoting from ORGANIZATION_ADMIN", async () => {
+    const { capturedInserts, capturedUpdates } = makeTxMocks();
+    mocks.mockTxUserSelectRows
+      .mockResolvedValueOnce({ id: ACTOR_ID, role: "SUPER_ADMIN", isActive: true })
+      .mockResolvedValueOnce({ id: VALID_ID, role: "ORGANIZATION_ADMIN", isActive: true });
+
+    const result = await changeUserRole(VALID_ID, "CANDIDATE", ACTOR_ID);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.fromRole).toBe("ORGANIZATION_ADMIN");
+      expect(result.toRole).toBe("CANDIDATE");
+    }
+    expect(capturedUpdates.some((u) => u.role === "CANDIDATE")).toBe(true);
+    const auditEntry = capturedInserts.find(
+      (e) => e.action === "USER_ROLE_CHANGED",
+    );
+    expect(auditEntry).toBeDefined();
+  });
+
+  it("does not clean up memberships when role was not ORGANIZATION_ADMIN", async () => {
+    const { capturedInserts, capturedUpdates } = makeTxMocks();
+    mocks.mockTxUserSelectRows
+      .mockResolvedValueOnce({ id: ACTOR_ID, role: "SUPER_ADMIN", isActive: true })
+      .mockResolvedValueOnce({ id: VALID_ID, role: "MODERATOR", isActive: true });
+
+    const result = await changeUserRole(VALID_ID, "CANDIDATE", ACTOR_ID);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.fromRole).toBe("MODERATOR");
+      expect(result.toRole).toBe("CANDIDATE");
+    }
+    expect(capturedUpdates.some((u) => u.role === "CANDIDATE")).toBe(true);
+    const auditEntry = capturedInserts.find(
+      (e) => e.action === "USER_ROLE_CHANGED",
+    );
+    expect(auditEntry).toBeDefined();
+  });
+
+  it("handles same ORGANIZATION_ADMIN role as no-op", async () => {
+    const { capturedInserts, capturedUpdates } = makeTxMocks();
+    mocks.mockTxUserSelectRows
+      .mockResolvedValueOnce({ id: ACTOR_ID, role: "SUPER_ADMIN", isActive: true })
+      .mockResolvedValueOnce({ id: VALID_ID, role: "ORGANIZATION_ADMIN", isActive: true });
+
+    const result = await changeUserRole(VALID_ID, "ORGANIZATION_ADMIN", ACTOR_ID);
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.fromRole).toBe("ORGANIZATION_ADMIN");
+      expect(result.toRole).toBe("ORGANIZATION_ADMIN");
+    }
+    expect(capturedUpdates.length).toBe(0);
+    const auditEntry = capturedInserts.find(
+      (e) => e.action === "USER_ROLE_CHANGED",
+    );
+    expect(auditEntry).toBeUndefined();
+  });
 });
