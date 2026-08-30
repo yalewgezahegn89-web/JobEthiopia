@@ -53,10 +53,12 @@ export async function POST(request: Request) {
       return jsonError("Source not found or inactive", 404);
     }
 
+    const start = performance.now();
     const result = await ingestJobs({
       sourceId,
       jobs: jobs as RawJobInput[],
     });
+    const durationMs = Math.round(performance.now() - start);
 
     await writeAuditLog({
       action: "JOB_INGESTED",
@@ -64,10 +66,14 @@ export async function POST(request: Request) {
       targetId: sourceId,
       metadata: {
         source: "api_key",
+        total: result.summary.total,
         created: result.summary.created,
         updated: result.summary.updated,
         duplicate: result.summary.duplicate,
+        linked: result.summary.linked,
+        possibleDuplicate: result.summary.possibleDuplicate,
         failed: result.summary.failed,
+        durationMs,
       },
     });
 

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema/users";
 import { verifyPassword } from "./password";
-import { createSession } from "./session";
+import { createSession, revokeSession } from "./session";
 import { writeAuditLog } from "./audit";
 
 /**
@@ -31,6 +31,7 @@ export function normalizeEmail(email: string): string {
 export async function loginUser(
   rawEmail: string,
   rawPassword: string,
+  currentRawToken?: string,
 ): Promise<LoginResult> {
   const email = normalizeEmail(rawEmail);
   if (!email || !rawPassword) return { ok: false };
@@ -70,6 +71,10 @@ export async function loginUser(
       metadata: { reason: "wrong_password" },
     });
     return { ok: false };
+  }
+
+  if (currentRawToken) {
+    await revokeSession(currentRawToken).catch(() => null);
   }
 
   const rawToken = await createSession(user.id);

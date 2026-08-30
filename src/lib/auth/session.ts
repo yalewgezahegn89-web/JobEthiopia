@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions } from "@/db/schema/sessions";
 import { users } from "@/db/schema/users";
@@ -97,4 +97,20 @@ export async function revokeSession(rawToken: string): Promise<string | null> {
 
   await db.delete(sessions).where(eq(sessions.id, existing.id));
   return existing.userId;
+}
+
+/**
+ * Revokes all sessions for a given user, optionally preserving one session
+ * (e.g. the actor's own session). Returns the number of deleted sessions.
+ */
+export async function revokeSessionsForUser(
+  userId: string,
+  excludeSessionId?: string,
+): Promise<number> {
+  const where = excludeSessionId
+    ? and(eq(sessions.userId, userId), ne(sessions.id, excludeSessionId))
+    : eq(sessions.userId, userId);
+
+  const rows = await db.delete(sessions).where(where).returning({ id: sessions.id });
+  return rows.length;
 }

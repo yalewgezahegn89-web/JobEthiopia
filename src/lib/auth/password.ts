@@ -1,4 +1,9 @@
-import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { eq, and, ne } from "drizzle-orm";
+import { db } from "@/db";
+import { users } from "@/db/schema/users";
+import { sessions } from "@/db/schema/sessions";
+import { auditLog } from "@/db/schema/auditLog";
 
 /**
  * Password hashing using Node's built-in scrypt.
@@ -105,4 +110,86 @@ export async function verifyPassword(
 
   if (actual.length !== expected.length) return false;
   return timingSafeEqual(actual, expected);
+}
+
+/**
+ * Changes a user's password within a single transaction.
+ *
+ * 1. Verifies the current password against the stored hash.
+ * 2. Hashes the new password.
+ * 3. Updates the passwordHash.
+ * 4. Deletes all OTHER sessions for the user (current session is preserved).
+ * 5. Writes a PASSWORD_CHANGED audit event.
+ *
+ * All three mutations (hash update, session purge, audit insert) are atomic.
+ *
+ * @param userId          - Authenticated user's ID (from verified session).
+ * @param currentPassword - The user's current plaintext password.
+ * @param newPassword     - The desired new plaintext password.
+ * @param currentSessionId - The ID of the session to preserve (from verified session cookie).
+ * @returns { ok: true } on success, or { ok: false, reason } on failure.
+ */
+export async function changePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+  currentSessionId: string,
+): Promise<{ ok: true } | { ok: false; reason: "invalid_current" | "weak_new" | "not_found" | "error" }> {
+  if (typeof newPassword !== "string" || newPassword.length < MIN_PASSWORD_LENGTH) {
+    return { ok: false, reason: "weak_new" };
+  }
+
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { id: true, passwordHash: true },
+  });
+
+  if (!user) {
+    return { ok: false, reason: "not_found" };
+  }
+
+  const valid = await verifyPassword(user.passwordHash, currentPassword);
+  if (!valid) {
+    return { ok: false, reason: "invalid_current" };
+  }
+
+  const newHash = await hashPassword(newPassword);
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .update(users)
+        .set({ passwordHash: newHash })
+        .where(eq(users.id, userId));
+
+      await tx
+        .delete(sessions)
+        .where(
+          and(
+            eq(sessions.userId, userId),
+            ne(sessions.id, currentSessionId),
+          ),
+        );
+
+      await tx.insert(auditLog).values({
+        actorUserId: userId,
+        action: "PASSWORD_CHANGED",
+        targetType: "user",
+        targetId: userId,
+        metadata: { sessionInvalidated: true },
+      });
+    });
+  } catch {
+    return { ok: false, reason: "error" };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Hashes a raw session token using the same algorithm as session.ts.
+ * Exported for use by the password-change route to identify the current session.
+ */
+export function hashSessionTokenForPassword(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
 }

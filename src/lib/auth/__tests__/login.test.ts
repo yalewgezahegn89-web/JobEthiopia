@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach, beforeAll } from "vitest";
 const mocks = vi.hoisted(() => ({
   mockUsersFindFirst: vi.fn(),
   mockInsert: vi.fn(),
+  mockRevokeSession: vi.fn(),
+  mockCreateSession: vi.fn(),
 }));
 
 const capturedDbWrites: { table: string; values: Record<string, unknown> }[] =
@@ -27,8 +29,15 @@ vi.mock("@/db", () => {
   };
 });
 
+vi.mock("../session", () => ({
+  createSession: (...args: unknown[]) => mocks.mockCreateSession(...args),
+  revokeSession: (...args: unknown[]) => mocks.mockRevokeSession(...args),
+}));
+
 const mockUsersFindFirst = mocks.mockUsersFindFirst;
 const mockInsert = mocks.mockInsert;
+const mockRevokeSession = mocks.mockRevokeSession;
+const mockCreateSession = mocks.mockCreateSession;
 
 import { loginUser, normalizeEmail } from "../login";
 import { hashPassword } from "../password";
@@ -52,6 +61,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   capturedDbWrites.length = 0;
   mockUsersFindFirst.mockResolvedValue(undefined);
+  mockRevokeSession.mockResolvedValue(null);
+  mockCreateSession.mockResolvedValue(
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq",
+  );
 
   mockInsert.mockImplementation((table: unknown) => ({
     values: async (values: Record<string, unknown>) => {
@@ -160,5 +173,97 @@ describe("loginUser", () => {
 
   it("normalizes emails to lowercase", () => {
     expect(normalizeEmail("  Admin@Example.COM ")).toBe("admin@example.com");
+  });
+
+  it("rotates existing session on successful login", async () => {
+    mockUsersFindFirst.mockResolvedValue({
+      ...ACTIVE_USER,
+      passwordHash: hash,
+    });
+    mockRevokeSession.mockResolvedValue(ACTIVE_USER.id);
+
+    const result = await loginUser(
+      "admin@example.com",
+      "correct-password-123",
+      "old-session-token",
+    );
+    expect(result.ok).toBe(true);
+    expect(mockRevokeSession).toHaveBeenCalledWith("old-session-token");
+  });
+
+  it("does not call revokeSession when no current token is provided", async () => {
+    mockUsersFindFirst.mockResolvedValue({
+      ...ACTIVE_USER,
+      passwordHash: hash,
+    });
+
+    await loginUser("admin@example.com", "correct-password-123");
+    expect(mockRevokeSession).not.toHaveBeenCalled();
+  });
+
+  it("proceeds with login when stale session token is provided", async () => {
+    mockUsersFindFirst.mockResolvedValue({
+      ...ACTIVE_USER,
+      passwordHash: hash,
+    });
+    mockRevokeSession.mockResolvedValue(null);
+
+    const result = await loginUser(
+      "admin@example.com",
+      "correct-password-123",
+      "stale-token",
+    );
+    expect(result.ok).toBe(true);
+    expect(mockRevokeSession).toHaveBeenCalledWith("stale-token");
+  });
+
+  it("does not revoke session on failed login", async () => {
+    mockUsersFindFirst.mockResolvedValue({
+      ...ACTIVE_USER,
+      passwordHash: hash,
+    });
+
+    await loginUser("admin@example.com", "wrong-password", "existing-token");
+    expect(mockRevokeSession).not.toHaveBeenCalled();
+  });
+
+  it("does not revoke all user sessions on rotation", async () => {
+    mockUsersFindFirst.mockResolvedValue({
+      ...ACTIVE_USER,
+      passwordHash: hash,
+    });
+    mockRevokeSession.mockResolvedValue(ACTIVE_USER.id);
+
+    await loginUser(
+      "admin@example.com",
+      "correct-password-123",
+      "old-token",
+    );
+    expect(mockRevokeSession).toHaveBeenCalledTimes(1);
+    expect(mockRevokeSession).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("audit event remains LOGIN_SUCCESS with no rotation details", async () => {
+    mockUsersFindFirst.mockResolvedValue({
+      ...ACTIVE_USER,
+      passwordHash: hash,
+    });
+    mockRevokeSession.mockResolvedValue(ACTIVE_USER.id);
+
+    await loginUser(
+      "admin@example.com",
+      "correct-password-123",
+      "old-token",
+    );
+    const audit = capturedDbWrites.find(
+      (w) => (w.values.action as string) === "LOGIN_SUCCESS",
+    );
+    expect(audit).toBeTruthy();
+    const serialized = JSON.stringify(audit!.values);
+    expect(serialized).not.toContain("old-token");
+    expect(serialized).not.toContain("rotation");
   });
 });

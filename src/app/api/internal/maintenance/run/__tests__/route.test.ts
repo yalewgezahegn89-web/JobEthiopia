@@ -113,13 +113,13 @@ describe("POST /api/internal/maintenance/run", () => {
           action: "MAINTENANCE_RUN",
           targetType: "maintenance",
           targetId: "run",
-          metadata: {
+          metadata: expect.objectContaining({
             expiredJobs: 3,
             sourcesChecked: 5,
             sourcesSucceeded: 4,
             sourcesFailed: 1,
             sourcesSkipped: 0,
-          },
+          }),
         }),
       );
     });

@@ -12,6 +12,9 @@ export default function AdminNav() {
     { href: "/admin/jobs", label: "Job Moderation" },
     { href: "/admin/organizations", label: "Organizations" },
     { href: "/admin/sources", label: "Sources" },
+    { href: "/admin/users", label: "Users" },
+    { href: "/admin/audit", label: "Audit Log" },
+    { href: "/admin/operations", label: "Operations" },
   ];
 
   return (

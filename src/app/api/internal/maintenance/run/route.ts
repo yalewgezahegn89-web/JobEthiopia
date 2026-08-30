@@ -36,7 +36,9 @@ export async function POST(request: Request) {
 
   try {
     const now = new Date();
+    const start = performance.now();
     const result = await runMaintenance(now);
+    const durationMs = Math.round(performance.now() - start);
 
     try {
       await writeAuditLog({
@@ -49,6 +51,7 @@ export async function POST(request: Request) {
           sourcesSucceeded: result.sourcesSucceeded,
           sourcesFailed: result.sourcesFailed,
           sourcesSkipped: result.sourcesSkipped,
+          durationMs,
         },
       });
     } catch {
