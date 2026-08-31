@@ -63,6 +63,7 @@ const INGESTION = { limit: 10, windowMs: 60_000 } as const;
 const API_MUTATION = { limit: 30, windowMs: 60_000 } as const;
 const MAINTENANCE = { limit: 3, windowMs: 5 * 60_000 } as const;
 const APPLICATIONS = { limit: 10, windowMs: 60_000 } as const;
+const RESUME_UPLOAD = { limit: 5, windowMs: 60 * 60_000 } as const;
 
 /* ── Client-IP resolution ───────────────────────────────────────────────── */
 
@@ -223,8 +224,32 @@ export function middleware(request: NextRequest) {
         }
       }
 
-      // Mutations — POST, PUT, PATCH, DELETE (GET is always open)
-      if (method !== "GET" && method !== "HEAD") {
+      // Resume upload — dedicated per-IP bucket (5 / 60 min)
+      if (/^\/api\/applications\/[0-9a-f-]+\/resume$/i.test(pathname) && method === "POST") {
+        const result = checkRateLimit(
+          buildRateLimitKey("resume", clientIp),
+          RESUME_UPLOAD,
+        );
+        if (!result.allowed) {
+          logRejected(429, pathname, "resume");
+          return applyRequestId(
+            applyCsp(
+              rateLimited(result.retryAfterSeconds!),
+              cspHeaderName,
+              cspValue,
+            ),
+            requestId,
+          );
+        }
+      }
+
+      // Mutations — POST, PUT, PATCH, DELETE (GET is always open).
+      // Resume upload is excluded: it has its own dedicated per-IP bucket above.
+      if (
+        method !== "GET" &&
+        method !== "HEAD" &&
+        !/^\/api\/applications\/[0-9a-f-]+\/resume$/i.test(pathname)
+      ) {
         // Job ingestion has its own tighter limit
         if (pathname === "/api/jobs/ingest" && method === "POST") {
         const result = checkRateLimit(

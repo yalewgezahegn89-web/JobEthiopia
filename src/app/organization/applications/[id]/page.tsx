@@ -6,6 +6,7 @@ import {
   getEmployerApplication,
   getEmployerApplicationStatusHistory,
 } from "@/lib/employer/applications";
+import { getEmployerApplicationResume } from "@/lib/resume/dal";
 import { StatusForm } from "./status-form";
 
 export const dynamic = "force-dynamic";
@@ -36,10 +37,12 @@ export default async function EmployerApplicationDetailPage({
 
   let detail;
   let history;
+  let resume;
   try {
-    [detail, history] = await Promise.all([
+    [detail, history, resume] = await Promise.all([
       getEmployerApplication(user.id, id),
       getEmployerApplicationStatusHistory(user.id, id),
+      getEmployerApplicationResume(id, user.id),
     ]);
   } catch {
     notFound();
@@ -90,6 +93,76 @@ export default async function EmployerApplicationDetailPage({
             <p className="text-sm text-gray-600 dark:text-gray-400">
               {detail.candidateEmail}
             </p>
+
+            {(detail.candidatePhone ||
+              detail.candidateLocationName ||
+              detail.candidateTotalExperienceYears != null ||
+              detail.candidateEducation) && (
+              <dl className="mt-3 space-y-1 text-sm">
+                {detail.candidatePhone && (
+                  <div className="flex gap-2">
+                    <dt className="w-28 shrink-0 text-gray-500">Phone</dt>
+                    <dd className="text-gray-900 dark:text-gray-100">
+                      {detail.candidatePhone}
+                    </dd>
+                  </div>
+                )}
+                {detail.candidateLocationName && (
+                  <div className="flex gap-2">
+                    <dt className="w-28 shrink-0 text-gray-500">Location</dt>
+                    <dd className="text-gray-900 dark:text-gray-100">
+                      {detail.candidateLocationName}
+                    </dd>
+                  </div>
+                )}
+                {detail.candidateTotalExperienceYears != null && (
+                  <div className="flex gap-2">
+                    <dt className="w-28 shrink-0 text-gray-500">Experience</dt>
+                    <dd className="text-gray-900 dark:text-gray-100">
+                      {detail.candidateTotalExperienceYears} year
+                      {detail.candidateTotalExperienceYears === 1 ? "" : "s"}
+                    </dd>
+                  </div>
+                )}
+                {detail.candidateEducation && (
+                  <div className="flex gap-2">
+                    <dt className="w-28 shrink-0 text-gray-500">Education</dt>
+                    <dd className="text-gray-900 dark:text-gray-100">
+                      {detail.candidateEducation}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            )}
+
+            {detail.candidateProfessionalSummary && (
+              <div className="mt-3">
+                <h3 className="text-sm font-medium text-gray-500">
+                  Professional summary
+                </h3>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100">
+                  {detail.candidateProfessionalSummary}
+                </p>
+              </div>
+            )}
+
+            {resume && (
+              <div className="mt-3">
+                <h3 className="text-sm font-medium text-gray-500">Resume</h3>
+                <div className="mt-1 flex items-center gap-3 text-sm">
+                  <span className="text-gray-900 dark:text-gray-100">
+                    {resume.originalName}
+                  </span>
+                  <a
+                    href={`/api/applications/${detail.id}/resume`}
+                    download
+                    className="text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    Download
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
 
           {detail.coverLetter && (

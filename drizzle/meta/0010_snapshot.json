@@ -1,0 +1,124 @@
+{
+  "id": "27dedced-eac4-42e4-b395-6561b216139a",
+  "prevId": "087ecf3f-cc30-4ec6-9ba5-dae5d489431e",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.application_resumes": {
+      "name": "application_resumes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "application_id": {
+          "name": "application_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "original_name": {
+          "name": "original_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mime_type": {
+          "name": "mime_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "application_resumes_application_id_unique": {
+          "name": "application_resumes_application_id_unique",
+          "columns": [
+            {
+              "expression": "application_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "application_resumes_application_id_applications_id_fk": {
+          "name": "application_resumes_application_id_applications_id_fk",
+          "tableFrom": "application_resumes",
+          "tableTo": "applications",
+          "columnsFrom": [
+            "application_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "application_resumes_size_positive": {
+          "name": "application_resumes_size_positive",
+          "value": "\"application_resumes\".\"size\" > 0"
+        },
+        "application_resumes_size_max": {
+          "name": "application_resumes_size_max",
+          "value": "\"application_resumes\".\"size\" <= 5242880"
+        },
+        "application_resumes_mime_pdf": {
+          "name": "application_resumes_mime_pdf",
+          "value": "\"application_resumes\".\"mime_type\" = 'application/pdf'"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "views": {},
+  "matViews": {},
+  "sequences": {},
+  "functions": {},
+  "pgcedures": {},
+  "indexes": {},
+  "roles": {}
+}

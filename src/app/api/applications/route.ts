@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { eq } from "drizzle-orm";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 import { verifySession } from "@/lib/auth/session";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { checkBodySize } from "@/lib/apiUtils";
 import { createApplicationSchema } from "@/lib/validations";
 import { createApplication } from "@/lib/applications/dal";
+import { dispatchApplicationSubmissionNotification } from "@/lib/email";
+import { db } from "@/db";
+import { applications } from "@/db/schema/applications";
+import { jobs } from "@/db/schema/jobs";
+import { organizations } from "@/db/schema/organizations";
+import { users } from "@/db/schema/users";
 import { logInfo, logWarn, logError } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
@@ -92,6 +99,34 @@ export async function POST(request: Request) {
       status: result.item.status,
       durationMs: Math.round(performance.now() - start),
     });
+
+    try {
+      const row = await db
+        .select({
+          candidateEmail: users.email,
+          candidateName: users.name,
+          jobTitle: jobs.title,
+          organizationName: organizations.name,
+        })
+        .from(applications)
+        .innerJoin(jobs, eq(jobs.id, applications.jobId))
+        .innerJoin(organizations, eq(organizations.id, jobs.organizationId))
+        .innerJoin(users, eq(users.id, applications.candidateUserId))
+        .where(eq(applications.id, result.item.id))
+        .limit(1);
+
+      if (row.length > 0 && row[0].candidateEmail) {
+        await dispatchApplicationSubmissionNotification(row[0].candidateEmail, {
+          candidateName: row[0].candidateName ?? "Applicant",
+          jobTitle: row[0].jobTitle,
+          organizationName: row[0].organizationName,
+          applicationId: result.item.id,
+          submittedAt: result.item.createdAt.toISOString(),
+        });
+      }
+    } catch {
+      // Confirmation email failure must not affect the 201 response.
+    }
 
     return NextResponse.json(
       {

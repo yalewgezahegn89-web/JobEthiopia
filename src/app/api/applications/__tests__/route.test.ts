@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   mockCheckBodySize: vi.fn(),
   mockCreateApplication: vi.fn(),
   mockGetRequestId: vi.fn(),
+  mockDispatchSubmission: vi.fn(),
+  mockDbRow: vi.fn(),
 }));
 
 vi.mock("next/headers", () => ({
@@ -29,9 +31,34 @@ vi.mock("@/lib/applications/dal", () => ({
   createApplication: (...a: unknown[]) => mocks.mockCreateApplication(...a),
 }));
 
+vi.mock("@/lib/email", () => ({
+  dispatchApplicationSubmissionNotification: (...a: unknown[]) =>
+    mocks.mockDispatchSubmission(...a),
+}));
+
 vi.mock("@/lib/observability/requestId", () => ({
   getRequestId: (...a: unknown[]) => mocks.mockGetRequestId(...a),
 }));
+
+vi.mock("@/db", () => {
+  return {
+    db: {
+      select: () => ({
+        from: () => ({
+          innerJoin: () => ({
+            innerJoin: () => ({
+              innerJoin: () => ({
+                where: () => ({
+                  limit: () => mocks.mockDbRow(),
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    },
+  };
+});
 
 import { POST } from "../route";
 
@@ -60,9 +87,22 @@ function stubAuthed() {
   mocks.mockGetRequestId.mockResolvedValue("req-1");
 }
 
+function stubCandidateRow() {
+  mocks.mockDbRow.mockResolvedValue([
+    {
+      candidateEmail: "candidate@example.com",
+      candidateName: "Candidate",
+      jobTitle: "Software Engineer",
+      organizationName: "EthioTech",
+    },
+  ]);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   stubAuthed();
+  stubCandidateRow();
+  mocks.mockDispatchSubmission.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -202,6 +242,62 @@ describe("POST /api/applications", () => {
       expect(raw).toContain("application_submitted_failed");
       expect(raw).toContain("DUPLICATE");
       spy.mockRestore();
+    });
+  });
+
+  describe("confirmation email", () => {
+    function successResult() {
+      return {
+        ok: true,
+        item: {
+          id: "33333333-3333-4333-8333-333333333333",
+          jobId: JOB_ID,
+          status: "SUBMITTED",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+        },
+      };
+    }
+
+    it("sends one confirmation on a successful submission", async () => {
+      mocks.mockCreateApplication.mockResolvedValue(successResult());
+      const response = await POST(makeRequest({ jobId: JOB_ID }));
+      expect(response.status).toBe(201);
+      expect(mocks.mockDispatchSubmission).toHaveBeenCalledTimes(1);
+    });
+
+    it("derives the recipient from the authenticated candidate record", async () => {
+      mocks.mockCreateApplication.mockResolvedValue(successResult());
+      await POST(makeRequest({ jobId: JOB_ID }));
+      expect(mocks.mockDispatchSubmission).toHaveBeenCalledWith(
+        "candidate@example.com",
+        expect.objectContaining({
+          candidateName: "Candidate",
+          jobTitle: "Software Engineer",
+          organizationName: "EthioTech",
+          applicationId: "33333333-3333-4333-8333-333333333333",
+        }),
+      );
+    });
+
+    it("does not send email on a duplicate application", async () => {
+      mocks.mockCreateApplication.mockResolvedValue({ ok: false, code: "DUPLICATE" });
+      const response = await POST(makeRequest({ jobId: JOB_ID }));
+      expect(response.status).toBe(409);
+      expect(mocks.mockDispatchSubmission).not.toHaveBeenCalled();
+    });
+
+    it("does not send email when creation fails", async () => {
+      mocks.mockCreateApplication.mockResolvedValue({ ok: false, code: "JOB_NOT_OPEN" });
+      await POST(makeRequest({ jobId: JOB_ID }));
+      expect(mocks.mockDispatchSubmission).not.toHaveBeenCalled();
+    });
+
+    it("still returns 201 when the email provider fails", async () => {
+      mocks.mockCreateApplication.mockResolvedValue(successResult());
+      mocks.mockDispatchSubmission.mockRejectedValue(new Error("SMTP unreachable"));
+      const response = await POST(makeRequest({ jobId: JOB_ID }));
+      expect(response.status).toBe(201);
+      expect(mocks.mockDispatchSubmission).toHaveBeenCalledTimes(1);
     });
   });
 });

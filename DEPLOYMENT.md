@@ -58,6 +58,8 @@ These are only used when manually running the first-admin bootstrap command. The
 - `npm run db:migrate` applies tracked Drizzle migrations. This is the correct production workflow.
 - `npm run db:push` pushes schema directly and bypasses the migration chain. Do **not** use it in production.
 - Migrations are forward-only. There are no rollback SQL scripts. Take a database backup before risky production schema changes.
+- Migration `0009_add_candidate_profiles` adds the private `candidate_profiles` table (one row per candidate). It uses no external storage or new providers. Profile data is private and only surfaced to employers reviewing an application from that candidate. Deleting a user cascades to their profile row.
+- Migration `0010_add_application_resumes` adds the private `application_resumes` table (one row per application that has an uploaded resume). Resume files are stored in a private S3-compatible object bucket, never in the local filesystem. Deleting a user cascades to their application rows, which cascade to resume metadata. The resume feature degrades gracefully when storage is not configured.
 
 ## First Admin Bootstrap
 
@@ -134,9 +136,49 @@ Password-reset links and application-status notification links use this as the b
 - **Application status change:** Candidates receive an email when their application
   status changes to REVIEWING, SHORTLISTED, or REJECTED. Email failure does not
   roll back the status change.
+- **Application submission confirmation:** Candidates receive one transactional
+  confirmation email when a new application is successfully created. The
+  confirmation links to `/applications/{id}` using `APP_BASE_URL`. Email
+  failures do not roll back application creation and never fail the submission.
 - **No marketing email support.**
 - **No notification preferences system.**
 - **No retry queue or delivery status tracking.**
+
+## Resume Storage (Batch 89)
+
+Per-application PDF resumes are stored in a **private** S3-compatible object
+bucket (Amazon S3 or Cloudflare R2) and served through a streaming server-side
+proxy. No public or signed URLs are ever generated; the client only calls the
+application API, which enforces tenant isolation.
+
+Configure the required variables:
+
+| Variable | Purpose | Required | Secret |
+|---|---|---|---|
+| `RESUME_STORAGE_ENDPOINT` | S3-compatible endpoint URL (omit for AWS S3; set for R2 or MinIO) | No | No |
+| `RESUME_STORAGE_REGION` | Region (e.g. `auto` for R2; your AWS region for S3) | Yes | No |
+| `RESUME_STORAGE_BUCKET` | Private bucket name | Yes | No |
+| `RESUME_STORAGE_ACCESS_KEY_ID` | Provider access key | Yes | Yes |
+| `RESUME_STORAGE_SECRET_ACCESS_KEY` | Provider secret key | Yes | Yes |
+| `RESUME_STORAGE_FORCE_PATH_STYLE` | `true` for path-style providers (e.g. MinIO) | No | No |
+
+Notes:
+- **Missing configuration is not fatal.** When any required variable is unset,
+  the app boots and runs normally; resume upload/download/delete return neutral
+  503/500 responses and candidate browsing, applications, and the dashboard all
+  continue to work.
+- **Buckets must be private.** Do not enable public access or generate
+  signed URLs.
+- Candidates upload PDF resumes (max 5 MB) for each application they own and can
+  replace or remove them. Employers can download the resume of an application
+  they are authorized to review (active org admin of the owning organization).
+- Uploads are rate-limited (5 per 60 minutes per client IP via a dedicated
+  bucket).
+- No anti-malware scanner is integrated. Files are validated as PDF-only by
+  extension, MIME type, size, and PDF magic bytes, but are **not** scanned for
+  malware. Consider scanning uploads at the provider layer if this is a
+  requirement.
+- No local filesystem storage is used.
 
 ## Vercel Readiness
 

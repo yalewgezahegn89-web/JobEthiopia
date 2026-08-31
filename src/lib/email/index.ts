@@ -4,19 +4,21 @@ import type {
   SendPasswordResetEmail,
 } from "./types";
 import { buildPasswordResetEmail } from "./passwordReset";
-import { buildApplicationStatusEmail } from "./notification";
+import { buildApplicationStatusEmail, buildApplicationSubmissionEmail } from "./notification";
 import type { ApplicationStatusNotification } from "./notification";
+import type { ApplicationSubmissionNotification } from "./notification";
 import { getAppBaseUrl } from "@/lib/auth/csrf";
 import { logInfo, logError } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
-export { buildPasswordResetEmail, buildApplicationStatusEmail };
+export { buildPasswordResetEmail, buildApplicationStatusEmail, buildApplicationSubmissionEmail };
 export type {
   EmailTransport,
   PasswordResetEmail,
   SendPasswordResetEmail,
 } from "./types";
 export type { ApplicationStatusNotification } from "./notification";
+export type { ApplicationSubmissionNotification } from "./notification";
 
 /* ── Transport selection ──────────────────────────────────────────────── */
 
@@ -140,6 +142,40 @@ export async function dispatchApplicationStatusNotification(
     logError("email_send_failed", {
       requestId: await getRequestId(),
       emailType: "application_status",
+      errorCode: "EMAIL_DISPATCH_FAILED",
+    });
+  }
+}
+
+/* ── Application submission confirmation ─────────────────────────────── */
+
+/**
+ * Dispatches a transactional confirmation email to the candidate after their
+ * application was successfully created. Must be called AFTER the business
+ * transaction has committed.
+ *
+ * Never throws: email failure is logged and swallowed so the caller's 201
+ * response is unaffected. Only the recipient type, email type and a stable
+ * error code are logged; the recipient address, application URL and body are
+ * never written to logs.
+ */
+export async function dispatchApplicationSubmissionNotification(
+  recipient: string,
+  notification: ApplicationSubmissionNotification,
+): Promise<void> {
+  try {
+    await ensureTransport();
+    const email = buildApplicationSubmissionEmail(getAppBaseUrl(), notification);
+    await transport.sendEmail({ ...email, to: recipient });
+    logInfo("email_send_succeeded", {
+      requestId: await getRequestId(),
+      emailType: "application_submission",
+      recipientType: "candidate",
+    });
+  } catch {
+    logError("email_send_failed", {
+      requestId: await getRequestId(),
+      emailType: "application_submission",
       errorCode: "EMAIL_DISPATCH_FAILED",
     });
   }

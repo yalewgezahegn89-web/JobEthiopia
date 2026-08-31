@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { buildApplicationStatusEmail } from "@/lib/email/notification";
 import type { ApplicationStatusNotification } from "@/lib/email/notification";
+import { buildApplicationSubmissionEmail } from "@/lib/email/notification";
+import type { ApplicationSubmissionNotification } from "@/lib/email/notification";
 
 const BASE_URL = "https://jobs.example.com";
 
@@ -12,6 +14,19 @@ function makeNotification(overrides?: Partial<ApplicationStatusNotification>): A
     jobTitle: "Software Engineer",
     organizationName: "EthioTech",
     newStatus: "REVIEWING",
+    ...overrides,
+  };
+}
+
+function makeSubmission(
+  overrides?: Partial<ApplicationSubmissionNotification>,
+): ApplicationSubmissionNotification {
+  return {
+    applicationId: "11111111-1111-4111-8111-111111111111",
+    candidateName: "Abebe",
+    jobTitle: "Software Engineer",
+    organizationName: "EthioTech",
+    submittedAt: "2026-08-31T10:00:00.000Z",
     ...overrides,
   };
 }
@@ -70,5 +85,57 @@ describe("buildApplicationStatusEmail", () => {
   it("uses the provided APP_BASE_URL", () => {
     const email = buildApplicationStatusEmail("https://other.example.com", makeNotification());
     expect(email.text).toContain("https://other.example.com/applications/11111111-1111-4111-8111-111111111111");
+  });
+});
+
+describe("buildApplicationSubmissionEmail", () => {
+  it("builds an application submission email with subject and body", () => {
+    const email = buildApplicationSubmissionEmail(BASE_URL, makeSubmission());
+    expect(email.subject).toContain("Software Engineer");
+    expect(email.subject).toContain("submitted");
+    expect(email.text).toContain("Abebe");
+    expect(email.text).toContain("Software Engineer");
+    expect(email.text).toContain("EthioTech");
+  });
+
+  it("contains the submission date", () => {
+    const email = buildApplicationSubmissionEmail(BASE_URL, makeSubmission());
+    expect(email.text).toContain("August 31, 2026");
+    expect(email.html).toContain("August 31, 2026");
+  });
+
+  it("contains the exact /applications/{id} URL", () => {
+    const email = buildApplicationSubmissionEmail(BASE_URL, makeSubmission());
+    expect(email.text).toContain(`${BASE_URL}/applications/11111111-1111-4111-8111-111111111111`);
+    expect(email.html).toContain(`${BASE_URL}/applications/11111111-1111-4111-8111-111111111111`);
+  });
+
+  it("HTML-escapes user-supplied values", () => {
+    const email = buildApplicationSubmissionEmail(
+      BASE_URL,
+      makeSubmission({
+        candidateName: 'Abebe<script>alert("xss")</script>',
+        jobTitle: 'Title" onmouseover="alert(1)',
+        organizationName: "Org & Co",
+      }),
+    );
+    expect(email.html).not.toContain("<script>");
+    expect(email.html).toContain("&lt;script&gt;");
+    expect(email.html).toContain("&amp; Co");
+    expect(email.html).toContain("&quot;");
+  });
+
+  it("does not include a cover letter", () => {
+    const email = buildApplicationSubmissionEmail(BASE_URL, makeSubmission());
+    expect(email.text).not.toContain("cover letter");
+    expect(email.html).not.toContain("cover letter");
+  });
+
+  it("does not include tokens or secrets", () => {
+    const email = buildApplicationSubmissionEmail(BASE_URL, makeSubmission());
+    const raw = `${email.subject} ${email.text} ${email.html}`;
+    expect(raw).not.toContain("token");
+    expect(raw).not.toContain("secret");
+    expect(raw).not.toContain("api_key");
   });
 });

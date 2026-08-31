@@ -5,6 +5,8 @@ import { jobs } from "@/db/schema/jobs";
 import { organizations } from "@/db/schema/organizations";
 import { organizationMembers } from "@/db/schema/organizationMembers";
 import { users } from "@/db/schema/users";
+import { candidateProfiles } from "@/db/schema/candidateProfiles";
+import { locations } from "@/db/schema/locations";
 import { auditLog } from "@/db/schema/auditLog";
 import { getUserOrganizationIds } from "@/lib/auth/organizationMembership";
 
@@ -55,6 +57,11 @@ export type EmployerApplicationDetail = {
   status: ApplicationStatus;
   createdAt: Date;
   updatedAt: Date;
+  candidatePhone: string | null;
+  candidateLocationName: string | null;
+  candidateProfessionalSummary: string | null;
+  candidateTotalExperienceYears: number | null;
+  candidateEducation: string | null;
 };
 
 export type ChangeStatusResult =
@@ -201,11 +208,24 @@ export async function getEmployerApplication(
       status: applications.status,
       createdAt: applications.createdAt,
       updatedAt: applications.updatedAt,
+      candidatePhone: candidateProfiles.phone,
+      candidateLocationName: locations.name,
+      candidateProfessionalSummary: candidateProfiles.professionalSummary,
+      candidateTotalExperienceYears: candidateProfiles.totalExperienceYears,
+      candidateEducation: candidateProfiles.education,
     })
     .from(applications)
     .innerJoin(jobs, eq(jobs.id, applications.jobId))
     .innerJoin(organizations, eq(organizations.id, jobs.organizationId))
     .innerJoin(users, eq(users.id, applications.candidateUserId))
+    .leftJoin(
+      candidateProfiles,
+      eq(candidateProfiles.candidateId, applications.candidateUserId),
+    )
+    .leftJoin(
+      locations,
+      eq(locations.id, candidateProfiles.locationId),
+    )
     .where(
       and(
         eq(applications.id, applicationId),
@@ -228,6 +248,11 @@ export async function getEmployerApplication(
     status: r.status as ApplicationStatus,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
+    candidatePhone: r.candidatePhone,
+    candidateLocationName: r.candidateLocationName,
+    candidateProfessionalSummary: r.candidateProfessionalSummary,
+    candidateTotalExperienceYears: r.candidateTotalExperienceYears,
+    candidateEducation: r.candidateEducation,
   };
 }
 

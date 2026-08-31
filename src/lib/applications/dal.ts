@@ -7,7 +7,7 @@
  * delegated to maintenance, so the cutoff holds regardless of when the last
  * maintenance run happened.
  */
-import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { applications } from "@/db/schema/applications";
 import { jobs } from "@/db/schema/jobs";
@@ -321,6 +321,113 @@ export async function withdrawApplication(
         status: updated.status,
         updatedAt: updated.updatedAt,
       },
+    };
+  });
+}
+
+export type OwnedApplicationDetail = {
+  id: string;
+  jobId: string;
+  jobTitle: string;
+  organizationName: string | null;
+  status: ApplicationStatus;
+  coverLetter: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+/**
+ * Loads a single application detail (plus its job and organization context)
+ * only when it belongs to the given candidate. Null when missing, not owned,
+ * or the id is not a UUID. No cross-candidate data is ever returned.
+ */
+export async function getOwnedApplicationDetail(
+  applicationId: string,
+  candidateUserId: string,
+): Promise<OwnedApplicationDetail | null> {
+  if (!UUID_PATTERN.test(applicationId)) return null;
+
+  const row = await db
+    .select({
+      id: applications.id,
+      jobId: applications.jobId,
+      jobTitle: jobs.title,
+      organizationName: organizations.name,
+      status: applications.status,
+      coverLetter: applications.coverLetter,
+      createdAt: applications.createdAt,
+      updatedAt: applications.updatedAt,
+    })
+    .from(applications)
+    .innerJoin(jobs, eq(jobs.id, applications.jobId))
+    .innerJoin(organizations, eq(organizations.id, jobs.organizationId))
+    .where(
+      and(
+        eq(applications.id, applicationId),
+        eq(applications.candidateUserId, candidateUserId),
+      ),
+    )
+    .limit(1);
+
+  if (row.length === 0) return null;
+
+  return {
+    id: row[0].id,
+    jobId: row[0].jobId,
+    jobTitle: row[0].jobTitle,
+    organizationName: row[0].organizationName,
+    status: row[0].status,
+    coverLetter: row[0].coverLetter,
+    createdAt: row[0].createdAt,
+    updatedAt: row[0].updatedAt,
+  };
+}
+
+export type ApplicationHistoryEntry = {
+  action: string;
+  timestamp: Date;
+  previousStatus: string | null;
+  newStatus: string | null;
+};
+
+/**
+ * Returns the application history for a single application, drawn from audit_log.
+ * Only returns rows for the given application id, so no unrelated audit metadata
+ * or other candidates' data is ever exposed. Ownership must be checked by the
+ * caller before invoking this (e.g. via getOwnedApplicationDetail).
+ */
+export async function getCandidateApplicationHistory(
+  applicationId: string,
+): Promise<ApplicationHistoryEntry[]> {
+  if (!UUID_PATTERN.test(applicationId)) return [];
+
+  const rows = await db
+    .select({
+      action: auditLog.action,
+      timestamp: auditLog.createdAt,
+      metadata: auditLog.metadata,
+    })
+    .from(auditLog)
+    .where(
+      and(
+        eq(auditLog.targetType, "application"),
+        eq(auditLog.targetId, applicationId),
+        inArray(auditLog.action, [
+          "APPLICATION_SUBMITTED",
+          "APPLICATION_WITHDRAWN",
+          "APPLICATION_STATUS_CHANGED",
+        ]),
+      ),
+    )
+    .orderBy(asc(auditLog.createdAt));
+
+  return rows.map((row) => {
+    const meta = row.metadata as Record<string, unknown> | null;
+    return {
+      action: row.action,
+      timestamp: row.timestamp,
+      previousStatus: (meta?.fromStatus as string) ?? null,
+      newStatus: (meta?.toStatus as string) ?? null,
     };
   });
 }

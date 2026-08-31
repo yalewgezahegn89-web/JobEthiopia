@@ -43,6 +43,7 @@ function buildTerminalSelectChain(result: unknown[]) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   chain.from = vi.fn().mockReturnValue(chain);
   chain.innerJoin = vi.fn().mockReturnValue(chain);
+  chain.leftJoin = vi.fn().mockReturnValue(chain);
   chain.where = vi.fn().mockReturnValue(chain);
   chain.orderBy = vi.fn().mockReturnValue(chain);
   chain.limit = vi.fn().mockResolvedValue(result);
@@ -90,6 +91,9 @@ describe("listEmployerApplications", () => {
     const result = await listEmployerApplications(USER_ID);
     expect(result.items).toHaveLength(1);
     expect(result.items[0].id).toBe(APP_ID);
+    // employer list does not carry candidate profile payload
+    expect(result.items[0]).not.toHaveProperty("candidatePhone");
+    expect(result.items[0]).not.toHaveProperty("candidateProfessionalSummary");
   });
 });
 
@@ -104,6 +108,41 @@ describe("getEmployerApplication", () => {
     mocks.mockDbSelectChain.mockReturnValueOnce(buildTerminalSelectChain([]));
     const result = await getEmployerApplication(USER_ID, APP_ID);
     expect(result).toBeNull();
+  });
+
+  it("returns profile fields for the candidate on the scoped application", async () => {
+    const row = {
+      id: APP_ID,
+      jobId: JOB_ID,
+      jobTitle: "Engineer",
+      organizationName: "Acme",
+      candidateName: "Jane",
+      candidateEmail: "jane@example.com",
+      coverLetter: "Hello",
+      status: "SUBMITTED",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      candidatePhone: "+251911234567",
+      candidateLocationName: "Addis Ababa",
+      candidateProfessionalSummary: "Engineer",
+      candidateTotalExperienceYears: 5,
+      candidateEducation: "BSc",
+    };
+
+    const chain = buildTerminalSelectChain([row]);
+    mocks.mockDbSelectChain.mockReturnValueOnce(chain);
+
+    const result = await getEmployerApplication(USER_ID, APP_ID);
+    expect(result).not.toBeNull();
+    if (result) {
+      expect(result.candidatePhone).toBe("+251911234567");
+      expect(result.candidateLocationName).toBe("Addis Ababa");
+      expect(result.candidateProfessionalSummary).toBe("Engineer");
+      expect(result.candidateTotalExperienceYears).toBe(5);
+      expect(result.candidateEducation).toBe("BSc");
+    }
+    // must left-join the candidate profile and its location
+    expect(chain.leftJoin).toHaveBeenCalledTimes(2);
   });
 });
 

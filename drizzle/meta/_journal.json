@@ -57,6 +57,20 @@
       "when": 1788300000000,
       "tag": "0008_add_employer_application_statuses",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788400000000,
+      "tag": "0009_add_candidate_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1788500000000,
+      "tag": "0010_add_application_resumes",
+      "breakpoints": true
     }
   ]
 }

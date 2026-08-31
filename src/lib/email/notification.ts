@@ -90,3 +90,74 @@ export function buildApplicationStatusEmail(
     html,
   };
 }
+
+export interface ApplicationSubmissionNotification {
+  candidateName: string;
+  jobTitle: string;
+  organizationName: string;
+  applicationId: string;
+  submittedAt: string;
+}
+
+function formatSubmissionDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+/**
+ * Builds a transactional confirmation email for a successfully created
+ * application.
+ *
+ * Does NOT include: cover letter, resume, candidate email, candidate ID,
+ * password/session/reset tokens, API keys, employer-internal data, moderation
+ * details, or other applications. Only the candidate's name, the job title,
+ * the organization name, the submission date, and the application link are
+ * included.
+ */
+export function buildApplicationSubmissionEmail(
+  baseUrl: string,
+  notification: ApplicationSubmissionNotification,
+): EmailMessage {
+  const { candidateName, jobTitle, organizationName, applicationId, submittedAt } =
+    notification;
+  const safeName = escapeHtml(candidateName);
+  const safeJobTitle = escapeHtml(jobTitle);
+  const safeOrgName = escapeHtml(organizationName);
+  const safeUrl = escapeHtml(`${baseUrl}/applications/${applicationId}`);
+  const submittedLabel = formatSubmissionDate(submittedAt);
+
+  const subject = `Your application for "${jobTitle}" was submitted`;
+
+  const text = [
+    `Hi ${candidateName},`,
+    "",
+    `We received your application for "${jobTitle}" at ${organizationName}.`,
+    "",
+    `Submitted: ${submittedLabel || "recently"}`,
+    "",
+    "You can view this application here:",
+    `${baseUrl}/applications/${applicationId}`,
+    "",
+    "If you have questions, please contact the organization directly.",
+  ].join("\n");
+
+  const html = [
+    `<p>Hi ${safeName},</p>`,
+    `<p>We received your application for "<strong>${safeJobTitle}</strong>" at ${safeOrgName}.</p>`,
+    `<p>Submitted: <strong>${escapeHtml(submittedLabel || "recently")}</strong></p>`,
+    `<p>You can <a href="${safeUrl}">view this application</a> here.</p>`,
+    "<p>If you have questions, please contact the organization directly.</p>",
+  ].join("\n");
+
+  return {
+    to: "",
+    subject,
+    text,
+    html,
+  };
+}
