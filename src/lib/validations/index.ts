@@ -179,3 +179,8 @@ export const applicationIdParamSchema = z.object({
   id: z.string().uuid("id must be a valid UUID"),
 });
 export type ApplicationIdParam = z.infer<typeof applicationIdParamSchema>;
+
+export { createSavedJobSchema, savedJobIdParamSchema } from "./savedJobs";
+export type { CreateSavedJobInput, SavedJobIdParam } from "./savedJobs";
+export { bulkApplicationStatusChangeSchema, BULK_STATUS_CHANGE_MAX_IDS } from "./applicationStatus";
+export type { BulkApplicationStatusChangeInput } from "./applicationStatus";

@@ -64,6 +64,7 @@ const API_MUTATION = { limit: 30, windowMs: 60_000 } as const;
 const MAINTENANCE = { limit: 3, windowMs: 5 * 60_000 } as const;
 const APPLICATIONS = { limit: 10, windowMs: 60_000 } as const;
 const RESUME_UPLOAD = { limit: 5, windowMs: 60 * 60_000 } as const;
+const BULK_APPLICATIONS = { limit: 5, windowMs: 60_000 } as const;
 
 /* ── Client-IP resolution ───────────────────────────────────────────────── */
 
@@ -232,6 +233,29 @@ export function middleware(request: NextRequest) {
         );
         if (!result.allowed) {
           logRejected(429, pathname, "resume");
+          return applyRequestId(
+            applyCsp(
+              rateLimited(result.retryAfterSeconds!),
+              cspHeaderName,
+              cspValue,
+            ),
+            requestId,
+          );
+        }
+      }
+
+      // Bulk employer application status change — dedicated per-IP bucket
+      // (5 / 60s) because a single request can fan out up to 50 candidate emails.
+      if (
+        /^\/api\/employer\/applications\/status$/i.test(pathname) &&
+        method === "PATCH"
+      ) {
+        const result = checkRateLimit(
+          buildRateLimitKey("bulk", clientIp),
+          BULK_APPLICATIONS,
+        );
+        if (!result.allowed) {
+          logRejected(429, pathname, "bulk");
           return applyRequestId(
             applyCsp(
               rateLimited(result.retryAfterSeconds!),

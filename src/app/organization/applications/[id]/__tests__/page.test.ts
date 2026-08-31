@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   mockGetEmployerApplication: vi.fn(),
   mockHistory: vi.fn(),
   mockResume: vi.fn(),
+  mockListNotes: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -37,6 +38,27 @@ vi.mock("@/lib/employer/applications", () => ({
 vi.mock("@/lib/resume/dal", () => ({
   getEmployerApplicationResume: (...args: unknown[]) =>
     mocks.mockResume(...args),
+}));
+
+vi.mock("@/lib/employer/applicationNotes", () => ({
+  listApplicationNotes: (...args: unknown[]) => mocks.mockListNotes(...args),
+}));
+
+vi.mock("@/components/employer/notes-section", () => ({
+  NotesSection: ({
+    applicationId,
+    notes,
+    currentUserId,
+  }: {
+    applicationId: string;
+    notes: unknown[];
+    currentUserId: string;
+  }) =>
+    createElement(
+      "div",
+      { "data-testid": "notes-section" },
+      `notes:${notes.length}:app:${applicationId}:me:${currentUserId}`,
+    ),
 }));
 
 vi.mock("./status-form", () => ({
@@ -85,6 +107,7 @@ beforeEach(() => {
   mocks.mockGetEmployerApplication.mockResolvedValue(employerDetail());
   mocks.mockHistory.mockResolvedValue([]);
   mocks.mockResume.mockResolvedValue(null);
+  mocks.mockListNotes.mockResolvedValue({ ok: true, item: [] });
 });
 
 describe("EmployerApplicationDetailPage", () => {
@@ -142,5 +165,27 @@ describe("EmployerApplicationDetailPage", () => {
     const element = await EmployerApplicationDetailPage({ params: params() });
     const html = renderToString(element);
     expect(html).not.toContain("/api/applications");
+  });
+
+  it("renders the internal notes section with the session user and notes", async () => {
+    mocks.mockListNotes.mockResolvedValue({
+      ok: true,
+      item: [
+        {
+          id: "note-1",
+          applicationId: APP_ID,
+          authorUserId: USER_ID,
+          authorName: "Abebe",
+          body: "Internal observation",
+          createdAt: new Date("2026-01-01T00:00:00.000Z"),
+          updatedAt: new Date("2026-01-01T00:00:00.000Z"),
+        },
+      ],
+    });
+    const element = await EmployerApplicationDetailPage({ params: params() });
+    const html = renderToString(element);
+    expect(html).toContain("notes:1");
+    expect(html).toContain(`app:${APP_ID}`);
+    expect(html).toContain(`me:${USER_ID}`);
   });
 });

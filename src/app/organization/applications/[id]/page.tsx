@@ -7,6 +7,8 @@ import {
   getEmployerApplicationStatusHistory,
 } from "@/lib/employer/applications";
 import { getEmployerApplicationResume } from "@/lib/resume/dal";
+import { listApplicationNotes } from "@/lib/employer/applicationNotes";
+import { NotesSection } from "@/components/employer/notes-section";
 import { StatusForm } from "./status-form";
 
 export const dynamic = "force-dynamic";
@@ -38,12 +40,31 @@ export default async function EmployerApplicationDetailPage({
   let detail;
   let history;
   let resume;
+  let notes: {
+    id: string;
+    authorUserId: string | null;
+    authorName: string | null;
+    body: string;
+    createdAt: string;
+    updatedAt: string;
+  }[] = [];
   try {
     [detail, history, resume] = await Promise.all([
       getEmployerApplication(user.id, id),
       getEmployerApplicationStatusHistory(user.id, id),
       getEmployerApplicationResume(id, user.id),
     ]);
+    const notesResult = await listApplicationNotes(user.id, id);
+    if (notesResult.ok) {
+      notes = notesResult.item.map((n) => ({
+        id: n.id,
+        authorUserId: n.authorUserId,
+        authorName: n.authorName,
+        body: n.body,
+        createdAt: n.createdAt.toISOString(),
+        updatedAt: n.updatedAt.toISOString(),
+      }));
+    }
   } catch {
     notFound();
   }
@@ -186,6 +207,14 @@ export default async function EmployerApplicationDetailPage({
             currentStatus={detail.status}
           />
         </div>
+      </div>
+
+      <div className="mt-6">
+        <NotesSection
+          applicationId={detail.id}
+          notes={notes}
+          currentUserId={user.id}
+        />
       </div>
 
       {history.length > 0 && (

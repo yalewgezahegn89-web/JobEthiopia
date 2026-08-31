@@ -8,6 +8,7 @@ import {
 } from "@/lib/employer/applications";
 import type { ApplicationStatus } from "@/lib/applications/dal";
 import type { ApplicationSort } from "@/lib/employer/applications";
+import { BulkApplicationActions } from "@/components/employer/bulk-application-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -108,23 +109,6 @@ export default async function EmployerApplicationsPage({
     return qs ? `?${qs}` : "";
   }
 
-  function statusBadge(s: string) {
-    const colors: Record<string, string> = {
-      SUBMITTED: "bg-blue-100 text-blue-800",
-      WITHDRAWN: "bg-gray-100 text-gray-600",
-      REVIEWING: "bg-yellow-100 text-yellow-800",
-      SHORTLISTED: "bg-green-100 text-green-800",
-      REJECTED: "bg-red-100 text-red-800",
-    };
-    return (
-      <span
-        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${colors[s] ?? "bg-gray-100 text-gray-600"}`}
-      >
-        {s}
-      </span>
-    );
-  }
-
   return (
     <div>
       <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
@@ -214,37 +198,19 @@ export default async function EmployerApplicationsPage({
           <p className="mt-4 text-sm text-gray-500">
             {total} application{total === 1 ? "" : "s"} total
           </p>
-          <ul className="mt-3 space-y-2">
-            {items.map((item) => (
-              <li
-                key={item.id}
-                className="rounded-lg border border-gray-200 p-4 dark:border-gray-800"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        href={`/organization/applications/${item.id}`}
-                        className="font-medium text-gray-900 hover:underline dark:text-gray-100"
-                      >
-                        {item.jobTitle}
-                      </Link>
-                      {statusBadge(item.status)}
-                    </div>
-                    <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-                      {item.candidateName} &middot; {item.candidateEmail}
-                    </div>
-                    <div className="mt-1 text-xs text-gray-500">
-                      {item.organizationName}
-                    </div>
-                  </div>
-                  <div className="text-right text-xs text-gray-500">
-                    <div>{new Date(item.createdAt).toLocaleDateString()}</div>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
+          <BulkApplicationActions
+            key={`${status ?? "all"}-${jobId ?? "all"}-${sort}-${page}`}
+            applications={items.map((item) => ({
+              id: item.id,
+              jobId: item.jobId,
+              jobTitle: item.jobTitle,
+              organizationName: item.organizationName,
+              candidateName: item.candidateName,
+              candidateEmail: item.candidateEmail,
+              status: item.status,
+              createdAt: item.createdAt.toISOString(),
+            }))}
+          />
           {totalPages > 1 && (
             <nav className="mt-4 flex items-center justify-between">
               <div className="flex gap-1">

@@ -10,6 +10,7 @@ export function OrganizationNav() {
     { href: "/organization", label: "Dashboard" },
     { href: "/organization/jobs", label: "Jobs" },
     { href: "/organization/applications", label: "Applications" },
+    { href: "/organization/team", label: "Team" },
   ];
 
   return (

@@ -28,3 +28,5 @@ export { applications } from "./applications";
 export { applicationResumes } from "./applicationResumes";
 export { organizationMembers } from "./organizationMembers";
 export { auditLog } from "./auditLog";
+export { savedJobs } from "./savedJobs";
+export { applicationNotes } from "./applicationNotes";

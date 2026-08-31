@@ -341,6 +341,177 @@ export async function changeEmployerApplicationStatus(
   });
 }
 
+export type BulkChangeStatusResult =
+  | {
+      ok: true;
+      items: { id: string; status: ApplicationStatus }[];
+      count: number;
+    }
+  | {
+      ok: false;
+      code:
+        | "NOT_FOUND"
+        | "FORBIDDEN"
+        | "ORG_INACTIVE"
+        | "USER_INACTIVE"
+        | "INVALID_TRANSITION"
+        | "MIXED_ORG";
+    };
+
+/**
+ * Changes the status of many applications in one atomic, all-or-nothing
+ * operation (B93).
+ *
+ * Authorization is batch-scoped and deliberately stronger than a per-item ad
+ * hoc check:
+ *   - The actor must be an active ORGANIZATION_ADMIN.
+ *   - Every selected application must resolve to the SAME organization.
+ *   - The actor must be a member of that organization.
+ *   - That organization must be ACTIVE.
+ *   - Every application's current status must legally transition to the target.
+ *
+ * The request never carries an organizationId; scope is derived exclusively
+ * from the session user and the selected applications.
+ *
+ * All validation happens inside ONE transaction. If any item is invalid the
+ * whole batch fails: no status is changed and no audit row is written. A
+ * conditional UPDATE guarded by the set of allowed source statuses, plus a
+ * returned-row-count check, protects against concurrent stale transitions.
+ *
+ * NOTE: This bulk operation can send up to 50 candidate notifications (one per
+ * changed application) once the committed result is dispatched by the route.
+ * Notification handling lives strictly OUTSIDE this transaction.
+ */
+export async function changeEmployerApplicationStatuses(
+  userId: string,
+  applicationIds: string[],
+  newStatus: ApplicationStatus,
+): Promise<BulkChangeStatusResult> {
+  if (applicationIds.length === 0) {
+    return { ok: false, code: "INVALID_TRANSITION" };
+  }
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const actor = await tx
+        .select({ role: users.role, active: users.isActive })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+
+      if (
+        actor.length === 0 ||
+        actor[0].role !== "ORGANIZATION_ADMIN" ||
+        !actor[0].active
+      ) {
+        return { ok: false as const, code: "FORBIDDEN" as const };
+      }
+
+      const rows = await tx
+        .select({
+          applicationId: applications.id,
+          currentStatus: applications.status,
+          organizationId: jobs.organizationId,
+          orgStatus: organizations.status,
+        })
+        .from(applications)
+        .innerJoin(jobs, eq(jobs.id, applications.jobId))
+        .innerJoin(organizations, eq(organizations.id, jobs.organizationId))
+        .where(inArray(applications.id, applicationIds));
+
+      if (rows.length !== applicationIds.length) {
+        return { ok: false as const, code: "NOT_FOUND" as const };
+      }
+
+      const orgIds = new Set(rows.map((r) => r.organizationId));
+      if (orgIds.size !== 1) {
+        return { ok: false as const, code: "MIXED_ORG" as const };
+      }
+
+      const orgId = rows[0]!.organizationId;
+      const orgStatus = rows[0]!.orgStatus;
+
+      if (orgStatus !== "ACTIVE") {
+        return { ok: false as const, code: "ORG_INACTIVE" as const };
+      }
+
+      const membership = await tx
+        .select({ id: organizationMembers.id })
+        .from(organizationMembers)
+        .where(
+          and(
+            eq(organizationMembers.userId, userId),
+            eq(organizationMembers.organizationId, orgId),
+          ),
+        )
+        .limit(1);
+
+      if (membership.length === 0) {
+        return { ok: false as const, code: "FORBIDDEN" as const };
+      }
+
+      // Allowed source statuses that can legally reach the target, derived from
+      // the authoritative VALID_TRANSITIONS table.
+      const allowedCurrentStatuses = (
+        Object.keys(VALID_TRANSITIONS) as ApplicationStatus[]
+      ).filter((source) => VALID_TRANSITIONS[source]!.includes(newStatus));
+
+      for (const r of rows) {
+        const current = r.currentStatus as ApplicationStatus;
+        if (!VALID_TRANSITIONS[current]?.includes(newStatus)) {
+          return { ok: false as const, code: "INVALID_TRANSITION" as const };
+        }
+      }
+
+      const updated = await tx
+        .update(applications)
+        .set({ status: newStatus, updatedAt: new Date() })
+        .where(
+          and(
+            inArray(applications.id, applicationIds),
+            inArray(applications.status, allowedCurrentStatuses),
+          ),
+        )
+        .returning({ id: applications.id, status: applications.status });
+
+      if (updated.length !== applicationIds.length) {
+        // A concurrent update removed at least one application from the allowed
+        // source statuses. Throw so the whole transaction rolls back.
+        throw new Error("bulk status change row-count mismatch");
+      }
+
+      for (const r of rows) {
+        await tx.insert(auditLog).values({
+          actorUserId: userId,
+          action: "APPLICATION_STATUS_CHANGED",
+          targetType: "application",
+          targetId: r.applicationId,
+          metadata: {
+            fromStatus: r.currentStatus,
+            toStatus: newStatus,
+          },
+        });
+      }
+
+      const items = updated.map((u) => ({
+        id: u.id,
+        status: u.status as ApplicationStatus,
+      }));
+      return {
+        ok: true as const,
+        items,
+        count: items.length,
+      };
+    });
+
+    return result;
+  } catch {
+    // Transaction-level rollback (e.g. concurrent stale-state mismatch) is
+    // surfaced as an invalid transition: nothing was committed.
+    return { ok: false, code: "INVALID_TRANSITION" };
+  }
+}
+
 export type ApplicationStatusHistoryEntry = {
   action: string;
   timestamp: Date;

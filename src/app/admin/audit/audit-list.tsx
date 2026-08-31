@@ -51,6 +51,11 @@ const ACTIONS = [
   "APPLICATION_SUBMITTED",
   "APPLICATION_WITHDRAWN",
   "APPLICATION_STATUS_CHANGED",
+  "ORGANIZATION_MEMBER_ADDED",
+  "ORGANIZATION_MEMBER_REMOVED",
+  "APPLICATION_NOTE_CREATED",
+  "APPLICATION_NOTE_UPDATED",
+  "APPLICATION_NOTE_DELETED",
   "RESUME_UPLOADED",
   "RESUME_REPLACED",
   "RESUME_DELETED",
@@ -67,6 +72,8 @@ const TARGET_TYPES = [
   "profession",
   "career_article",
   "application",
+  "organization_member",
+  "application_note",
   "maintenance",
 ] as const;
 

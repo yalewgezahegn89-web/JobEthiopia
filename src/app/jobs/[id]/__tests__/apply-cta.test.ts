@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   mockFetchJobById: vi.fn(),
   mockFetchJobs: vi.fn(),
   mockGetCurrentUser: vi.fn(),
+  mockIsJobSaved: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -31,12 +32,20 @@ vi.mock("@/lib/auth/context", () => ({
   getCurrentUser: (...a: unknown[]) => mocks.mockGetCurrentUser(...a),
 }));
 
+vi.mock("@/lib/savedJobs/dal", () => ({
+  isJobSaved: (...a: unknown[]) => mocks.mockIsJobSaved(...a),
+}));
+
 vi.mock("@/components/job-share", () => ({
   default: () => createElement("div", null, "share"),
 }));
 
 vi.mock("@/components/applications/apply-button", () => ({
   ApplyButton: ({ jobId }: { jobId: string }) => createElement("button", { "data-apply-job": jobId }, "ApplyNow"),
+}));
+
+vi.mock("@/components/saved-jobs/save-button", () => ({
+  SaveButton: ({ jobId }: { jobId: string }) => createElement("button", { "data-save-job": jobId }, "Save"),
 }));
 
 import JobPage from "@/app/jobs/[id]/page";
@@ -86,6 +95,7 @@ beforeEach(() => {
   mocks.mockFetchJobById.mockResolvedValue(makeJob());
   mocks.mockFetchJobs.mockResolvedValue({ items: [], pagination: { page: 1, limit: 8, total: 0, totalPages: 1 } });
   mocks.mockGetCurrentUser.mockResolvedValue(CANDIDATE);
+  mocks.mockIsJobSaved.mockResolvedValue(false);
 });
 
 describe("JobPage apply CTA", () => {

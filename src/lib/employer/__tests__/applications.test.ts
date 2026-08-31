@@ -21,6 +21,7 @@ import {
   listEmployerApplications,
   getEmployerApplication,
   changeEmployerApplicationStatus,
+  changeEmployerApplicationStatuses,
 } from "../applications";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
@@ -209,5 +210,309 @@ describe("changeEmployerApplicationStatus", () => {
     if (result.ok) {
       expect(result.item.status).toBe("REVIEWING");
     }
+  });
+});
+describe("changeEmployerApplicationStatuses", () => {
+  const APP_A = "aaaaaaa1-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const APP_B = "bbbbbbb1-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const OTHER_ORG = "99999999-9999-4999-8999-999999999999";
+  const ACTIVE = "ACTIVE";
+
+  function bulkTx({
+    actor = [{ role: "ORGANIZATION_ADMIN", active: true }],
+    apps = [],
+    member = [{ id: "mem-1" }],
+    updated = [],
+  }: {
+    actor?: { role: string; active: boolean }[];
+    apps?: {
+      applicationId: string;
+      currentStatus: string;
+      organizationId: string;
+      orgStatus: string;
+    }[];
+    member?: { id: string }[];
+    updated?: { id: string; status: string }[];
+  }) {
+    const tx: Record<string, ReturnType<typeof vi.fn>> = {
+      select: vi
+        .fn()
+        .mockImplementationOnce(() => ({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue(actor),
+            }),
+          }),
+        }))
+        .mockImplementationOnce(() => ({
+          from: vi.fn().mockReturnValue({
+            innerJoin: vi.fn().mockReturnValue({
+              innerJoin: vi.fn().mockReturnValue({
+                where: vi.fn().mockResolvedValue(apps),
+              }),
+            }),
+          }),
+        }))
+        .mockImplementationOnce(() => ({
+          from: vi.fn().mockReturnValue({
+            where: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue(member),
+            }),
+          }),
+        })),
+      update: vi.fn().mockReturnValue({
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue(updated),
+          }),
+        }),
+      }),
+      insert: vi.fn().mockReturnValue({
+        values: vi.fn().mockResolvedValue([]),
+      }),
+    };
+    return tx;
+  }
+
+  function run(
+    tx: Record<string, ReturnType<typeof vi.fn>>,
+    ids: string[] = [APP_A],
+    status: "REVIEWING" | "SHORTLISTED" | "REJECTED" = "REVIEWING",
+  ) {
+    mocks.mockDbTransaction.mockImplementation(
+      async (fn: (t: Record<string, unknown>) => Promise<unknown>) => fn(tx),
+    );
+    return changeEmployerApplicationStatuses(USER_ID, ids, status);
+  }
+
+  function row(
+    id: string,
+    currentStatus: string,
+    orgId: string = ORG_ID,
+    orgStatus: string = ACTIVE,
+  ) {
+    return {
+      applicationId: id,
+      currentStatus,
+      organizationId: orgId,
+      orgStatus,
+    };
+  }
+
+  it("signals invalid when the ID list is empty", async () => {
+    mocks.mockDbTransaction.mockRejectedValue(new Error("should not run"));
+    const result = await changeEmployerApplicationStatuses(USER_ID, [], "REVIEWING");
+    expect(result).toEqual({ ok: false, code: "INVALID_TRANSITION" });
+  });
+
+  it("rejects non-ORG_ADMIN actor", async () => {
+    const tx = bulkTx({ actor: [{ role: "CANDIDATE", active: true }] });
+    const result = await run(tx);
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+  });
+
+  it("rejects an inactive actor", async () => {
+    const tx = bulkTx({ actor: [{ role: "ORGANIZATION_ADMIN", active: false }] });
+    const result = await run(tx);
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+  });
+
+  it("returns NOT_FOUND when an application is missing", async () => {
+    const tx = bulkTx({ apps: [row(APP_A, "SUBMITTED")] });
+    const result = await run(tx, [APP_A, APP_B]);
+    expect(result).toEqual({ ok: false, code: "NOT_FOUND" });
+  });
+
+  it("rejects a cross-org (single) batch", async () => {
+    const tx = bulkTx({
+      apps: [row(APP_A, "SUBMITTED", OTHER_ORG)],
+      member: [],
+    });
+    const result = await run(tx);
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+  });
+
+  it("rejects a mixed-org batch", async () => {
+    const tx = bulkTx({
+      apps: [row(APP_A, "SUBMITTED", ORG_ID), row(APP_B, "SUBMITTED", OTHER_ORG)],
+    });
+    const result = await run(tx, [APP_A, APP_B], "SHORTLISTED");
+    expect(result).toEqual({ ok: false, code: "MIXED_ORG" });
+  });
+
+  it("rejects an inactive organization", async () => {
+    const tx = bulkTx({ apps: [row(APP_A, "SUBMITTED", ORG_ID, "INACTIVE")] });
+    const result = await run(tx);
+    expect(result).toEqual({ ok: false, code: "ORG_INACTIVE" });
+  });
+
+  it("rejects an actor who is not a member", async () => {
+    const tx = bulkTx({ apps: [row(APP_A, "SUBMITTED")], member: [] });
+    const result = await run(tx);
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+  });
+
+  it("rejects invalid REVIEWING -> REVIEWING transition", async () => {
+    const tx = bulkTx({ apps: [row(APP_A, "REVIEWING")] });
+    const result = await run(tx, [APP_A], "REVIEWING");
+    expect(result).toEqual({ ok: false, code: "INVALID_TRANSITION" });
+  });
+
+  it("rejects a terminal REJECTED application", async () => {
+    const tx = bulkTx({ apps: [row(APP_A, "REJECTED")] });
+    const result = await run(tx, [APP_A], "REJECTED");
+    expect(result).toEqual({ ok: false, code: "INVALID_TRANSITION" });
+  });
+
+  it("rejects a terminal WITHDRAWN application", async () => {
+    const tx = bulkTx({ apps: [row(APP_A, "WITHDRAWN")] });
+    const result = await run(tx);
+    expect(result).toEqual({ ok: false, code: "INVALID_TRANSITION" });
+  });
+
+  it("rejects a terminal SHORTLISTED application", async () => {
+    const tx = bulkTx({ apps: [row(APP_A, "SHORTLISTED")] });
+    const result = await run(tx, [APP_A], "REJECTED");
+    expect(result).toEqual({ ok: false, code: "INVALID_TRANSITION" });
+  });
+
+  it("rolls back the whole batch when one item is invalid (no update, no audit)", async () => {
+    const tx = bulkTx({
+      apps: [row(APP_A, "SUBMITTED"), row(APP_B, "REJECTED")],
+    });
+    const result = await run(tx, [APP_A, APP_B], "REJECTED");
+    expect(result).toEqual({ ok: false, code: "INVALID_TRANSITION" });
+    expect(tx.update).not.toHaveBeenCalled();
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
+  it("succeeds for all-SUBMITTED -> REVIEWING", async () => {
+    const tx = bulkTx({
+      apps: [row(APP_A, "SUBMITTED"), row(APP_B, "SUBMITTED")],
+      updated: [
+        { id: APP_A, status: "REVIEWING" },
+        { id: APP_B, status: "REVIEWING" },
+      ],
+    });
+    const result = await run(tx, [APP_A, APP_B], "REVIEWING");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.count).toBe(2);
+      expect(result.items.map((i) => i.status)).toEqual([
+        "REVIEWING",
+        "REVIEWING",
+      ]);
+    }
+  });
+
+  it("succeeds for all-SUBMITTED -> SHORTLISTED", async () => {
+    const tx = bulkTx({
+      apps: [row(APP_A, "SUBMITTED"), row(APP_B, "SUBMITTED")],
+      updated: [
+        { id: APP_A, status: "SHORTLISTED" },
+        { id: APP_B, status: "SHORTLISTED" },
+      ],
+    });
+    const result = await run(tx, [APP_A, APP_B], "SHORTLISTED");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.count).toBe(2);
+  });
+
+  it("succeeds for mixed SUBMITTED/REVIEWING -> SHORTLISTED", async () => {
+    const tx = bulkTx({
+      apps: [row(APP_A, "SUBMITTED"), row(APP_B, "REVIEWING")],
+      updated: [
+        { id: APP_A, status: "SHORTLISTED" },
+        { id: APP_B, status: "SHORTLISTED" },
+      ],
+    });
+    const result = await run(tx, [APP_A, APP_B], "SHORTLISTED");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.count).toBe(2);
+  });
+
+  it("succeeds for mixed SUBMITTED/REVIEWING -> REJECTED", async () => {
+    const tx = bulkTx({
+      apps: [row(APP_A, "SUBMITTED"), row(APP_B, "REVIEWING")],
+      updated: [
+        { id: APP_A, status: "REJECTED" },
+        { id: APP_B, status: "REJECTED" },
+      ],
+    });
+    const result = await run(tx, [APP_A, APP_B], "REJECTED");
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.count).toBe(2);
+  });
+
+  it("writes one audit row per application with from/to status", async () => {
+    const tx = bulkTx({
+      apps: [row(APP_A, "SUBMITTED"), row(APP_B, "REVIEWING")],
+      updated: [
+        { id: APP_A, status: "REJECTED" },
+        { id: APP_B, status: "REJECTED" },
+      ],
+    });
+    const result = await run(tx, [APP_A, APP_B], "REJECTED");
+    expect(result.ok).toBe(true);
+    expect(tx.insert).toHaveBeenCalledTimes(2);
+    type AuditValue = {
+      actorUserId: string;
+      action: string;
+      targetType: string;
+      targetId: string;
+      metadata: unknown;
+    };
+    const valuesMock = (tx.insert as unknown as { mock: { results: { value: { values: { mock: { calls: [AuditValue][] } } } }[] } }).mock
+      .results[0].value.values;
+    const metas = valuesMock.mock.calls.map((c) => c[0]);
+    expect(metas.every((m) => m.action === "APPLICATION_STATUS_CHANGED")).toBe(true);
+    expect(metas.every((m) => m.actorUserId === USER_ID)).toBe(true);
+    expect(metas.every((m) => m.targetType === "application")).toBe(true);
+    const byId = Object.fromEntries(metas.map((m) => [m.targetId, m.metadata]));
+    expect(byId[APP_A]).toEqual({ fromStatus: "SUBMITTED", toStatus: "REJECTED" });
+    expect(byId[APP_B]).toEqual({ fromStatus: "REVIEWING", toStatus: "REJECTED" });
+  });
+
+  it("does not leak candidate PII into audit metadata", async () => {
+    const tx = bulkTx({
+      apps: [row(APP_A, "SUBMITTED")],
+      updated: [{ id: APP_A, status: "SHORTLISTED" }],
+    });
+    const result = await run(tx, [APP_A], "SHORTLISTED");
+    expect(result.ok).toBe(true);
+    type AuditValue = { metadata: unknown };
+    const valuesMock = (tx.insert as unknown as { mock: { results: { value: { values: { mock: { calls: [AuditValue][] } } } }[] } }).mock
+      .results[0].value.values;
+    const meta = JSON.stringify(valuesMock.mock.calls[0][0]);
+    expect(meta).not.toContain("email");
+    expect(meta).not.toContain("candidate");
+    expect(meta).not.toContain("Abebe");
+  });
+
+  it("surfaces INVALID_TRANSITION when the conditional update count mismatches (concurrent stale state)", async () => {
+    const tx = bulkTx({
+      apps: [row(APP_A, "SUBMITTED"), row(APP_B, "SUBMITTED")],
+      updated: [{ id: APP_A, status: "REVIEWING" }],
+    });
+    const result = await run(tx, [APP_A, APP_B], "REVIEWING");
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("INVALID_TRANSITION");
+  });
+
+  it("rejects a batch already at the target status (idempotency via transition validation)", async () => {
+    const tx = bulkTx({ apps: [row(APP_A, "REVIEWING")] });
+    const result = await run(tx, [APP_A], "REVIEWING");
+    expect(result).toEqual({ ok: false, code: "INVALID_TRANSITION" });
+  });
+
+  it("a multi-org actor is still limited to a single batch org", async () => {
+    const tx = bulkTx({
+      apps: [
+        row(APP_A, "SUBMITTED", OTHER_ORG),
+        row(APP_B, "SUBMITTED", ORG_ID),
+      ],
+    });
+    const result = await run(tx, [APP_A, APP_B], "SHORTLISTED");
+    expect(result).toEqual({ ok: false, code: "MIXED_ORG" });
   });
 });

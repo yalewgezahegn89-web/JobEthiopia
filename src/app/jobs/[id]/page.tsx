@@ -4,8 +4,10 @@ import { notFound } from "next/navigation";
 import { fetchJobById, fetchJobs, formatDate, freshnessLabel, closingState, type PublicJobDetail, type PublicJobSummary } from "@/lib/jobs/public";
 import { selectRelatedJobs } from "@/lib/jobs/related";
 import { getCurrentUser } from "@/lib/auth/context";
+import { isJobSaved } from "@/lib/savedJobs/dal";
 import JobShare from "@/components/job-share";
 import { ApplyButton } from "@/components/applications/apply-button";
+import { SaveButton } from "@/components/saved-jobs/save-button";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +95,16 @@ export default async function JobPage({
     currentUser?.role === "CANDIDATE" &&
     closing !== "EXPIRED" &&
     job.applicationUrl === null;
+
+  const canSaveJob = currentUser?.role === "CANDIDATE" && job.status === "PUBLISHED";
+  let initialSaved = false;
+  if (canSaveJob && currentUser) {
+    try {
+      initialSaved = await isJobSaved(currentUser.id, job.id);
+    } catch {
+      initialSaved = false;
+    }
+  }
 
   let relatedItems: PublicJobSummary[] = [];
   try {
@@ -226,6 +238,12 @@ export default async function JobPage({
           <div className="mt-4">
             <JobShare title={job.title} />
           </div>
+
+          {canSaveJob && (
+            <div className="mt-4">
+              <SaveButton jobId={job.id} initialSaved={initialSaved} />
+            </div>
+          )}
         </header>
 
         <div className="mt-8 space-y-6 text-sm leading-7 text-gray-700 dark:text-gray-200">
