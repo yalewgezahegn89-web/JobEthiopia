@@ -10,6 +10,7 @@ export {
   articleStatusEnum,
   userRoleEnum,
   applicationStatusEnum,
+  employerOnboardingRequestStatusEnum,
 } from "./enums";
 
 export { locations } from "./locations";
@@ -27,6 +28,7 @@ export { passwordResetTokens } from "./passwordResetTokens";
 export { applications } from "./applications";
 export { applicationResumes } from "./applicationResumes";
 export { organizationMembers } from "./organizationMembers";
+export { employerOnboardingRequests } from "./employerOnboardingRequests";
 export { auditLog } from "./auditLog";
 export { savedJobs } from "./savedJobs";
 export { applicationNotes } from "./applicationNotes";

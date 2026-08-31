@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/lib/auth/context";
 import { isStaffRole } from "@/lib/auth/roles";
 import { getCandidateProfile } from "@/lib/candidateProfile/dal";
 import { ProfileForm } from "@/components/profile/profile-form";
+import ChangePasswordForm from "./change-password/change-password-form";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,16 @@ export default async function ProfilePage() {
           />
         </div>
       )}
+
+      <div className="mt-12 border-t border-gray-200 pt-8 dark:border-gray-800">
+        <h2 className="text-xl font-bold tracking-tight">Change password</h2>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+          Update your password to keep your account secure.
+        </p>
+        <div className="mt-4">
+          <ChangePasswordForm />
+        </div>
+      </div>
     </div>
   );
 }

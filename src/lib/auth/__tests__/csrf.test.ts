@@ -15,6 +15,7 @@ import {
   assertTrustedCsrfFromRequest,
   CsrfError,
   parseOrigin,
+  getAppBaseUrl,
   getTrustedOrigin,
 } from "@/lib/auth/csrf";
 
@@ -58,6 +59,22 @@ describe("getTrustedOrigin", () => {
   it("falls back to localhost for local development", () => {
     vi.stubEnv("APP_BASE_URL", "");
     expect(getTrustedOrigin()).toBe("http://localhost:3000");
+  });
+});
+
+describe("getAppBaseUrl production safety (B98)", () => {
+  it("throws in production when APP_BASE_URL is missing or blank", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_BASE_URL", "");
+    expect(() => getAppBaseUrl()).toThrow("APP_BASE_URL is required in production");
+    vi.stubEnv("APP_BASE_URL", "   ");
+    expect(() => getAppBaseUrl()).toThrow("APP_BASE_URL is required in production");
+  });
+
+  it("returns the configured value in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("APP_BASE_URL", "https://jobs.example.com");
+    expect(getAppBaseUrl()).toBe("https://jobs.example.com");
   });
 });
 

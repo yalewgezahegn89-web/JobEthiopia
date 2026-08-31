@@ -83,3 +83,8 @@ export const applicationStatusEnum = pgEnum("application_status", [
   "SHORTLISTED",
   "REJECTED",
 ]);
+
+export const employerOnboardingRequestStatusEnum = pgEnum(
+  "employer_onboarding_request_status",
+  ["PENDING", "APPROVED", "REJECTED"],
+);

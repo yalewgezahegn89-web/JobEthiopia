@@ -154,6 +154,58 @@ describe("middleware — rate limiting", () => {
     });
   });
 
+  describe("register POST", () => {
+    it("allows register POST within limit", () => {
+      mockNext.mockReturnValue({ passed: true });
+      const result = middleware(
+        fakeRequest({
+          pathname: "/register",
+          method: "POST",
+          headers: { "x-forwarded-for": "9.9.9.9" },
+        }),
+      );
+      expect(result).toEqual({ passed: true });
+      expect(mockJson).not.toHaveBeenCalled();
+    });
+
+    it("blocks register POST after 5 attempts from the same IP", () => {
+      mockJson.mockReturnValue({ status: 429 });
+      for (let i = 0; i < 5; i++) {
+        middleware(
+          fakeRequest({
+            pathname: "/register",
+            method: "POST",
+            headers: { "x-forwarded-for": "9.9.9.10" },
+          }),
+        );
+      }
+      middleware(
+        fakeRequest({
+          pathname: "/register",
+          method: "POST",
+          headers: { "x-forwarded-for": "9.9.9.10" },
+        }),
+      );
+      expect(mockJson).toHaveBeenCalled();
+      const [body, init] = mockJson.mock.calls[mockJson.mock.calls.length - 1];
+      expect(body.error).toMatch(/too many/i);
+      expect(init.status).toBe(429);
+    });
+
+    it("does not rate-limit register GET", () => {
+      mockNext.mockReturnValue({ passed: true });
+      for (let i = 0; i < 10; i++) {
+        middleware(
+          fakeRequest({
+            pathname: "/register",
+            method: "GET",
+          }),
+        );
+      }
+      expect(mockJson).not.toHaveBeenCalled();
+    });
+  });
+
   describe("API mutations", () => {
     it("allows POST within limit", () => {
       mockNext.mockReturnValue({ passed: true });

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 const mocks = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
@@ -142,5 +143,29 @@ describe("ProfilePage", () => {
     mocks.mockFindMany.mockRejectedValue(new Error("db down"));
     const element = await ProfilePage();
     expect(element).toBeTruthy();
+  });
+
+  it("renders the change-password section for a candidate", async () => {
+    const html = renderToStaticMarkup(await ProfilePage());
+    expect(html).toContain("Change password");
+    expect(html).toContain("Update your password to keep your account secure.");
+    expect(html).toContain("Current password");
+    expect(html).toContain("New password");
+    expect(html).toContain('name="currentPassword"');
+    expect(html).toContain('name="newPassword"');
+    expect(html).toContain('name="confirmPassword"');
+  });
+
+  it("renders the existing candidate profile alongside the password section", async () => {
+    mocks.mockGetProfile.mockResolvedValue(PROFILE);
+    const html = renderToStaticMarkup(await ProfilePage());
+    expect(html).toContain("My Profile");
+    expect(html).toContain("Change password");
+    expect(html).toContain("My Applications");
+  });
+
+  it("does not render the password section for non-candidate roles", async () => {
+    mocks.mockGetCurrentUser.mockResolvedValue({ ...CANDIDATE, role: "ADMIN" });
+    await expect(ProfilePage()).rejects.toThrow("REDIRECT:/jobs");
   });
 });

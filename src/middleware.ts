@@ -59,6 +59,7 @@ function applyRequestId(response: NextResponse, requestId: string): NextResponse
 /* ── Rate-limit configs ────────────────────────────────────────────────── */
 
 const LOGIN = { limit: 5, windowMs: 15 * 60_000 } as const;
+const REGISTER = { limit: 5, windowMs: 15 * 60_000 } as const;
 const INGESTION = { limit: 10, windowMs: 60_000 } as const;
 const API_MUTATION = { limit: 30, windowMs: 60_000 } as const;
 const MAINTENANCE = { limit: 3, windowMs: 5 * 60_000 } as const;
@@ -164,6 +165,26 @@ export function middleware(request: NextRequest) {
     const result = checkRateLimit(buildRateLimitKey("login", clientIp), LOGIN);
     if (!result.allowed) {
       logRejected(429, pathname, "login");
+      return applyRequestId(
+        applyCsp(
+          rateLimited(result.retryAfterSeconds!),
+          cspHeaderName,
+          cspValue,
+        ),
+        requestId,
+      );
+    }
+  }
+
+  // Registration — only POST (Server Action submissions); GET is open.
+  if (pathname === "/register" && method === "POST") {
+    const clientIp = resolveClientIp(request);
+    const result = checkRateLimit(
+      buildRateLimitKey("register", clientIp),
+      REGISTER,
+    );
+    if (!result.allowed) {
+      logRejected(429, pathname, "register");
       return applyRequestId(
         applyCsp(
           rateLimited(result.retryAfterSeconds!),

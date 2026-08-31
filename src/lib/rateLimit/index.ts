@@ -27,7 +27,8 @@ export type RateLimitBucket =
   | "maintenance"
   | "applications"
   | "resume"
-  | "bulk";
+  | "bulk"
+  | "register";
 
 /**
  * Builds the deterministic in-memory bucket key for a bucket + client identity.

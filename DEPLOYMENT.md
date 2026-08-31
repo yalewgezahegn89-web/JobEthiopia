@@ -32,10 +32,24 @@ These are only used when manually running the first-admin bootstrap command. The
 
 ## Production Environment Notes
 
-- `APP_BASE_URL` must be the real production origin (e.g. `https://jobs.example.com`).
-- HTTPS should be used in production. Secure session cookies depend on `NODE_ENV=production`.
+- `APP_BASE_URL` is **required** in production and must be the real public HTTPS
+  origin (e.g. `https://jobs.example.com`). The application fails fast in
+  production if it is missing or blank; it never silently falls back to
+  `http://localhost:3000` outside of local development. This base is used for
+  CSRF origin validation, sitemap/robots, and password-reset/email links.
+- HTTPS is **required** in production. Secure/session cookies depend on
+  `NODE_ENV=production`.
+- **TLS edge responsibility:** the application layer emits CSP (nonce-based),
+  `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy`. The
+  reverse proxy / TLS terminator / CDN is responsible for enforcing HTTPS,
+  **Strict-Transport-Security (HSTS)**, and **Permissions-Policy**; these are
+  deliberately not emitted by the application.
 - API keys must be stored in the hosting platform's secret/env system, never in code.
-- `TRUSTED_CLIENT_IP_HEADER` should only be configured when the proxy sanitizes/overwrites that header.
+- `TRUSTED_CLIENT_IP_HEADER` must be configured **only** when a trusted reverse
+  proxy sanitizes/overwrites that header with the real client IP. It is never
+  enabled by header presence; arbitrary `x-forwarded-for` is never trusted by
+  default. When unset in a proxied deployment, all clients share one rate-limit
+  bucket (127.0.0.1 fallback).
 
 ## Database Deployment
 
@@ -60,6 +74,29 @@ These are only used when manually running the first-admin bootstrap command. The
 - Migrations are forward-only. There are no rollback SQL scripts. Take a database backup before risky production schema changes.
 - Migration `0009_add_candidate_profiles` adds the private `candidate_profiles` table (one row per candidate). It uses no external storage or new providers. Profile data is private and only surfaced to employers reviewing an application from that candidate. Deleting a user cascades to their profile row.
 - Migration `0010_add_application_resumes` adds the private `application_resumes` table (one row per application that has an uploaded resume). Resume files are stored in a private S3-compatible object bucket, never in the local filesystem. Deleting a user cascades to their application rows, which cascade to resume metadata. The resume feature degrades gracefully when storage is not configured.
+
+### Connection Pool & TLS (Batch 98)
+
+The PostgreSQL pool is configured to be safe for managed/serverless production
+with conservative, environment-tunable settings (no new dependency):
+
+| Setting | Default | Env variable |
+|---|---|---|
+| Connection timeout | 10s (finite; pg default is infinite) | `PG_CONNECTION_TIMEOUT_MS` |
+| Max pool clients | 10 | `PG_POOL_MAX` |
+| Idle timeout | 30s | `PG_IDLE_TIMEOUT_MS` |
+| TLS | Auto in production | `PG_DISABLE_SSL` |
+
+TLS behavior:
+- **Production (NODE_ENV=production):** SSL is enabled with default CA
+  verification (`rejectUnauthorized: true`) for managed PostgreSQL, unless
+  (a) `PG_DISABLE_SSL=true` is set, or (b) the `DATABASE_URL` already declares
+  an `sslmode=...` query parameter (e.g. `sslmode=require` for providers that
+  need an explicit mode or a custom CA) — in that case the URL's `sslmode`
+  governs.
+- **Non-production:** SSL is not forced, preserving existing local/dev behavior.
+- Certificates are never hard-coded in the application. The pool is created
+  once at module load and shared process-wide; it is not recreated per request.
 
 ## First Admin Bootstrap
 

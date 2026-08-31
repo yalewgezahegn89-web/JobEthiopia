@@ -91,31 +91,31 @@ afterEach(() => {
 describe("GET /api/employer/team", () => {
   it("returns 401 when unauthenticated", async () => {
     mocks.mockCookieGet.mockReturnValue(undefined);
-    const res = await GET(new Request("http://localhost/api/employer/team"));
+    const res = await GET();
     expect(res.status).toBe(401);
   });
 
   it("returns 401 when session invalid", async () => {
     mocks.mockVerifySession.mockResolvedValue(null);
-    const res = await GET(new Request("http://localhost/api/employer/team"));
+    const res = await GET();
     expect(res.status).toBe(401);
   });
 
   it("returns 403 for a candidate", async () => {
     mocks.mockVerifySession.mockResolvedValue(CANDIDATE);
-    const res = await GET(new Request("http://localhost/api/employer/team"));
+    const res = await GET();
     expect(res.status).toBe(403);
   });
 
   it("returns 403 for staff", async () => {
     mocks.mockVerifySession.mockResolvedValue(STAFF);
-    const res = await GET(new Request("http://localhost/api/employer/team"));
+    const res = await GET();
     expect(res.status).toBe(403);
   });
 
   it("returns safe team list for an org admin", async () => {
     mocks.mockListTeam.mockResolvedValue([makeItem()]);
-    const res = await GET(new Request("http://localhost/api/employer/team"));
+    const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.items).toHaveLength(1);
@@ -127,7 +127,7 @@ describe("GET /api/employer/team", () => {
 
   it("returns 500 on unexpected failure without leaking internals", async () => {
     mocks.mockListTeam.mockRejectedValue(new Error("secret db error"));
-    const res = await GET(new Request("http://localhost/api/employer/team"));
+    const res = await GET();
     expect(res.status).toBe(500);
     const text = JSON.stringify(await res.json());
     expect(text).not.toContain("secret db error");

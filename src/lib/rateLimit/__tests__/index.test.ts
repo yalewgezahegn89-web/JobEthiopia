@@ -41,6 +41,9 @@ describe("buildRateLimitKey", () => {
     expect(buildRateLimitKey("maintenance", "127.0.0.1")).toBe(
       "maintenance:127.0.0.1",
     );
+    expect(buildRateLimitKey("register", "127.0.0.1")).toBe(
+      "register:127.0.0.1",
+    );
   });
 });
 

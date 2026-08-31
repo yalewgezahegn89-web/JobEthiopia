@@ -34,7 +34,16 @@ export interface CsrfContext {
 
 export function getAppBaseUrl(): string {
   const base = process.env.APP_BASE_URL?.trim();
-  return base && base.length > 0 ? base : "http://localhost:3000";
+  if (base && base.length > 0) return base;
+  // In production an explicit APP_BASE_URL is required: silently falling back
+  // to http://localhost:3000 would produce broken/insecure links (e.g.
+  // password-reset emails) and a CSRF trusted origin that can never match.
+  // Fail fast instead of emitting invalid production URLs.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("APP_BASE_URL is required in production");
+  }
+  // Local development convenience only.
+  return "http://localhost:3000";
 }
 
 export function parseOrigin(value: string): string | null {
