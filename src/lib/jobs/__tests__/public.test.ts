@@ -244,6 +244,27 @@ describe("fetchJobs URL construction", () => {
       process.env.APP_BASE_URL = previous;
     }
   });
+
+  it("throws in production when APP_BASE_URL is missing (no localhost fallback)", async () => {
+    const previous = process.env.APP_BASE_URL;
+    delete process.env.APP_BASE_URL;
+    const fetcher = makeFetcher(jsonResponse({ items: [], pagination: {} }));
+
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      await expect(fetchJobs({}, { fetcher })).rejects.toThrow(
+        "APP_BASE_URL is required in production",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+    }
+
+    if (previous === undefined) {
+      delete process.env.APP_BASE_URL;
+    } else {
+      process.env.APP_BASE_URL = previous;
+    }
+  });
 });
 
 describe("fetchJobs response handling", () => {

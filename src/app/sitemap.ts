@@ -1,9 +1,8 @@
 import type { MetadataRoute } from "next";
+import { getAppBaseUrl } from "@/lib/appBaseUrl";
 
 function siteUrl(): URL {
-  return new URL(
-    process.env.APP_BASE_URL?.trim() || "http://localhost:3000",
-  );
+  return new URL(getAppBaseUrl());
 }
 
 export default function sitemap(): MetadataRoute.Sitemap {

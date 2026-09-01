@@ -33,61 +33,68 @@
     {
       "idx": 4,
       "version": "7",
+      "when": 1788006619000,
+      "tag": "0004_add_organization_verification_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
       "when": 1788096075471,
       "tag": "0005_add_password_reset_tokens",
       "breakpoints": true
     },
     {
-      "idx": 5,
+      "idx": 6,
       "version": "7",
       "when": 1788102521752,
       "tag": "0006_add_applications",
       "breakpoints": true
     },
     {
-      "idx": 6,
+      "idx": 7,
       "version": "7",
       "when": 1788200000000,
       "tag": "0007_create_organization_members",
       "breakpoints": true
     },
     {
-      "idx": 7,
+      "idx": 8,
       "version": "7",
       "when": 1788300000000,
       "tag": "0008_add_employer_application_statuses",
       "breakpoints": true
     },
     {
-      "idx": 8,
+      "idx": 9,
       "version": "7",
       "when": 1788400000000,
       "tag": "0009_add_candidate_profiles",
       "breakpoints": true
     },
     {
-      "idx": 9,
+      "idx": 10,
       "version": "7",
       "when": 1788500000000,
       "tag": "0010_add_application_resumes",
       "breakpoints": true
     },
     {
-      "idx": 10,
+      "idx": 11,
       "version": "7",
       "when": 1788600000000,
       "tag": "0011_add_saved_jobs",
       "breakpoints": true
     },
     {
-      "idx": 11,
+      "idx": 12,
       "version": "7",
       "when": 1788700000000,
       "tag": "0012_add_application_notes",
       "breakpoints": true
     },
     {
-      "idx": 12,
+      "idx": 13,
       "version": "7",
       "when": 1788800000000,
       "tag": "0013_add_employer_onboarding_requests",

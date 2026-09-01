@@ -19,6 +19,9 @@
  * exposed in the returned error.
  */
 import { headers } from "next/headers";
+import { getAppBaseUrl } from "@/lib/appBaseUrl";
+
+export { getAppBaseUrl };
 
 export class CsrfError extends Error {
   constructor() {
@@ -30,20 +33,6 @@ export class CsrfError extends Error {
 export interface CsrfContext {
   origin?: string | null;
   referer?: string | null;
-}
-
-export function getAppBaseUrl(): string {
-  const base = process.env.APP_BASE_URL?.trim();
-  if (base && base.length > 0) return base;
-  // In production an explicit APP_BASE_URL is required: silently falling back
-  // to http://localhost:3000 would produce broken/insecure links (e.g.
-  // password-reset emails) and a CSRF trusted origin that can never match.
-  // Fail fast instead of emitting invalid production URLs.
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("APP_BASE_URL is required in production");
-  }
-  // Local development convenience only.
-  return "http://localhost:3000";
 }
 
 export function parseOrigin(value: string): string | null {

@@ -1,3 +1,5 @@
+import { getAppBaseUrl } from "@/lib/appBaseUrl";
+
 export type PublicProfessionQuery = {
   page?: number;
   limit?: number;
@@ -46,7 +48,7 @@ type FetchLayerOptions = {
 };
 
 function getBaseUrl(baseUrl?: string): string {
-  return baseUrl || process.env.APP_BASE_URL || "http://localhost:3000";
+  return baseUrl || getAppBaseUrl();
 }
 
 function getFetcher(fetcher?: Fetcher): Fetcher {

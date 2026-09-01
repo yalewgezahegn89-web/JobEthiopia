@@ -37,6 +37,11 @@ These are only used when manually running the first-admin bootstrap command. The
   production if it is missing or blank; it never silently falls back to
   `http://localhost:3000` outside of local development. This base is used for
   CSRF origin validation, sitemap/robots, and password-reset/email links.
+- **On Vercel, `APP_BASE_URL` must be a BUILD-TIME environment variable.** The
+  root `metadataBase`, `sitemap.ts`, and `robots.ts` are evaluated at
+  build/static-generation time, when `NODE_ENV=production`. If it is unset at
+  build time these fail fast, so configure it in the build/preview environment
+  (not runtime-only) so `next build` succeeds and canonical URLs are correct.
 - HTTPS is **required** in production. Secure/session cookies depend on
   `NODE_ENV=production`.
 - **TLS edge responsibility:** the application layer emits CSP (nonce-based),
@@ -98,7 +103,29 @@ TLS behavior:
 - Certificates are never hard-coded in the application. The pool is created
   once at module load and shared process-wide; it is not recreated per request.
 
-## First Admin Bootstrap
+## Database Backup & PITR
+
+Before relying on the database for production traffic, configure **backups with
+point-in-time recovery (PITR)** through your PostgreSQL provider and test a
+restore. This is a release blocker, not a nice-to-have: migrations are
+forward-only with **no rollback SQL scripts**, so the backup is the only
+recovery path for a failed migration or data-loss incident.
+
+Recommended:
+
+1. Enable **continuous WAL archiving / PITR** (e.g. Neon's branch-and-time-travel,
+   Supabase's PITR daily+streaming, RDS automated backups + PITR, or Managed
+   PostgreSQL equivalents).
+2. Set a **retention policy** appropriate to compliance needs (e.g. 7–30 days of
+   PITR, plus a weekly full snapshot retained longer if required).
+3. **Test a restore at least once before go-live and quarterly thereafter**:
+   restore a recent point to an isolated database, run `npm run db:migrate` (it
+   should be a no-op if the restored point already matches the deployed schema),
+   run the smoke tests (§ Launch Checklist), and confirm data integrity.
+4. Record the restore runbook somewhere an on-call engineer can find it (a run
+   book page, not just this file).
+
+### First Admin Bootstrap
 
 The first SUPER_ADMIN must be created manually after database setup:
 
@@ -217,6 +244,27 @@ Notes:
   requirement.
 - No local filesystem storage is used.
 
+## Maintenance
+
+A scheduled maintenance run refreshes derivation / low-priority internal
+state (e.g. recomputing computed fields, cleaning up stale records). Invoke it
+via cron:
+
+```bash
+POST /api/internal/maintenance/run
+Headers: x-maintenance-key: <MAINTENANCE_API_KEY>
+```
+
+- Authenticated only by the `MAINTENANCE_API_KEY` header; returns `401` on a
+  missing/mismatched key.
+- **Not idempotent-safe to run concurrently — schedule a single instance**
+  (e.g. once daily, cron `0 3 * * *` UTC) and avoid overlapping runs. A run
+  already in progress guard is **not** enforced, so do not overlap it.
+- In a serverless/scale-to-zero deployment, a cron schedule may cold-start the
+  function or the run may be short-lived; prefer a time window with a retry and
+  confirm the run completes in the logs.
+- Requires `MAINTENANCE_API_KEY` at **deploy/runtime** time (not just build).
+
 ## Vercel Readiness
 
 Vercel is a plausible deployment target because this is a Next.js application using the Node runtime.
@@ -242,3 +290,71 @@ Notes:
 - `DATABASE_URL` is required for migration and runtime.
 - `PORT` can be supplied by the host; Next.js defaults to 3000.
 - Use a reverse proxy for HTTPS in production.
+
+## Rollback
+
+There is no database rollback: migrations are forward-only and there are no
+rollback SQL scripts. Recover by restoring a pre-deploy backup/PITR point
+(§ Database Backup & PITR) or, when the schema change is backward-compatible,
+by rolling the application build back and leaving the schema in place.
+
+Application rollback:
+
+1. Identify the last known-good build and redeploy it (Vercel instant rollback
+   or redeploy of the previous image).
+2. If the rollback is schema-related and the database must also regress, use
+   the backup/PITR restore procedure instead of trying to reverse a migration.
+3. Re-run the smoke tests and confirm the maintenance cron and health endpoint.
+
+## Launch / Deployment Smoke-Test Checklist
+
+Run these after every production deployment and after a PITR restore:
+
+**Infra & config**
+- [ ] `GET /api/health` returns `200 {"status":"ok"}`.
+- [ ] `APP_BASE_URL` is the real HTTPS origin and resolves; `/sitemap.xml` and
+      `/robots.txt` use it (no `localhost`); page `metadata` canonical URLs use it.
+- [ ] HTTPS enforced at the edge (HTTP→HTTPS redirect), HSTS + Permissions-Policy
+      present (edge responsibility), and app-emitted CSP / X-Content-Type-Options
+      / X-Frame-Options / Referrer-Policy headers present on responses.
+- [ ] `TRUSTED_CLIENT_IP_HEADER` (if set) reflects the real client IP and
+      rate-limit headers/buckets behave per-client.
+- [ ] Log aggregation working; entries have `x-request-id` correlation IDs and
+      no secrets/plaintext tokens.
+
+**Auth & email**
+- [ ] Login/logout and session-cookie flags correct (`Secure`, `HttpOnly`).
+- [ ] Password reset with `RESEND_API_KEY` set actually delivers an email that
+      links to `APP_BASE_URL` (if email not yet configured, confirm token is
+      created and reset flow still works).
+- [ ] CSRF-protected forms work from the origin.
+
+**Ingestion**
+- [ ] Job ingestion endpoints accept a request with a valid `x-api-key` and
+      reject a bad/missing one with `401`.
+
+**Maintenance**
+- [ ] `POST /api/internal/maintenance/run` with `x-maintenance-key` runs without
+      error; wrong key → `401`.
+
+**Resume storage (if enabled)**
+- [ ] A candidate can upload/replace/delete a PDF resume and an authorized
+      employer can download it; unauthorized access is rejected; uploads are
+      rate-limited.
+
+**Data**
+- [ ] A fresh `npm run db:migrate` against the current schema is a no-op
+      (migrations all applied, including `0004`).
+- [ ] A recent PITR restore has been tested (per § Database Backup & PITR).
+
+## The 0004 Migration Note
+
+`0004_add_organization_verification_fields.sql` (adds `verified_at`,
+`verified_by`, `verification_notes` and the `organizations_verified_by_users_id_fk`
+FK) was present but missing from the migration journal. The journal has been
+repaired so a fresh `db:migrate` applies it. If the deployed database was set up
+before this repair and those columns are absent, run `npm run db:migrate` once
+to bring it in line. A `0004_snapshot.json` was intentionally **not**
+reconstructed; `db:migrate` does not read snapshots, but a future
+`drizzle-kit generate` diff may report the verification columns as a "new"
+change — ignore the diff for those columns (they already exist).

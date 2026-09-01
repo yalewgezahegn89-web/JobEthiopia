@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import SiteHeader from "@/components/site-header";
 import SiteFooter from "@/components/site-footer";
+import { getAppBaseUrl } from "@/lib/appBaseUrl";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,9 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 function siteUrl(): URL {
-  return new URL(
-    process.env.APP_BASE_URL?.trim() || "http://localhost:3000",
-  );
+  return new URL(getAppBaseUrl());
 }
 
 export const metadata: Metadata = {
