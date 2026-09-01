@@ -42,6 +42,12 @@ These are only used when manually running the first-admin bootstrap command. The
   build/static-generation time, when `NODE_ENV=production`. If it is unset at
   build time these fail fast, so configure it in the build/preview environment
   (not runtime-only) so `next build` succeeds and canonical URLs are correct.
+- **CI build environment:** the GitHub Actions workflow supplies
+  `APP_BASE_URL: http://localhost:3000` to its `build` step only, so the CI
+  build is green without a real domain. This is a non-production placeholder
+  scoped to the build step; it does **not** change the production fail-fast
+  behavior. The production build/release environment must still set the real
+  HTTPS origin.
 - HTTPS is **required** in production. Secure/session cookies depend on
   `NODE_ENV=production`.
 - **TLS edge responsibility:** the application layer emits CSP (nonce-based),

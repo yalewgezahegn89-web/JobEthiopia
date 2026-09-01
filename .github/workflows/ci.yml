@@ -36,6 +36,8 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          APP_BASE_URL: http://localhost:3000
 
       - name: Production dependency audit
         run: npm audit --omit=dev
