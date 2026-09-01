@@ -7,14 +7,19 @@
  *
  * The inbound `x-request-id` header is NEVER trusted as canonical; a fresh
  * UUID is always generated server-side.
+ *
+ * Implementation note: UUID generation uses the Web Crypto API's global
+ * `crypto.randomUUID()`, which is available in both the Node.js runtime and
+ * the Next.js Edge Runtime (middleware). A Node-only `node:crypto` import is
+ * intentionally avoided so middleware can load without the native crypto
+ * module.
  */
-import { randomUUID } from "node:crypto";
 
 export const REQUEST_ID_HEADER = "x-request-id";
 
 /** Generates a fresh, server-side request ID. */
 export function generateRequestId(): string {
-  return randomUUID();
+  return crypto.randomUUID();
 }
 
 /** Legacy name kept for clarity of intent at generation sites. */
