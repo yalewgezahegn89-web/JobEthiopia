@@ -42,18 +42,18 @@ export default async function AdminProfessionsPage({
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
+      <main className="mx-auto w-full max-w-6xl px-4 py-8">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Professions</h1>
+          <h1 className="text-2xl font-semibold text-foreground">Professions</h1>
           <Link
             href="/admin/taxonomy/professions/create"
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             Create profession
           </Link>
         </div>
         {loadError ? (
-          <p className="mt-4 text-neutral-600">
+          <p className="mt-4 text-sm text-destructive">
             We could not load the profession list right now. Please try again shortly.
           </p>
         ) : (

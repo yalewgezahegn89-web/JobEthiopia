@@ -48,9 +48,9 @@ export default function UserDetail({ user, actorRole }: UserDetailProps) {
   return (
     <div className="space-y-4">
       {canChangeRole && (
-        <section className="rounded-lg border border-neutral-200 p-4">
-          <h2 className="text-lg font-semibold">Role</h2>
-          <p className="mt-1 text-sm text-neutral-600">
+        <section className="rounded-xl border border-border bg-surface p-6 shadow-sm mt-6">
+          <h2 className="text-lg font-semibold text-foreground">Role</h2>
+          <p className="mt-1 text-sm text-muted">
             Current role: <strong>{user.role}</strong>
           </p>
 
@@ -60,7 +60,7 @@ export default function UserDetail({ user, actorRole }: UserDetailProps) {
               <select
                 name="role"
                 defaultValue={user.role}
-                className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 {ROLES.map((r) => (
                   <option key={r} value={r}>
@@ -71,19 +71,19 @@ export default function UserDetail({ user, actorRole }: UserDetailProps) {
               <button
                 type="submit"
                 disabled={rolePending}
-                className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-40"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
               >
                 Save Role
               </button>
             </div>
           </form>
           {roleState.error && (
-            <p role="alert" className="mt-2 text-sm text-red-700">
+            <p role="alert" className="mt-2 text-sm text-destructive">
               {roleState.error}
             </p>
           )}
           {roleState.ok && (
-            <p role="alert" className="mt-2 text-sm text-green-700">
+            <p role="alert" className="mt-2 text-sm text-success">
               User role updated successfully.
             </p>
           )}
@@ -91,48 +91,48 @@ export default function UserDetail({ user, actorRole }: UserDetailProps) {
       )}
 
       {!canChangeRole && (
-        <section className="rounded-lg border border-neutral-200 p-4">
-          <h2 className="text-lg font-semibold">Role</h2>
-          <p className="mt-1 text-sm text-neutral-600">
+        <section className="rounded-xl border border-border bg-surface p-6 shadow-sm mt-6">
+          <h2 className="text-lg font-semibold text-foreground">Role</h2>
+          <p className="mt-1 text-sm text-muted">
             Role: <strong>{user.role}</strong>
           </p>
         </section>
       )}
 
       {canToggleActive && (
-        <section className="rounded-lg border border-neutral-200 p-4">
-          <h2 className="text-lg font-semibold">Actions</h2>
+        <section className="rounded-xl border border-border bg-surface p-6 shadow-sm mt-6">
+          <h2 className="text-lg font-semibold text-foreground">Actions</h2>
 
           <form action={toggleFormAction} className="mt-3">
             <input type="hidden" name="targetId" value={user.id} />
             <button
               type="submit"
               disabled={togglePending || isSelf}
-              className={`rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 ${
+              className={`rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 ${
                 user.isActive
-                  ? "bg-amber-600 hover:bg-amber-700"
-                  : "bg-green-600 hover:bg-green-700"
+                  ? "bg-warning hover:opacity-90 hover:shadow-md"
+                  : "bg-success hover:opacity-90 hover:shadow-md"
               }`}
             >
               {user.isActive ? "Deactivate" : "Activate"}
             </button>
           </form>
           {toggleState.error && (
-            <p role="alert" className="mt-2 text-sm text-red-700">
+            <p role="alert" className="mt-2 text-sm text-destructive">
               {toggleState.error}
             </p>
           )}
           {toggleState.ok && (
-            <p role="alert" className="mt-2 text-sm text-green-700">
+            <p role="alert" className="mt-2 text-sm text-success">
               User status updated successfully.
             </p>
           )}
         </section>
       )}
 
-      <section className="rounded-lg border border-neutral-200 p-4">
-        <h2 className="text-lg font-semibold">Session Management</h2>
-        <p className="mt-1 text-sm text-neutral-600">
+      <section className="rounded-xl border border-border bg-surface p-6 shadow-sm mt-6">
+        <h2 className="text-lg font-semibold text-foreground">Session Management</h2>
+        <p className="mt-1 text-sm text-muted">
           {user.sessionCount} active session{user.sessionCount === 1 ? "" : "s"} for this user.
         </p>
 
@@ -153,18 +153,18 @@ export default function UserDetail({ user, actorRole }: UserDetailProps) {
           <button
             type="submit"
             disabled={revokePending || isSelf}
-            className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-40"
+            className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
           >
             Force Logout All Sessions
           </button>
         </form>
         {revokeState.error && (
-          <p role="alert" className="mt-2 text-sm text-red-700">
+          <p role="alert" className="mt-2 text-sm text-destructive">
             {revokeState.error}
           </p>
         )}
         {revokeState.ok && (
-          <p role="alert" className="mt-2 text-sm text-green-700">
+          <p role="alert" className="mt-2 text-sm text-success">
             All sessions revoked successfully.
           </p>
         )}

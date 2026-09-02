@@ -1,11 +1,12 @@
 import { cookies } from "next/headers";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 import { verifySession } from "@/lib/auth/session";
 import { getEmployerJob } from "@/lib/employer/jobs";
-import { OrganizationNav } from "@/app/organization/nav";
 import { EditJobForm } from "./form";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+
+export const dynamic = "force-dynamic";
 
 export default async function EditJobPage({
   params,
@@ -36,20 +37,29 @@ export default async function EditJobPage({
   }
 
   return (
-    <>
-      <OrganizationNav />
-      <main className="mx-auto max-w-3xl px-4 py-8">
-        <Link
-          href={`/organization/jobs/${job.id}`}
-          className="mb-4 inline-block text-sm text-blue-600 hover:underline"
-        >
-          &larr; Back to Job
-        </Link>
-        <h1 className="mb-6 text-xl font-semibold text-gray-900 dark:text-gray-100">
+    <div className="mx-auto max-w-3xl">
+      <Breadcrumb
+        items={[
+          { label: "Home", href: "/organization" },
+          { label: "Jobs", href: "/organization/jobs" },
+          { label: job.title, href: `/organization/jobs/${job.id}` },
+          { label: "Edit" },
+        ]}
+      />
+      <div className="mt-4">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
+          Job management
+        </p>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           Edit Job
         </h1>
+        <p className="mt-1 text-sm text-muted">
+          Update this draft before it is published.
+        </p>
+      </div>
+      <div className="mt-6">
         <EditJobForm job={job} />
-      </main>
-    </>
+      </div>
+    </div>
   );
 }

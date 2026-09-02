@@ -16,46 +16,47 @@ export default function SourcesList({
 }) {
   return (
     <div>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className="mt-4 flex flex-wrap gap-2">
         <Link
           href="/admin/sources"
-          className={`rounded-md px-3 py-1.5 text-sm ${
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
             currentIsActive === undefined && !currentSourceType
-              ? "bg-neutral-900 text-white"
-              : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+              ? "bg-primary text-white shadow-sm"
+              : "border border-border bg-surface text-muted hover:bg-surface-raised hover:text-foreground"
           }`}
         >
           All
         </Link>
         <Link
           href="/admin/sources?isActive=true"
-          className={`rounded-md px-3 py-1.5 text-sm ${
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
             currentIsActive === true
-              ? "bg-green-700 text-white"
-              : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+              ? "bg-primary text-white shadow-sm"
+              : "border border-border bg-surface text-muted hover:bg-surface-raised hover:text-foreground"
           }`}
         >
           Active
         </Link>
         <Link
           href="/admin/sources?isActive=false"
-          className={`rounded-md px-3 py-1.5 text-sm ${
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
             currentIsActive === false
-              ? "bg-red-700 text-white"
-              : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+              ? "bg-primary text-white shadow-sm"
+              : "border border-border bg-surface text-muted hover:bg-surface-raised hover:text-foreground"
           }`}
         >
           Inactive
         </Link>
-        <span className="text-neutral-400">|</span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
         {SOURCE_TYPES.map((st) => (
           <Link
             key={st}
             href={`/admin/sources?sourceType=${st}${currentIsActive !== undefined ? `&isActive=${currentIsActive}` : ""}`}
-            className={`rounded-md px-3 py-1.5 text-sm ${
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
               currentSourceType === st
-                ? "bg-neutral-900 text-white"
-                : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+                ? "bg-primary text-white shadow-sm"
+                : "border border-border bg-surface text-muted hover:bg-surface-raised hover:text-foreground"
             }`}
           >
             {st}
@@ -64,42 +65,44 @@ export default function SourcesList({
       </div>
 
       {result.items.length === 0 ? (
-        <p className="mt-6 text-neutral-600">No sources found.</p>
+        <p className="mt-6 text-sm text-subtle">No sources found.</p>
       ) : (
         <>
-          <p className="mt-4 text-sm text-neutral-500">
+          <p className="mt-4 text-sm text-muted">
             {result.total} source{result.total === 1 ? "" : "s"} total
           </p>
-          <ul className="mt-3 space-y-2">
+          <ul className="mt-3 space-y-3">
             {result.items.map((source) => (
               <li key={source.id}>
                 <Link
                   href={`/admin/sources/${source.id}`}
-                  className="block rounded-md border border-neutral-200 p-3 hover:bg-neutral-50"
+                  className="block rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{source.name}</span>
+                    <span className="font-semibold text-foreground hover:text-primary">{source.name}</span>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                         source.isActive
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
+                          ? "bg-success-light text-success"
+                          : "bg-destructive-light text-destructive"
                       }`}
                     >
                       {source.isActive ? "Active" : "Inactive"}
                     </span>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
-                    <span>{source.sourceType}</span>
-                    <span>Trust: {source.trustLevel}</span>
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+                    <span className="rounded-full border border-border-subtle bg-surface-raised px-2.5 py-0.5 text-xs font-medium text-muted">
+                      {source.sourceType}
+                    </span>
+                    <span className="text-sm text-muted">Trust: {source.trustLevel}</span>
                     {source.baseUrl && (
-                      <span className="truncate max-w-xs">{source.baseUrl}</span>
+                      <span className="truncate max-w-xs text-xs text-subtle">{source.baseUrl}</span>
                     )}
                     {source.lastSuccessfulCheck && (
-                      <span>Last check: {new Date(source.lastSuccessfulCheck).toLocaleDateString()}</span>
+                      <span className="text-xs text-subtle">Last check: {new Date(source.lastSuccessfulCheck).toLocaleDateString()}</span>
                     )}
                     {source.consecutiveFailures > 0 && (
-                      <span className="text-red-600">
+                      <span className="text-sm text-destructive">
                         {source.consecutiveFailures} consecutive failure{source.consecutiveFailures === 1 ? "" : "s"}
                       </span>
                     )}
@@ -115,20 +118,20 @@ export default function SourcesList({
                 {result.page > 1 && (
                   <Link
                     href={`/admin/sources?page=${result.page - 1}${currentIsActive !== undefined ? `&isActive=${currentIsActive}` : ""}${currentSourceType ? `&sourceType=${currentSourceType}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                    className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-muted hover:bg-surface-raised hover:text-foreground"
                   >
                     Previous
                   </Link>
                 )}
               </div>
-              <span className="text-sm text-neutral-500">
+              <span className="text-sm text-muted">
                 Page {result.page} of {result.totalPages}
               </span>
               <div className="flex gap-1">
                 {result.page < result.totalPages && (
                   <Link
                     href={`/admin/sources?page=${result.page + 1}${currentIsActive !== undefined ? `&isActive=${currentIsActive}` : ""}${currentSourceType ? `&sourceType=${currentSourceType}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                    className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-muted hover:bg-surface-raised hover:text-foreground"
                   >
                     Next
                   </Link>
@@ -142,7 +145,7 @@ export default function SourcesList({
       <div className="mt-6">
         <Link
           href="/admin/sources/create"
-          className="inline-block rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800"
+          className="inline-block rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           Create new source
         </Link>

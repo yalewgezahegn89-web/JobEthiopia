@@ -47,10 +47,12 @@ export default async function AdminAuditPage({
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-5xl px-4 py-8">
-        <h1 className="text-2xl font-semibold">Audit Log</h1>
+      <main className="mx-auto w-full max-w-6xl px-4 py-8">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          Audit Log
+        </h1>
         {loadError ? (
-          <p className="mt-4 text-neutral-600">
+          <p className="mt-4 text-sm text-destructive">
             We could not load the audit log right now. Please try again
             shortly.
           </p>

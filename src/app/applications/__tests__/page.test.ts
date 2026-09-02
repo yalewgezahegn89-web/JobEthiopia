@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 const mocks = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
@@ -68,6 +69,31 @@ describe("ApplicationsPage", () => {
       CANDIDATE.id,
       expect.objectContaining({ limit: 100 }),
     );
+  });
+
+  it("renders a single H1 with the page title", async () => {
+    const html = renderToStaticMarkup(await ApplicationsPage());
+    const h1Count = (html.match(/<h1\b/g) ?? []).length;
+    expect(h1Count).toBe(1);
+    expect(html).toContain("My Applications");
+  });
+
+  it("lists application details with status, dates and a view link", async () => {
+    const html = renderToStaticMarkup(await ApplicationsPage());
+    expect(html).toContain("Accountant");
+    expect(html).toContain("ACME Plc");
+    expect(html).toContain("Submitted");
+    expect(html).toContain("Applied Jan 1, 2026");
+    expect(html).toContain(
+      'href="/applications/33333333-3333-4333-8333-333333333333"',
+    );
+    expect(html).toContain("View application");
+    expect(html).toContain("1 tracked application");
+  });
+
+  it("shows a summary chip with pluralized count", async () => {
+    const html = renderToStaticMarkup(await ApplicationsPage());
+    expect(html).toContain("1 tracked application");
   });
 
   it("redirects unauthenticated users to /login", async () => {

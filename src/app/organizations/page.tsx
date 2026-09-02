@@ -3,7 +3,13 @@ import Link from "next/link";
 import {
   fetchOrganizations,
   type PublicOrganizationList,
+  type PublicOrganizationSummary,
 } from "@/lib/organizations/public";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+import { PageHeader } from "@/components/public/page-header";
+import { EmptyState } from "@/components/public/empty-state";
+import { Pagination } from "@/components/public/pagination";
+import { BuildingIcon, CheckIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -46,14 +52,14 @@ export default async function OrganizationsPage({
 
   if (loadError) {
     return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-12 text-center">
+      <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
         <h1 className="text-2xl font-bold">Organizations</h1>
-        <p className="mt-4 text-gray-600 dark:text-gray-300">
+        <p className="mt-4 text-muted">
           We could not load organizations right now. Please try again shortly.
         </p>
         <Link
           href="/organizations"
-          className="mt-6 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
+          className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           Retry
         </Link>
@@ -78,111 +84,119 @@ export default async function OrganizationsPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8">
-      <h1 className="text-3xl font-bold tracking-tight">Organizations</h1>
-      <p className="mt-1 text-gray-600 dark:text-gray-300">
-        Browse organizations hiring across Ethiopia.
-      </p>
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
+      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Organizations" }]} />
+
+      <div className="mt-4">
+        <PageHeader
+          eyebrow="Hiring organizations"
+          title="Organizations"
+          description="Discover organizations hiring across Ethiopia and explore their open roles."
+        />
+      </div>
 
       {items.length === 0 ? (
-        <div
-          className="mt-10 rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700"
-          role="status"
-        >
-          <h2 className="text-lg font-semibold">No organizations found</h2>
-          <p className="mt-1 text-gray-600 dark:text-gray-300">
-            There are no active organizations to show right now.
-          </p>
-        </div>
+        <EmptyState
+          icon={<BuildingIcon className="h-7 w-7" />}
+          heading="No organizations found"
+          body="There are no active organizations to show right now. Check back soon."
+        />
       ) : (
         <>
-          <ul className="mt-6 space-y-4">
+          <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((organization) => (
-              <li key={organization.id}>
-                <Link
-                  href={`/organizations/${organization.id}`}
-                  className="flex items-start gap-4 rounded-lg border border-gray-200 p-4 transition-colors hover:border-blue-400 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
-                >
-                  {organization.logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={organization.logoUrl}
-                      alt={`${organization.name} logo`}
-                      className="h-12 w-12 shrink-0 rounded-md object-contain"
-                    />
-                  ) : (
-                    <span
-                      aria-hidden="true"
-                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-gray-100 text-sm font-semibold text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                    >
-                      {organization.name.trim().charAt(0).toUpperCase() || "?"}
-                    </span>
-                  )}
-                  <div className="min-w-0">
-                    <h2 className="text-lg font-semibold text-blue-700 dark:text-blue-400">
-                      {organization.name}
-                    </h2>
-                    <div className="mt-1 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
-                      {organization.industry && (
-                        <span className="rounded-md bg-gray-100 px-2 py-1 dark:bg-gray-800">
-                          {organization.industry}
-                        </span>
-                      )}
-                      {organization.websiteUrl && (
-                        <span className="rounded-md bg-gray-100 px-2 py-1 dark:bg-gray-800">
-                          Website
-                        </span>
-                      )}
-                    </div>
-                    {organization.isVerified && (
-                      <span className="mt-2 inline-block rounded-md bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800 dark:bg-green-900 dark:text-green-200">
-                        Verified
-                      </span>
-                    )}
-                  </div>
-                </Link>
+              <li key={organization.id} className="h-full">
+                <OrganizationCard organization={organization} />
               </li>
             ))}
           </ul>
 
-          {totalPages > 1 && (
-            <nav
-              className="mt-8 flex items-center justify-between gap-4"
-              aria-label="Pagination"
-            >
-              {currentPage > 1 ? (
-                <Link
-                  href={hrefWithPage(currentPage - 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Previous
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Previous
-                </span>
-              )}
-
-              <span className="text-sm text-gray-600 dark:text-gray-300">
-                Page {currentPage} of {totalPages}
-              </span>
-
-              {currentPage < totalPages ? (
-                <Link
-                  href={hrefWithPage(currentPage + 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Next
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Next
-                </span>
-              )}
-            </nav>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            hrefForPage={hrefWithPage}
+          />
         </>
       )}
     </div>
   );
+}
+
+export function OrganizationCard({
+  organization,
+}: {
+  organization: PublicOrganizationSummary;
+}) {
+  return (
+    <Link
+      href={`/organizations/${organization.id}`}
+      className="group flex h-full flex-col rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+    >
+      <div className="flex items-start gap-4">
+        {organization.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={organization.logoUrl}
+            alt={`${organization.name} logo`}
+            className="h-14 w-14 shrink-0 rounded-lg bg-surface-raised object-contain"
+          />
+        ) : (
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg bg-primary-light text-lg font-bold text-primary">
+            {organizationInitials(organization.name)}
+          </span>
+        )}
+        <div className="min-w-0">
+          <h2 className="line-clamp-1 text-base font-semibold text-foreground">
+            {organization.name}
+          </h2>
+          {organization.isVerified && (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-success-light px-2 py-0.5 text-xs font-semibold text-success">
+              <CheckIcon className="h-3 w-3" />
+              Verified
+            </span>
+          )}
+        </div>
+      </div>
+
+      {(organization.industry || organization.websiteUrl) && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted">
+          {organization.industry && (
+            <span className="inline-flex items-center gap-1.5">
+              <BuildingIcon className="h-3.5 w-3.5 text-subtle" />
+              {organization.industry}
+            </span>
+          )}
+          {organization.websiteUrl && (
+            <span className="text-subtle">·</span>
+          )}
+          {organization.websiteUrl && (
+            <span className="inline-flex items-center gap-1.5">
+              Website
+            </span>
+          )}
+        </div>
+      )}
+
+      <span className="mt-auto inline-flex items-center gap-1 pt-4 text-sm font-semibold text-primary">
+        View organization
+        <span className="transition-transform duration-200 group-hover:translate-x-0.5">
+          →
+        </span>
+      </span>
+    </Link>
+  );
+}
+
+export function organizationInitials(name: string | null | undefined): string {
+  if (!name) {
+    return "?";
+  }
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) {
+    return "?";
+  }
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+  return (words[0][0] + words[1][0]).toUpperCase();
 }

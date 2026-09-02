@@ -1,241 +1,120 @@
 import Link from "next/link";
 import { fetchJobs } from "@/lib/jobs/public";
 import { fetchCareerArticles } from "@/lib/careerArticles/public";
+import { fetchCategories } from "@/lib/categories/public";
+import { fetchProfessions } from "@/lib/professions/public";
+import { fetchLocations } from "@/lib/locations/public";
 import { selectClosingJobs } from "@/lib/jobs/closing";
-import JobCard from "@/components/job-card";
+import { Hero } from "@/components/homepage/hero";
+import { TrustSignals } from "@/components/homepage/trust-signals";
+import { LatestJobs, ClosingSoon } from "@/components/homepage/jobs";
+import { ExploreByPath } from "@/components/homepage/explore";
+import { EmployerCta } from "@/components/homepage/employer-cta";
+import { CareerResources } from "@/components/homepage/career-resources";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const [jobsResult, articlesResult, closingResult] = await Promise.all([
-    fetchJobs({ limit: 5 }).catch(() => null),
-    fetchCareerArticles({ limit: 3 }).catch(() => null),
-    fetchJobs({ page: 1, limit: 20, status: "PUBLISHED" }).catch(() => null),
-  ]);
+  const [jobsResult, articlesResult, closingResult, categoriesResult, professionsResult, locationsResult] =
+    await Promise.all([
+      fetchJobs({ limit: 5 }).catch(() => null),
+      fetchCareerArticles({ limit: 3 }).catch(() => null),
+      fetchJobs({ page: 1, limit: 20, status: "PUBLISHED" }).catch(() => null),
+      fetchCategories({ limit: 12 }).catch(() => null),
+      fetchProfessions({ limit: 12 }).catch(() => null),
+      fetchLocations({ limit: 12 }).catch(() => null),
+    ]);
 
   const jobs = jobsResult?.items ?? [];
   const articles = articlesResult?.items ?? [];
   const closingJobs = selectClosingJobs(closingResult?.items ?? [], {
     count: 5,
   });
+  const categories = categoriesResult?.items ?? [];
+  const professions = professionsResult?.items ?? [];
+  const locations = locationsResult?.items ?? [];
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-8">
-      <section className="py-8 text-center">
-        <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl dark:text-gray-50">
-          JobEthiopia
-        </h1>
-        <p className="mt-4 text-lg leading-8 text-gray-600 dark:text-gray-300">
-          An Ethiopian job and career platform.
-        </p>
-        <p className="mt-2 text-base text-gray-600 dark:text-gray-400">
-          Discover fresh, relevant, and trustworthy job opportunities and
-          career resources across Ethiopia.
-        </p>
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link
-            href="/jobs"
-            className="rounded-md bg-gray-900 px-6 py-3 text-sm font-semibold text-white hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
-          >
-            Browse Jobs
-          </Link>
-          <Link
-            href="/careers"
-            className="rounded-md border border-gray-300 px-6 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
-          >
-            Career Resources
-          </Link>
-        </div>
-      </section>
+    <div className="flex w-full flex-col">
+      <Hero locations={locations} />
 
-      <section className="mt-10">
-        <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-50">
-          Search Jobs
-        </h2>
-        <form
-          action="/jobs"
-          method="get"
-          className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end"
-        >
-          <div className="flex-1">
-            <label htmlFor="q" className="text-sm font-semibold text-gray-900 dark:text-gray-50">
-              Search jobs
-            </label>
-            <input
-              id="q"
-              name="q"
-              type="search"
-              placeholder="e.g. nurse, engineer, Addis Ababa"
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-700 dark:bg-gray-900"
-            />
-          </div>
-          <button
-            type="submit"
-            className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
-          >
-            Search
-          </button>
-        </form>
-      </section>
+      <TrustSignals />
 
-      <section className="mt-12">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-50">
-            Latest Jobs
-          </h2>
-          <Link
-            href="/jobs"
-            className="text-sm font-semibold text-blue-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-blue-400"
-          >
-            View all jobs
-          </Link>
-        </div>
-
-        {jobsResult === null ? (
-          <div
-            className="mt-4 rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700"
-            role="status"
-          >
-            <p className="text-gray-600 dark:text-gray-300">
-              We could not load the latest jobs right now.
-            </p>
-            <Link
-              href="/jobs"
-              className="mt-3 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
-            >
-              Browse jobs
-            </Link>
-          </div>
-        ) : jobs.length === 0 ? (
-          <div
-            className="mt-4 rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700"
-            role="status"
-          >
-            <p className="text-gray-600 dark:text-gray-300">
-              No jobs are available right now.
-            </p>
-            <Link
-              href="/jobs"
-              className="mt-3 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
-            >
-              View all jobs
-            </Link>
-          </div>
+      <div className="mx-auto w-full max-w-7xl space-y-16 px-4 py-14 sm:space-y-20 sm:py-16">
+        {jobsResult === null || jobs.length === 0 ? (
+          <JobsEmptyState />
         ) : (
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {jobs.map((job) => (
-              <JobCard key={job.id} job={job} />
-            ))}
-          </div>
+          <LatestJobs jobs={jobs} />
         )}
-      </section>
 
-      {closingJobs.length > 0 && (
-        <section className="mt-12" aria-labelledby="closing-soon-heading">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2
-              id="closing-soon-heading"
-              className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-50"
-            >
-              Closing soon
-            </h2>
-            <Link
-              href="/jobs"
-              className="text-sm font-semibold text-blue-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-blue-400"
-            >
-              View all jobs
-            </Link>
-          </div>
+        {closingJobs.length > 0 && <ClosingSoon jobs={closingJobs} />}
 
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-            Application deadlines are approaching. Act quickly.
-          </p>
+        <ExploreByPath
+          professions={professions}
+          categories={categories}
+          locations={locations}
+        />
+      </div>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {closingJobs.map((job) => (
-              <JobCard key={job.id} job={job} />
-            ))}
-          </div>
-        </section>
-      )}
+      <EmployerCta />
 
-      <section className="mt-12">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-50">
-            Career Resources
-          </h2>
-          <Link
-            href="/careers"
-            className="text-sm font-semibold text-blue-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:text-blue-400"
-          >
-            View all resources
-          </Link>
-        </div>
-
-        {articlesResult === null ? (
-          <div
-            className="mt-4 rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700"
-            role="status"
-          >
-            <p className="text-gray-600 dark:text-gray-300">
-              We could not load the latest career resources right now.
-            </p>
-            <Link
-              href="/careers"
-              className="mt-3 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
-            >
-              Browse career resources
-            </Link>
-          </div>
-        ) : articles.length === 0 ? (
-          <div
-            className="mt-4 rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700"
-            role="status"
-          >
-            <p className="text-gray-600 dark:text-gray-300">
-              No career resources are available right now.
-            </p>
-            <Link
-              href="/careers"
-              className="mt-3 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
-            >
-              Browse career resources
-            </Link>
-          </div>
+      <div className="mx-auto w-full max-w-7xl space-y-16 px-4 py-14 sm:py-16">
+        {articlesResult === null || articles.length === 0 ? (
+          <ResourcesEmptyState />
         ) : (
-          <ul className="mt-4 space-y-4">
-            {articles.map((article) => (
-              <li key={article.id}>
-                <Link
-                  href={`/careers/${article.id}`}
-                  className="block rounded-lg border border-gray-200 p-4 transition-colors hover:border-blue-400 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-800 dark:hover:bg-gray-900"
-                >
-                  <h3 className="text-lg font-semibold text-blue-700 dark:text-blue-400">
-                    {article.title}
-                  </h3>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
-                    {article.category && (
-                      <span className="rounded-md bg-gray-100 px-2 py-1 dark:bg-gray-800">
-                        {article.category}
-                      </span>
-                    )}
-                    {article.publishedAt && (
-                      <span className="rounded-md bg-gray-100 px-2 py-1 dark:bg-gray-800">
-                        Published {article.publishedAt}
-                      </span>
-                    )}
-                  </div>
-                  {article.excerpt && (
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                      {article.excerpt}
-                    </p>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <CareerResources articles={articles} />
         )}
-      </section>
+      </div>
     </div>
+  );
+}
+
+function JobsEmptyState() {
+  return (
+    <section
+      aria-labelledby="latest-jobs-heading"
+      className="rounded-xl border border-dashed border-border p-8 text-center"
+    >
+      <h2
+        id="latest-jobs-heading"
+        className="text-2xl font-bold tracking-tight text-foreground"
+      >
+        Latest Jobs
+      </h2>
+      <p className="mt-2 text-sm text-muted">
+        We could not load the latest jobs right now.
+      </p>
+      <Link
+        href="/jobs"
+        className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        Browse jobs
+      </Link>
+    </section>
+  );
+}
+
+function ResourcesEmptyState() {
+  return (
+    <section
+      aria-labelledby="resources-heading"
+      className="rounded-xl border border-dashed border-border p-8 text-center"
+    >
+      <h2
+        id="resources-heading"
+        className="text-2xl font-bold tracking-tight text-foreground"
+      >
+        Career Resources
+      </h2>
+      <p className="mt-2 text-sm text-muted">
+        We could not load the latest career resources right now.
+      </p>
+      <Link
+        href="/careers"
+        className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary"
+      >
+        Browse career resources
+      </Link>
+    </section>
   );
 }

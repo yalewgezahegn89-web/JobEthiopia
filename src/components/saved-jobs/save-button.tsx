@@ -43,7 +43,7 @@ export function SaveButton({
       type="button"
       onClick={toggle}
       disabled={pending}
-      className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:hover:bg-gray-900"
+      className="inline-flex items-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-raised hover:border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
     >
       {pending ? "Saving…" : saved ? "Saved" : "Save job"}
     </button>

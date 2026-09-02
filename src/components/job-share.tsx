@@ -47,7 +47,7 @@ export default function JobShare({ title }: { title: string }) {
       <button
         type="button"
         onClick={handleShare}
-        className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+        className="inline-flex items-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised hover:border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         Share
       </button>
@@ -55,17 +55,17 @@ export default function JobShare({ title }: { title: string }) {
         href={whatsappUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-900 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+        className="inline-flex items-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised hover:border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         Share on WhatsApp
       </a>
       {status === "copied" && (
-        <span className="text-sm font-medium text-green-700 dark:text-green-300">
+        <span className="text-sm font-medium text-success" role="status">
           Link copied
         </span>
       )}
       {status === "failed" && (
-        <span className="text-sm font-medium text-red-700 dark:text-red-300">
+        <span className="text-sm font-medium text-destructive" role="alert">
           Could not copy the link. Please copy the URL manually.
         </span>
       )}

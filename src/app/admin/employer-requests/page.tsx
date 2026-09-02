@@ -41,10 +41,10 @@ export default async function AdminEmployerRequestsPage({
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-semibold">Employer Requests</h1>
+      <main className="mx-auto w-full max-w-6xl px-4 py-8">
+        <h1 className="text-2xl font-semibold text-foreground">Employer Requests</h1>
 
-        <div className="mt-4 flex flex-wrap gap-2 text-sm">
+        <div className="mt-4 flex flex-wrap gap-2">
           {(
             [
               { label: "All", value: undefined },
@@ -60,10 +60,10 @@ export default async function AdminEmployerRequestsPage({
                   ? "/admin/employer-requests"
                   : `/admin/employer-requests?status=${tab.value}`
               }
-              className={`rounded-md px-3 py-1 ${
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-150 ${
                 statusParam === tab.value
-                  ? "bg-neutral-900 text-white"
-                  : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"
+                  ? "bg-primary text-white shadow-sm"
+                  : "rounded-lg border border-border bg-surface text-muted hover:bg-surface-raised hover:text-foreground"
               }`}
             >
               {tab.label}
@@ -72,50 +72,50 @@ export default async function AdminEmployerRequestsPage({
         </div>
 
         {loadError ? (
-          <p className="mt-4 text-neutral-600">
+          <p className="mt-4 text-sm text-destructive">
             We could not load employer requests right now. Please try again shortly.
           </p>
         ) : (
           <>
-            <p className="mt-4 text-sm text-neutral-500">
+            <p className="mt-4 text-sm text-muted">
               {result.total} total requests
             </p>
 
             {result.items.length === 0 ? (
-              <div className="mt-6 rounded-lg border border-dashed border-neutral-300 p-8 text-center">
-                <h2 className="text-lg font-semibold">No requests found</h2>
-                <p className="mt-1 text-neutral-600">
+              <div className="mt-6 rounded-xl border border-border bg-surface p-8 text-center shadow-sm">
+                <h2 className="text-lg font-semibold text-foreground">No requests found</h2>
+                <p className="mt-1 text-muted">
                   There are no employer onboarding requests matching this filter.
                 </p>
               </div>
             ) : (
-              <ul className="mt-4 space-y-2">
+              <ul className="mt-4 space-y-3">
                 {result.items.map((request) => (
                   <li key={request.id}>
                     <Link
                       href={`/admin/employer-requests/${request.id}`}
-                      className="block rounded-md border border-neutral-200 p-4 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
+                      className="block rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md"
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <h2 className="font-semibold">{request.organizationName}</h2>
-                          <p className="text-sm text-neutral-500">
+                          <h2 className="font-semibold text-foreground hover:text-primary">{request.organizationName}</h2>
+                          <p className="text-sm text-muted">
                             {request.industry ?? "No industry"} · {request.organizationSlug}
                           </p>
                         </div>
                         <div className="text-right text-sm">
                           <span
-                            className={`inline-block rounded-md px-2 py-0.5 text-xs font-semibold ${
+                            className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                               request.status === "APPROVED"
-                                ? "bg-green-100 text-green-800"
+                                ? "bg-success-light text-success"
                                 : request.status === "REJECTED"
-                                  ? "bg-red-100 text-red-800"
-                                  : "bg-yellow-100 text-yellow-800"
+                                  ? "bg-destructive-light text-destructive"
+                                  : "bg-warning-light text-warning"
                             }`}
                           >
                             {request.status}
                           </span>
-                          <p className="mt-1 text-xs text-neutral-400">
+                          <p className="mt-1 text-xs text-subtle">
                             {new Date(request.createdAt).toLocaleDateString()}
                           </p>
                         </div>
@@ -134,29 +134,29 @@ export default async function AdminEmployerRequestsPage({
                 {result.page > 1 ? (
                   <Link
                     href={`?page=${result.page - 1}${statusParam ? `&status=${statusParam}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-semibold hover:bg-neutral-100"
+                    className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   >
                     Previous
                   </Link>
                 ) : (
-                  <span className="rounded-md border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-400">
+                  <span className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-semibold text-subtle">
                     Previous
                   </span>
                 )}
 
-                <span className="text-sm text-neutral-600">
+                <span className="text-sm text-muted">
                   Page {result.page} of {result.totalPages}
                 </span>
 
                 {result.page < result.totalPages ? (
                   <Link
                     href={`?page=${result.page + 1}${statusParam ? `&status=${statusParam}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-semibold hover:bg-neutral-100"
+                    className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                   >
                     Next
                   </Link>
                 ) : (
-                  <span className="rounded-md border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-400">
+                  <span className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-semibold text-subtle">
                     Next
                   </span>
                 )}

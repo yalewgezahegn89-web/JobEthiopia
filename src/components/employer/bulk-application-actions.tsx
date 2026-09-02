@@ -39,13 +39,13 @@ export function computeAllowedTargets(statuses: string[]): string[] {
 
 function statusBadge(s: string) {
   const colors: Record<string, string> = {
-    SUBMITTED: "bg-blue-100 text-blue-800",
-    WITHDRAWN: "bg-gray-100 text-gray-600",
-    REVIEWING: "bg-yellow-100 text-yellow-800",
-    SHORTLISTED: "bg-green-100 text-green-800",
-    REJECTED: "bg-red-100 text-red-800",
+    SUBMITTED: "bg-primary-light text-primary",
+    WITHDRAWN: "bg-surface-raised text-muted",
+    REVIEWING: "bg-warning-light text-warning",
+    SHORTLISTED: "bg-success-light text-success",
+    REJECTED: "bg-destructive-light text-destructive",
   };
-  return colors[s] ?? "bg-gray-100 text-gray-600";
+  return colors[s] ?? "bg-surface-raised text-muted";
 }
 
 export function BulkApplicationActions({
@@ -154,19 +154,19 @@ export function BulkApplicationActions({
   return (
     <div>
       <div
-        className={`mt-4 rounded-lg border p-3 ${
+        className={`mt-4 rounded-xl border p-4 transition-colors ${
           selectedCount > 0
-            ? "border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-800/40"
-            : "border-transparent"
+            ? "border-primary/20 bg-primary-light/40"
+            : "border-border bg-surface"
         }`}
       >
         {selectedCount > 0 ? (
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm text-gray-700 dark:text-gray-200">
+            <span className="text-sm font-semibold text-foreground">
               {selectedCount} selected
             </span>
             <label className="flex flex-col gap-1 text-sm">
-              <span className="font-medium text-gray-700 dark:text-gray-300">
+              <span className="font-medium text-foreground">
                 Change status to
               </span>
               <select
@@ -176,7 +176,7 @@ export function BulkApplicationActions({
                   setSuccess(null);
                   setError(null);
                 }}
-                className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-800"
+                className="mt-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
                 <option value="">Select...</option>
                 {allowedTargets.map((t) => (
@@ -194,51 +194,74 @@ export function BulkApplicationActions({
               type="button"
               onClick={handleApply}
               disabled={!target || pending}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+              className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
             >
               Apply
             </button>
             <button
               type="button"
               onClick={clearSelection}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300"
+              className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-muted transition-colors hover:bg-surface-raised hover:text-foreground focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Clear selection
             </button>
           </div>
         ) : (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-muted">
             Select applications to update their status in bulk.
           </p>
         )}
         {allowedTargets.length === 0 && selectedCount > 0 && (
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-2 text-xs text-muted">
             The selected applications cannot be moved to the same status.
           </p>
         )}
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-        {success && <p className="mt-2 text-sm text-green-600">{success}</p>}
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        {success && (
+          <p role="status" className="mt-2 text-sm text-success">{success}</p>
+        )}
+      </div>
+
+      <div className="mt-4 flex items-center gap-3">
+        <input
+          type="checkbox"
+          id="bulk-select-all"
+          checked={allSelectedOnPage}
+          onChange={toggleAll}
+          disabled={selectableRows.length === 0}
+          className="h-4 w-4 rounded border-border accent-primary"
+        />
+        <label
+          htmlFor="bulk-select-all"
+          className="text-sm font-medium text-foreground"
+        >
+          Select all on this page
+        </label>
       </div>
 
       {confirming && target && (
-        <div className="mt-4 rounded-lg border border-gray-300 p-4 dark:border-gray-700">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+        <div className="mt-4 rounded-xl border border-border bg-surface p-5 shadow-sm">
+          <p className="text-sm font-semibold text-foreground">
             {confirmLabel}
           </p>
           {target === "REJECTED" ? (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1.5 text-sm text-destructive">
               Rejected applications cannot be moved back to another status.
             </p>
           ) : null}
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1.5 text-xs text-muted">
             Candidates will be notified by email.
           </p>
-          <div className="mt-3 flex gap-3">
+          <div className="mt-4 flex gap-3">
             <button
               type="button"
               onClick={confirmSubmit}
               disabled={pending}
-              className="rounded-md bg-blue-600 px-3 py-1.5 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+              className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
             >
               {pending ? "Updating..." : "Confirm"}
             </button>
@@ -246,7 +269,7 @@ export function BulkApplicationActions({
               type="button"
               onClick={() => setConfirming(false)}
               disabled={pending}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:text-gray-300"
+              className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg border border-border bg-surface px-5 py-2 text-sm font-semibold text-muted transition-colors hover:bg-surface-raised hover:text-foreground focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Cancel
             </button>
@@ -254,14 +277,14 @@ export function BulkApplicationActions({
         </div>
       )}
 
-      <ul className="mt-3 space-y-2">
+      <ul className="mt-3 space-y-3">
         {applications.map((item) => {
           const selectable = SELECTABLE.has(item.status);
           const checked = selected.has(item.id);
           return (
             <li
               key={item.id}
-              className="rounded-lg border border-gray-200 p-4 dark:border-gray-800"
+              className="rounded-xl border border-border bg-surface p-4 shadow-sm transition-shadow hover:shadow-md"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-start gap-3">
@@ -271,51 +294,40 @@ export function BulkApplicationActions({
                     checked={checked}
                     disabled={!selectable}
                     onChange={() => toggle(item.id, item.status)}
-                    className="mt-1"
+                    className="mt-1 h-4 w-4 rounded accent-primary"
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <a
                         href={`/organization/applications/${item.id}`}
-                        className="font-medium text-gray-900 hover:underline dark:text-gray-100"
+                        className="font-semibold text-foreground hover:text-primary"
                       >
                         {item.jobTitle}
                       </a>
                       <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(item.status)}`}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadge(item.status)}`}
                       >
                         {item.status}
                       </span>
                     </div>
-                    <div className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                    <div className="mt-1 text-sm text-muted">
                       {item.candidateName} &middot; {item.candidateEmail}
                     </div>
-                    <div className="mt-1 text-xs text-gray-500">
+                    <div className="mt-1 text-xs text-subtle">
                       {item.organizationName}
                     </div>
                   </div>
                 </div>
-                <div className="text-right text-xs text-gray-500">
-                  <div>{new Date(item.createdAt).toLocaleDateString()}</div>
+                <div className="shrink-0 text-right text-xs text-subtle">
+                  <div>
+                    {new Date(item.createdAt).toLocaleDateString()}
+                  </div>
                 </div>
               </div>
             </li>
           );
         })}
       </ul>
-
-      <div className="mt-3 flex items-center gap-3">
-        <input
-          type="checkbox"
-          id="bulk-select-all"
-          checked={allSelectedOnPage}
-          onChange={toggleAll}
-          disabled={selectableRows.length === 0}
-        />
-        <label htmlFor="bulk-select-all" className="text-sm text-gray-700 dark:text-gray-200">
-          Select all on this page
-        </label>
-      </div>
     </div>
   );
 }

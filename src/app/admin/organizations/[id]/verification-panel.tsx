@@ -28,17 +28,17 @@ export default function VerificationPanel({
   );
 
   return (
-    <div className="space-y-4 rounded-md border border-neutral-200 p-4">
-      <h2 className="text-lg font-semibold">Verification</h2>
+    <div className="space-y-4 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <h2 className="text-lg font-semibold text-foreground">Verification</h2>
 
       {verifyState.error && (
-        <p className="text-sm text-red-600">{verifyState.error}</p>
+        <p className="text-sm text-destructive">{verifyState.error}</p>
       )}
       {rejectState.error && (
-        <p className="text-sm text-red-600">{rejectState.error}</p>
+        <p className="text-sm text-destructive">{rejectState.error}</p>
       )}
       {reviewState.error && (
-        <p className="text-sm text-red-600">{reviewState.error}</p>
+        <p className="text-sm text-destructive">{reviewState.error}</p>
       )}
 
       {!isVerified ? (
@@ -47,7 +47,7 @@ export default function VerificationPanel({
           <input type="hidden" name="action" value="VERIFY" />
           <button
             type="submit"
-            className="rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700"
+            className="rounded-lg bg-success px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             Verify Organization
           </button>
@@ -57,19 +57,19 @@ export default function VerificationPanel({
           <form action={rejectFormAction} className="space-y-2">
             <input type="hidden" name="orgId" value={orgId} />
             <input type="hidden" name="action" value="REJECT" />
-            <label className="block text-sm font-medium text-neutral-700">
+            <label className="block text-sm font-medium text-foreground">
               Rejection reason (optional)
             </label>
             <textarea
               name="notes"
               rows={3}
               maxLength={2000}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               placeholder="Reason for rejection..."
             />
             <button
               type="submit"
-              className="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+              className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Reject Verification
             </button>
@@ -78,19 +78,19 @@ export default function VerificationPanel({
           <form action={reviewFormAction} className="space-y-2">
             <input type="hidden" name="orgId" value={orgId} />
             <input type="hidden" name="action" value="REQUEST_REVIEW" />
-            <label className="block text-sm font-medium text-neutral-700">
+            <label className="block text-sm font-medium text-foreground">
               Review notes (optional)
             </label>
             <textarea
               name="notes"
               rows={3}
               maxLength={2000}
-              className="w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               placeholder="What needs review..."
             />
             <button
               type="submit"
-              className="rounded-md bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+              className="rounded-lg bg-warning px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-700 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Request Review
             </button>

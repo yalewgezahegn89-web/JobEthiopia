@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 const mocks = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
@@ -112,5 +113,37 @@ describe("SavedJobsPage", () => {
     mocks.mockList.mockRejectedValue(new Error("db down"));
     const element = await SavedJobsPage({ searchParams: Promise.resolve({}) });
     expect(element).toBeTruthy();
+  });
+
+  it("renders a single H1 with the page title", async () => {
+    const html = renderToStaticMarkup(
+      await SavedJobsPage({ searchParams: Promise.resolve({}) }),
+    );
+    expect(html).toContain("Saved Jobs");
+    const h1Count = (html.match(/<h1\b/g) ?? []).length;
+    expect(h1Count).toBe(1);
+  });
+
+  it("renders an empty state with a browse-jobs CTA", async () => {
+    mocks.mockList.mockResolvedValue({
+      items: [],
+      page: 1,
+      limit: 20,
+      total: 0,
+      totalPages: 1,
+    });
+    const html = renderToStaticMarkup(
+      await SavedJobsPage({ searchParams: Promise.resolve({}) }),
+    );
+    expect(html).toContain("Your saved jobs will appear here");
+    expect(html).toContain("Browse jobs");
+  });
+
+  it("passes saved items to the SavedJobList component", async () => {
+    const html = renderToStaticMarkup(
+      await SavedJobsPage({ searchParams: Promise.resolve({}) }),
+    );
+    expect(html).toContain('data-testid="saved-list"');
+    expect(html).toContain("1");
   });
 });

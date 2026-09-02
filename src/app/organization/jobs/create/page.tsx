@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 import { verifySession } from "@/lib/auth/session";
@@ -7,8 +6,10 @@ import { getUserOrganizationIds } from "@/lib/auth/organizationMembership";
 import { db } from "@/db";
 import { organizations } from "@/db/schema/organizations";
 import { and, inArray, eq } from "drizzle-orm";
-import { OrganizationNav } from "@/app/organization/nav";
 import { CreateJobForm } from "./form";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+
+export const dynamic = "force-dynamic";
 
 export default async function CreateJobPage() {
   const store = await cookies();
@@ -35,20 +36,28 @@ export default async function CreateJobPage() {
   if (orgs.length === 0) redirect("/organization/jobs");
 
   return (
-    <>
-      <OrganizationNav />
-      <main className="mx-auto max-w-3xl px-4 py-8">
-        <Link
-          href="/organization/jobs"
-          className="mb-4 inline-block text-sm text-blue-600 hover:underline"
-        >
-          &larr; Back to Jobs
-        </Link>
-        <h1 className="mb-6 text-xl font-semibold text-gray-900 dark:text-gray-100">
+    <div className="mx-auto max-w-3xl">
+      <Breadcrumb
+        items={[
+          { label: "Home", href: "/organization" },
+          { label: "Jobs", href: "/organization/jobs" },
+          { label: "Create job" },
+        ]}
+      />
+      <div className="mt-4">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
+          Job management
+        </p>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
           Create Job
         </h1>
+        <p className="mt-1 text-sm text-muted">
+          Post a new role for your organization.
+        </p>
+      </div>
+      <div className="mt-6">
         <CreateJobForm organizations={orgs} />
-      </main>
-    </>
+      </div>
+    </div>
   );
 }

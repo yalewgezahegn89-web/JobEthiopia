@@ -6,11 +6,11 @@ import type { UserAdminPaginated } from "@/lib/admin/users";
 const ROLES = ["SUPER_ADMIN", "ADMIN", "MODERATOR", "ORGANIZATION_ADMIN", "CANDIDATE"] as const;
 
 const ROLE_STYLES: Record<string, string> = {
-  SUPER_ADMIN: "bg-purple-100 text-purple-800",
-  ADMIN: "bg-blue-100 text-blue-800",
-  MODERATOR: "bg-amber-100 text-amber-800",
-  ORGANIZATION_ADMIN: "bg-teal-100 text-teal-800",
-  CANDIDATE: "bg-neutral-100 text-neutral-800",
+  SUPER_ADMIN: "bg-accent-light text-foreground",
+  ADMIN: "bg-primary-light text-primary",
+  MODERATOR: "bg-warning-light text-warning",
+  ORGANIZATION_ADMIN: "bg-surface-raised border border-border-subtle text-muted",
+  CANDIDATE: "bg-surface-raised text-subtle",
 };
 
 export default function UsersList({
@@ -24,94 +24,98 @@ export default function UsersList({
 }) {
   return (
     <div>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Link
-          href="/admin/users"
-          className={`rounded-md px-3 py-1.5 text-sm ${
-            currentIsActive === undefined && !currentRole
-              ? "bg-neutral-900 text-white"
-              : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
-          }`}
-        >
-          All
-        </Link>
-        <Link
-          href="/admin/users?isActive=true"
-          className={`rounded-md px-3 py-1.5 text-sm ${
-            currentIsActive === true
-              ? "bg-green-700 text-white"
-              : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
-          }`}
-        >
-          Active
-        </Link>
-        <Link
-          href="/admin/users?isActive=false"
-          className={`rounded-md px-3 py-1.5 text-sm ${
-            currentIsActive === false
-              ? "bg-red-700 text-white"
-              : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
-          }`}
-        >
-          Inactive
-        </Link>
-        <span className="text-neutral-400">|</span>
-        {ROLES.map((r) => (
+      <div className="mt-4 flex flex-wrap gap-3">
+        <div className="flex flex-wrap gap-2">
           <Link
-            key={r}
-            href={`/admin/users?role=${r}${currentIsActive !== undefined ? `&isActive=${currentIsActive}` : ""}`}
-            className={`rounded-md px-3 py-1.5 text-sm ${
-              currentRole === r
-                ? "bg-neutral-900 text-white"
-                : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+            href="/admin/users"
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
+              currentIsActive === undefined && !currentRole
+                ? "bg-primary text-white shadow-sm"
+                : "bg-surface border border-border text-muted hover:bg-surface-raised hover:text-foreground"
             }`}
           >
-            {r}
+            All
           </Link>
-        ))}
+          <Link
+            href="/admin/users?isActive=true"
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
+              currentIsActive === true
+                ? "bg-primary text-white shadow-sm"
+                : "bg-surface border border-border text-muted hover:bg-surface-raised hover:text-foreground"
+            }`}
+          >
+            Active
+          </Link>
+          <Link
+            href="/admin/users?isActive=false"
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
+              currentIsActive === false
+                ? "bg-primary text-white shadow-sm"
+                : "bg-surface border border-border text-muted hover:bg-surface-raised hover:text-foreground"
+            }`}
+          >
+            Inactive
+          </Link>
+        </div>
+        <div className="flex items-center text-border-subtle">|</div>
+        <div className="flex flex-wrap gap-2">
+          {ROLES.map((r) => (
+            <Link
+              key={r}
+              href={`/admin/users?role=${r}${currentIsActive !== undefined ? `&isActive=${currentIsActive}` : ""}`}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-200 ${
+                currentRole === r
+                  ? "bg-primary text-white shadow-sm"
+                  : "bg-surface border border-border text-muted hover:bg-surface-raised hover:text-foreground"
+              }`}
+            >
+              {r}
+            </Link>
+          ))}
+        </div>
       </div>
 
       {result.items.length === 0 ? (
-        <p className="mt-6 text-neutral-600">No users found.</p>
+        <p className="mt-6 text-sm text-muted">No users found.</p>
       ) : (
         <>
-          <p className="mt-4 text-sm text-neutral-500">
+          <p className="mt-4 text-sm text-muted">
             {result.total} user{result.total === 1 ? "" : "s"} total
           </p>
-          <ul className="mt-3 space-y-2">
+          <ul className="mt-3 space-y-3">
             {result.items.map((user) => (
               <li key={user.id}>
                 <Link
                   href={`/admin/users/${user.id}`}
-                  className="block rounded-md border border-neutral-200 p-3 hover:bg-neutral-50"
+                  className="block rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{user.name}</span>
+                    <span className="font-semibold text-foreground hover:text-primary">{user.name}</span>
                     <div className="flex items-center gap-2">
                       <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          ROLE_STYLES[user.role] ?? "bg-neutral-100 text-neutral-800"
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          ROLE_STYLES[user.role] ?? "bg-surface-raised text-subtle"
                         }`}
                       >
                         {user.role}
                       </span>
                       <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                           user.isActive
-                            ? "bg-green-100 text-green-800"
-                            : "bg-red-100 text-red-800"
+                            ? "bg-success-light text-success"
+                            : "bg-destructive-light text-destructive"
                         }`}
                       >
                         {user.isActive ? "Active" : "Inactive"}
                       </span>
                     </div>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted">
                     <span>{user.email}</span>
                     <span>
                       {user.sessionCount} active session{user.sessionCount === 1 ? "" : "s"}
                     </span>
-                    <span>
+                    <span className="text-xs text-subtle">
                       Created: {new Date(user.createdAt).toLocaleDateString()}
                     </span>
                   </div>
@@ -126,20 +130,20 @@ export default function UsersList({
                 {result.page > 1 && (
                   <Link
                     href={`/admin/users?page=${result.page - 1}${currentIsActive !== undefined ? `&isActive=${currentIsActive}` : ""}${currentRole ? `&role=${currentRole}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                    className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-muted hover:bg-surface-raised hover:text-foreground transition-all duration-200"
                   >
                     Previous
                   </Link>
                 )}
               </div>
-              <span className="text-sm text-neutral-500">
+              <span className="text-sm text-muted">
                 Page {result.page} of {result.totalPages}
               </span>
               <div className="flex gap-1">
                 {result.page < result.totalPages && (
                   <Link
                     href={`/admin/users?page=${result.page + 1}${currentIsActive !== undefined ? `&isActive=${currentIsActive}` : ""}${currentRole ? `&role=${currentRole}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                    className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-muted hover:bg-surface-raised hover:text-foreground transition-all duration-200"
                   >
                     Next
                   </Link>

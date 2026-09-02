@@ -37,8 +37,8 @@ export default async function AdminJobDetailPage({
     return (
       <div>
         <AdminNav />
-        <main className="mx-auto w-full max-w-3xl px-4 py-8">
-          <p className="text-neutral-600">
+        <main className="mx-auto w-full max-w-4xl px-4 py-8">
+          <p className="text-sm text-destructive">
             We could not load this job right now. Please try again shortly.
           </p>
         </main>
@@ -53,13 +53,18 @@ export default async function AdminJobDetailPage({
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <Link href="/admin/jobs" className="text-sm text-neutral-600 underline">
+      <main className="mx-auto w-full max-w-4xl px-4 py-8">
+        <Link
+          href="/admin/jobs"
+          className="text-sm font-medium text-muted hover:text-primary"
+        >
           &larr; Back to moderation queue
         </Link>
 
-        <h1 className="mt-2 text-2xl font-semibold">{job.title}</h1>
-        <p className="mt-1 text-sm text-neutral-600">
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
+          {job.title}
+        </h1>
+        <p className="mt-1 text-sm text-muted">
           Status: <strong>{job.status}</strong> · Verification:{" "}
           <strong>{job.verificationStatus}</strong>
         </p>
@@ -72,55 +77,66 @@ export default async function AdminJobDetailPage({
           />
         </div>
 
-        <section className="mt-6 space-y-2 text-sm">
-          <h2 className="text-lg font-semibold">Details</h2>
-          <p className="whitespace-pre-line text-neutral-700">{job.description}</p>
+        <section className="mt-6 rounded-xl border border-border bg-surface p-6 text-sm shadow-sm">
+          <h2 className="text-lg font-semibold text-foreground">Details</h2>
+          <p className="mt-3 whitespace-pre-line text-foreground">
+            {job.description}
+          </p>
           {job.requirements && (
-            <p className="whitespace-pre-line text-neutral-700">
+            <p className="mt-3 whitespace-pre-line text-foreground">
               <strong>Requirements:</strong> {job.requirements}
             </p>
           )}
           {job.responsibilities && (
-            <p className="whitespace-pre-line text-neutral-700">
+            <p className="mt-3 whitespace-pre-line text-foreground">
               <strong>Responsibilities:</strong> {job.responsibilities}
             </p>
           )}
           {job.benefits && (
-            <p className="whitespace-pre-line text-neutral-700">
+            <p className="mt-3 whitespace-pre-line text-foreground">
               <strong>Benefits:</strong> {job.benefits}
             </p>
           )}
-          <dl className="mt-2 grid gap-2 sm:grid-cols-2">
-            <div><dt className="text-neutral-500">Employment type</dt><dd>{job.employmentType ?? "n/a"}</dd></div>
-            <div><dt className="text-neutral-500">Salary</dt><dd>{formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency)}</dd></div>
-            <div><dt className="text-neutral-500">Posted</dt><dd>{job.postedAt ? new Date(job.postedAt).toLocaleString() : "n/a"}</dd></div>
-            <div><dt className="text-neutral-500">Deadline</dt><dd>{job.deadline ? new Date(job.deadline).toLocaleString() : "n/a"}</dd></div>
-            <div><dt className="text-neutral-500">Last verified</dt><dd>{job.lastVerifiedAt ? new Date(job.lastVerifiedAt).toLocaleString() : "n/a"}</dd></div>
+          <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+            <div><dt className="text-sm text-muted">Employment type</dt><dd className="text-sm font-medium text-foreground">{job.employmentType ?? "n/a"}</dd></div>
+            <div><dt className="text-sm text-muted">Salary</dt><dd className="text-sm font-medium text-foreground">{formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency)}</dd></div>
+            <div><dt className="text-sm text-muted">Posted</dt><dd className="text-sm font-medium text-foreground">{job.postedAt ? new Date(job.postedAt).toLocaleString() : "n/a"}</dd></div>
+            <div><dt className="text-sm text-muted">Deadline</dt><dd className="text-sm font-medium text-foreground">{job.deadline ? new Date(job.deadline).toLocaleString() : "n/a"}</dd></div>
+            <div><dt className="text-sm text-muted">Last verified</dt><dd className="text-sm font-medium text-foreground">{job.lastVerifiedAt ? new Date(job.lastVerifiedAt).toLocaleString() : "n/a"}</dd></div>
             {job.applicationUrl && (
-              <div><dt className="text-neutral-500">Application URL</dt><dd><a href={job.applicationUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">{job.applicationUrl}</a></dd></div>
+              <div><dt className="text-sm text-muted">Application URL</dt><dd className="text-sm font-medium text-foreground"><a href={job.applicationUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">{job.applicationUrl}</a></dd></div>
             )}
           </dl>
         </section>
 
         <section className="mt-6">
-          <h2 className="text-lg font-semibold">Moderation history</h2>
+          <h2 className="text-lg font-semibold text-foreground">
+            Moderation history
+          </h2>
           {audit.length === 0 ? (
-            <p className="mt-2 text-sm text-neutral-600">No moderation events recorded yet.</p>
+            <p className="mt-2 text-sm text-muted">
+              No moderation events recorded yet.
+            </p>
           ) : (
-            <ul className="mt-2 space-y-2 text-sm">
+            <ul className="mt-2 space-y-3 text-sm">
               {audit.map((entry) => (
-                <li key={entry.id} className="rounded-md border border-neutral-200 p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{entry.action}</span>
-                    <span className="text-xs text-neutral-500">
+                <li
+                  key={entry.id}
+                  className="rounded-lg border border-border bg-surface p-4 shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="font-semibold text-foreground">
+                      {entry.action}
+                    </span>
+                    <span className="shrink-0 text-xs text-subtle">
                       {new Date(entry.createdAt).toLocaleString()}
                     </span>
                   </div>
-                  <div className="mt-1 text-xs text-neutral-500">
+                  <div className="mt-1 text-xs text-muted">
                     by {entry.actorEmail ?? "system"}
                   </div>
                   {entry.metadata ? (
-                    <pre className="mt-1 overflow-x-auto text-xs text-neutral-600">
+                    <pre className="mt-2 overflow-x-auto rounded-lg bg-surface-raised p-3 text-xs text-muted">
                       {JSON.stringify(entry.metadata, null, 2)}
                     </pre>
                   ) : null}

@@ -159,4 +159,17 @@ describe("SiteHeader", () => {
     const html = await renderHeader();
     expect(html).toContain('aria-current="page"');
   });
+
+  it("renders the mobile menu button with accessible attributes", async () => {
+    const html = await renderHeader();
+    expect(html).toContain('aria-controls="mobile-menu"');
+    expect(html).toContain('aria-label="Open menu"');
+    expect(html).toContain('aria-expanded="false"');
+  });
+
+  it("does not render the mobile menu panel when closed", async () => {
+    const html = await renderHeader();
+    expect(html).not.toContain("mobile-menu-panel");
+    expect(html).not.toContain('aria-modal="true"');
+  });
 });

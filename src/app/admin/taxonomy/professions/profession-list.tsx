@@ -16,33 +16,33 @@ export default function ProfessionList({
 }) {
   return (
     <div>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
+      <div className="mt-4 flex flex-wrap gap-2">
         <Link
           href="/admin/taxonomy/professions"
-          className={`rounded-md px-3 py-1.5 text-sm ${
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
             currentIsActive === undefined
-              ? "bg-neutral-900 text-white"
-              : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+              ? "bg-primary text-white shadow-sm"
+              : "border border-border bg-surface text-muted hover:bg-surface-raised hover:text-foreground"
           }`}
         >
           All
         </Link>
         <Link
           href="/admin/taxonomy/professions?isActive=true"
-          className={`rounded-md px-3 py-1.5 text-sm ${
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
             currentIsActive === true
-              ? "bg-green-700 text-white"
-              : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+              ? "bg-primary text-white shadow-sm"
+              : "border border-border bg-surface text-muted hover:bg-surface-raised hover:text-foreground"
           }`}
         >
           Active
         </Link>
         <Link
           href="/admin/taxonomy/professions?isActive=false"
-          className={`rounded-md px-3 py-1.5 text-sm ${
+          className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
             currentIsActive === false
-              ? "bg-red-700 text-white"
-              : "border border-neutral-300 text-neutral-700 hover:bg-neutral-50"
+              ? "bg-primary text-white shadow-sm"
+              : "border border-border bg-surface text-muted hover:bg-surface-raised hover:text-foreground"
           }`}
         >
           Inactive
@@ -59,11 +59,11 @@ export default function ProfessionList({
             name="search"
             defaultValue={currentSearch ?? ""}
             placeholder="Search professions..."
-            className="flex-1 rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+            className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           />
           <button
             type="submit"
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             Search
           </button>
@@ -71,39 +71,41 @@ export default function ProfessionList({
       </form>
 
       {result.items.length === 0 ? (
-        <p className="mt-6 text-neutral-600">No professions found.</p>
+        <p className="mt-6 text-sm text-subtle">No professions found.</p>
       ) : (
         <>
-          <p className="mt-4 text-sm text-neutral-500">
+          <p className="mt-4 text-sm text-muted">
             {result.total} profession{result.total === 1 ? "" : "s"} total
           </p>
-          <ul className="mt-3 space-y-2">
+          <ul className="mt-3 space-y-3">
             {result.items.map((prof) => (
               <li key={prof.id}>
-                <Link
-                  href={`/admin/taxonomy/professions/${prof.id}`}
-                  className="block rounded-md border border-neutral-200 p-3 hover:bg-neutral-50"
-                >
+                <article className="rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{prof.name}</span>
+                    <Link
+                      href={`/admin/taxonomy/professions/${prof.id}`}
+                      className="font-semibold text-foreground hover:text-primary"
+                    >
+                      {prof.name}
+                    </Link>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                         prof.isActive
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
+                          ? "bg-success-light text-success"
+                          : "bg-destructive-light text-destructive"
                       }`}
                     >
                       {prof.isActive ? "Active" : "Inactive"}
                     </span>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500">
-                    <span className="font-mono">{prof.slug}</span>
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-muted">
+                    <span className="font-mono text-xs text-subtle">{prof.slug}</span>
                     {prof.categoryName && <span>Category: {prof.categoryName}</span>}
                     {prof.jobCount > 0 && (
                       <span>{prof.jobCount} job{prof.jobCount === 1 ? "" : "s"}</span>
                     )}
                   </div>
-                </Link>
+                </article>
               </li>
             ))}
           </ul>
@@ -114,20 +116,20 @@ export default function ProfessionList({
                 {result.page > 1 && (
                   <Link
                     href={`/admin/taxonomy/professions?page=${result.page - 1}${currentIsActive !== undefined ? `&isActive=${currentIsActive}` : ""}${currentCategoryId ? `&categoryId=${currentCategoryId}` : ""}${currentSearch ? `&search=${encodeURIComponent(currentSearch)}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                    className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-muted hover:bg-surface-raised hover:text-foreground"
                   >
                     Previous
                   </Link>
                 )}
               </div>
-              <span className="text-sm text-neutral-500">
+              <span className="text-sm text-muted">
                 Page {result.page} of {result.totalPages}
               </span>
               <div className="flex gap-1">
                 {result.page < result.totalPages && (
                   <Link
                     href={`/admin/taxonomy/professions?page=${result.page + 1}${currentIsActive !== undefined ? `&isActive=${currentIsActive}` : ""}${currentCategoryId ? `&categoryId=${currentCategoryId}` : ""}${currentSearch ? `&search=${encodeURIComponent(currentSearch)}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                    className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-muted hover:bg-surface-raised hover:text-foreground"
                   >
                     Next
                   </Link>

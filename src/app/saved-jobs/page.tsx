@@ -4,6 +4,9 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/context";
 import { listSavedJobs } from "@/lib/savedJobs/dal";
 import { SavedJobList } from "@/components/saved-jobs/saved-job-list";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+import { Pagination } from "@/components/public/pagination";
+import { SaveIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -60,47 +63,74 @@ export default async function SavedJobsPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8">
-      <h1 className="text-3xl font-bold tracking-tight">Saved Jobs</h1>
-      <p className="mt-2 text-gray-600 dark:text-gray-300">
-        Jobs you have saved for later.
-      </p>
+    <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:py-10">
+      <Breadcrumb
+        items={[{ label: "Home", href: "/" }, { label: "Saved Jobs" }]}
+      />
 
-      <div className="mt-4 flex flex-wrap gap-3 text-sm">
+      <header className="mt-4 max-w-3xl">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+          Candidate workspace
+        </p>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          Saved Jobs
+        </h1>
+        <p className="mt-2 text-base leading-7 text-muted">
+          Jobs you have saved for later.
+        </p>
+      </header>
+
+      <div className="mt-5 inline-flex flex-wrap items-center gap-2 text-sm">
         <Link
           href="/jobs"
-          className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+          className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Browse Jobs
+          Browse jobs
         </Link>
         <Link
           href="/applications"
-          className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+          className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 font-semibold text-muted hover:bg-surface-raised/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           My Applications
         </Link>
       </div>
 
       {loadError ? (
-        <div className="mt-6 rounded-lg border border-gray-200 p-8 text-center dark:border-gray-800">
-          <p className="text-gray-600 dark:text-gray-300">
-            We could not load your saved jobs right now. Please try again shortly.
+        <div
+          role="status"
+          className="mt-8 flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-6 py-14 text-center"
+        >
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-raised text-primary">
+            <SaveIcon className="h-7 w-7" />
+          </span>
+          <p className="mt-4 text-muted">
+            We could not load your saved jobs right now. Please try again
+            shortly.
           </p>
           <Link
             href="/saved-jobs"
-            className="mt-4 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
+            className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             Retry
           </Link>
         </div>
       ) : items.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700">
-          <p className="text-gray-600 dark:text-gray-300">
-            You have no saved jobs yet.
+        <div
+          role="status"
+          className="mt-8 flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-6 py-16 text-center"
+        >
+          <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-light text-primary">
+            <SaveIcon className="h-7 w-7" />
+          </span>
+          <h2 className="mt-5 text-xl font-bold text-foreground">
+            Your saved jobs will appear here
+          </h2>
+          <p className="mt-2 max-w-md text-sm leading-6 text-muted">
+            Save opportunities while you browse and come back to them later.
           </p>
           <Link
             href="/jobs"
-            className="mt-4 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
+            className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             Browse jobs
           </Link>
@@ -109,42 +139,11 @@ export default async function SavedJobsPage({
         <>
           <SavedJobList items={items} />
 
-          {totalPages > 1 && (
-            <nav
-              className="mt-8 flex items-center justify-between gap-4"
-              aria-label="Pagination"
-            >
-              {currentPage > 1 ? (
-                <Link
-                  href={hrefWithPage(currentPage - 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Previous
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Previous
-                </span>
-              )}
-
-              <span className="text-sm text-gray-600 dark:text-gray-300">
-                Page {currentPage} of {totalPages}
-              </span>
-
-              {currentPage < totalPages ? (
-                <Link
-                  href={hrefWithPage(currentPage + 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Next
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Next
-                </span>
-              )}
-            </nav>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            hrefForPage={hrefWithPage}
+          />
         </>
       )}
     </div>

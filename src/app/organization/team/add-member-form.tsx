@@ -62,16 +62,20 @@ export function AddMemberForm({
     });
   }
 
+const selectClass =
+  "mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground placeholder:text-subtle focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
+
+const labelClass = "block text-sm font-medium text-foreground";
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-3">
-      <label className="block text-sm">
-        <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">
-          Organization
-        </span>
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <label className={labelClass}>
+        Organization
         <select
           name="organizationId"
           required
-          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+          disabled={pending}
+          className={selectClass}
         >
           <option value="">Select an organization</option>
           {organizations.map((org) => (
@@ -82,33 +86,35 @@ export function AddMemberForm({
         </select>
       </label>
 
-      <label className="block text-sm">
-        <span className="mb-1 block font-medium text-gray-700 dark:text-gray-300">
-          Email
-        </span>
+      <label className={labelClass}>
+        Email
         <input
           type="email"
           name="email"
           required
           disabled={pending}
           placeholder="admin@example.com"
-          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+          className={selectClass}
         />
       </label>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400">
+      <p className="text-xs text-muted">
         The user must already have an active ORGANIZATION_ADMIN account.
       </p>
 
       <button
         type="submit"
         disabled={pending}
-        className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+        className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? "Adding…" : "Add existing organization admin"}
       </button>
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
     </form>
   );
 }

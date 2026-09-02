@@ -37,10 +37,12 @@ export default async function AdminJobsPage({
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-semibold">Job Moderation</h1>
+      <main className="mx-auto w-full max-w-6xl px-4 py-8">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+          Job Moderation
+        </h1>
         {loadError ? (
-          <p className="mt-4 text-neutral-600">
+          <p className="mt-4 text-sm text-destructive">
             We could not load the moderation queue right now. Please try again shortly.
           </p>
         ) : (

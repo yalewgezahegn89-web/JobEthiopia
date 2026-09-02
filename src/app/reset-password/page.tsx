@@ -19,8 +19,8 @@ export default async function ResetPasswordPage({
       {token ? (
         <>
           <div className="text-center">
-            <h1 className="text-2xl font-semibold">Choose a new password</h1>
-            <p className="mt-1 text-neutral-600">
+            <h1 className="text-2xl font-semibold text-foreground">Choose a new password</h1>
+            <p className="mt-1 text-muted">
               Enter a new password for your account.
             </p>
           </div>
@@ -28,13 +28,13 @@ export default async function ResetPasswordPage({
         </>
       ) : (
         <div className="text-center">
-          <h1 className="text-2xl font-semibold">Invalid link</h1>
-          <p className="mt-1 text-neutral-600">
+          <h1 className="text-2xl font-semibold text-foreground">Invalid link</h1>
+          <p className="mt-1 text-muted">
             This reset link is missing. Please request a new one.
           </p>
           <Link
             href="/forgot-password"
-            className="mt-4 inline-block text-sm text-neutral-600 underline"
+            className="mt-4 inline-block text-sm text-muted underline"
           >
             Request a new link
           </Link>

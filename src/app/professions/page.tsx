@@ -4,6 +4,11 @@ import {
   fetchProfessions,
   type PublicProfessionList,
 } from "@/lib/professions/public";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+import { PageHeader } from "@/components/public/page-header";
+import { EmptyState } from "@/components/public/empty-state";
+import { Pagination } from "@/components/public/pagination";
+import { UserIcon, BriefcaseIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -46,14 +51,14 @@ export default async function ProfessionsPage({
 
   if (loadError) {
     return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-12 text-center">
+      <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
         <h1 className="text-2xl font-bold">Professions</h1>
-        <p className="mt-4 text-gray-600 dark:text-gray-300">
+        <p className="mt-4 text-muted">
           We could not load professions right now. Please try again shortly.
         </p>
         <Link
           href="/professions"
-          className="mt-6 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
+          className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           Retry
         </Link>
@@ -78,82 +83,71 @@ export default async function ProfessionsPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8">
-      <h1 className="text-3xl font-bold tracking-tight">Professions</h1>
-      <p className="mt-1 text-gray-600 dark:text-gray-300">
-        Browse job professions across Ethiopia.
-      </p>
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
+      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Professions" }]} />
+
+      <div className="mt-4">
+        <PageHeader
+          eyebrow="Find your path"
+          title="Professions"
+          description="Find opportunities by profession and explore the roles that match your career path."
+        />
+      </div>
 
       {items.length === 0 ? (
-        <div
-          className="mt-10 rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700"
-          role="status"
-        >
-          <h2 className="text-lg font-semibold">No professions found</h2>
-          <p className="mt-1 text-gray-600 dark:text-gray-300">
-            There are no active professions to show right now.
-          </p>
-        </div>
+        <EmptyState
+          icon={<BriefcaseIcon className="h-7 w-7" />}
+          heading="No professions found"
+          body="There are no active professions to show right now. Check back soon."
+        />
       ) : (
         <>
-          <ul className="mt-6 grid gap-4 sm:grid-cols-2">
+          <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((profession) => (
-              <li key={profession.id}>
-                <Link
-                  href={`/professions/${profession.id}`}
-                  className="block h-full rounded-lg border border-gray-200 p-4 transition-colors hover:border-blue-400 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-800 dark:hover:bg-gray-900"
-                >
-                  <h2 className="text-lg font-semibold text-blue-700 dark:text-blue-400">
-                    {profession.name}
-                  </h2>
-                  {profession.description && (
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
-                      {profession.description}
-                    </p>
-                  )}
-                </Link>
+              <li key={profession.id} className="h-full">
+                <ProfessionCard profession={profession} />
               </li>
             ))}
           </ul>
 
-          {totalPages > 1 && (
-            <nav
-              className="mt-8 flex items-center justify-between gap-4"
-              aria-label="Pagination"
-            >
-              {currentPage > 1 ? (
-                <Link
-                  href={hrefWithPage(currentPage - 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Previous
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Previous
-                </span>
-              )}
-
-              <span className="text-sm text-gray-600 dark:text-gray-300">
-                Page {currentPage} of {totalPages}
-              </span>
-
-              {currentPage < totalPages ? (
-                <Link
-                  href={hrefWithPage(currentPage + 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Next
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Next
-                </span>
-              )}
-            </nav>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            hrefForPage={hrefWithPage}
+          />
         </>
       )}
     </div>
+  );
+}
+
+function ProfessionCard({
+  profession,
+}: {
+  profession: { id: string; name: string; description: string | null };
+}) {
+  return (
+    <Link
+      href={`/professions/${profession.id}`}
+      className="group flex h-full flex-col rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+    >
+      <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary-light text-primary">
+        <UserIcon className="h-5 w-5" />
+      </span>
+      <h2 className="mt-4 text-lg font-semibold tracking-tight text-foreground">
+        {profession.name}
+      </h2>
+      {profession.description && (
+        <p className="mt-2 line-clamp-3 text-sm text-muted">
+          {profession.description}
+        </p>
+      )}
+      <span className="mt-auto inline-flex items-center gap-1 pt-4 text-sm font-semibold text-primary">
+        Explore profession
+        <span className="transition-transform duration-200 group-hover:translate-x-0.5">
+          →
+        </span>
+      </span>
+    </Link>
   );
 }

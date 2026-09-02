@@ -41,25 +41,25 @@ export default function CategoryDetail({ category }: CategoryDetailProps) {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-lg border border-neutral-200 p-4">
-        <h2 className="text-lg font-semibold">Actions</h2>
+      <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-foreground">Actions</h2>
 
-        <form action={toggleFormAction} className="mt-3">
+        <form action={toggleFormAction} className="mt-4">
           <input type="hidden" name="categoryId" value={category.id} />
           <button
             type="submit"
             disabled={togglePending}
-            className={`rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 ${
+            className={`rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 ${
               category.isActive
-                ? "bg-amber-600 hover:bg-amber-700"
-                : "bg-green-600 hover:bg-green-700"
+                ? "bg-warning hover:opacity-90"
+                : "bg-success hover:opacity-90"
             }`}
           >
             {category.isActive ? "Deactivate" : "Activate"}
           </button>
         </form>
         {toggleState.error && (
-          <p role="alert" className="mt-2 text-sm text-red-700">{toggleState.error}</p>
+          <p role="alert" className="mt-2 text-sm text-destructive">{toggleState.error}</p>
         )}
 
         <form
@@ -76,29 +76,29 @@ export default function CategoryDetail({ category }: CategoryDetailProps) {
               e.preventDefault();
             }
           }}
-          className="mt-3"
+          className="mt-4"
         >
           <input type="hidden" name="categoryId" value={category.id} />
           <button
             type="submit"
             disabled={deletePending}
-            className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-40"
+            className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
           >
             Delete category
           </button>
         </form>
         {deleteState.error && (
-          <p role="alert" className="mt-2 text-sm text-red-700">{deleteState.error}</p>
+          <p role="alert" className="mt-2 text-sm text-destructive">{deleteState.error}</p>
         )}
       </section>
 
-      <section className="rounded-lg border border-neutral-200 p-4">
-        <h2 className="text-lg font-semibold">Edit category</h2>
-        <form action={updateFormAction} className="mt-3 space-y-3">
+      <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-foreground">Edit category</h2>
+        <form action={updateFormAction} className="mt-4 space-y-4">
           <input type="hidden" name="categoryId" value={category.id} />
 
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-neutral-700">
+            <label htmlFor="name" className="block text-sm font-medium text-foreground">
               Name
             </label>
             <input
@@ -107,12 +107,12 @@ export default function CategoryDetail({ category }: CategoryDetailProps) {
               type="text"
               defaultValue={category.name}
               required
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             />
           </div>
 
           <div>
-            <label htmlFor="slug" className="block text-sm font-medium text-neutral-700">
+            <label htmlFor="slug" className="block text-sm font-medium text-foreground">
               Slug
             </label>
             <input
@@ -122,12 +122,12 @@ export default function CategoryDetail({ category }: CategoryDetailProps) {
               defaultValue={category.slug}
               required
               pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$"
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-mono"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground font-mono focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             />
           </div>
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-neutral-700">
+            <label htmlFor="description" className="block text-sm font-medium text-foreground">
               Description
             </label>
             <textarea
@@ -135,12 +135,12 @@ export default function CategoryDetail({ category }: CategoryDetailProps) {
               name="description"
               defaultValue={category.description ?? ""}
               rows={3}
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             />
           </div>
 
           <div>
-            <label htmlFor="parentId" className="block text-sm font-medium text-neutral-700">
+            <label htmlFor="parentId" className="block text-sm font-medium text-foreground">
               Parent category ID (optional)
             </label>
             <input
@@ -148,13 +148,13 @@ export default function CategoryDetail({ category }: CategoryDetailProps) {
               name="parentId"
               type="text"
               defaultValue={category.parentId ?? ""}
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-mono"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground font-mono focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               placeholder="UUID or leave empty for root"
             />
           </div>
 
           <div>
-            <label htmlFor="sortOrder" className="block text-sm font-medium text-neutral-700">
+            <label htmlFor="sortOrder" className="block text-sm font-medium text-foreground">
               Sort order
             </label>
             <input
@@ -162,20 +162,20 @@ export default function CategoryDetail({ category }: CategoryDetailProps) {
               name="sortOrder"
               type="number"
               defaultValue={category.sortOrder}
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             />
           </div>
 
           <button
             type="submit"
             disabled={updatePending}
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-40"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
           >
             Save changes
           </button>
         </form>
         {updateState.error && (
-          <p role="alert" className="mt-2 text-sm text-red-700">{updateState.error}</p>
+          <p role="alert" className="mt-2 text-sm text-destructive">{updateState.error}</p>
         )}
       </section>
     </div>

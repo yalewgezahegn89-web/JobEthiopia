@@ -26,64 +26,67 @@ export default function ModerationPanel({
     status !== "REMOVED" && !["PUBLISHED"].includes(status);
   const canReject = status !== "REMOVED";
 
+  const focusRing =
+    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+
   return (
-    <section className="rounded-lg border border-neutral-200 p-4">
-      <h2 className="text-lg font-semibold">Moderation actions</h2>
-      <p className="mt-1 text-sm text-neutral-600">
+    <section className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <h2 className="text-lg font-semibold text-foreground">Moderation actions</h2>
+      <p className="mt-1 text-sm text-muted">
         Current status: <strong>{status}</strong> · Verification:{" "}
         <strong>{verificationStatus}</strong>
       </p>
 
-      <form action={formAction} className="mt-3 flex flex-wrap items-center gap-2">
+      <form action={formAction} className="mt-4">
         <input type="hidden" name="jobId" value={jobId} />
         <input type="hidden" name="action" value="PUBLISH" />
         <button
           type="submit"
           disabled={isPending || !canPublish}
-          className="rounded-md bg-green-700 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+          className={`rounded-lg bg-success px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
         >
           Publish
         </button>
       </form>
 
-      <form action={formAction} className="mt-2 flex flex-wrap items-center gap-2">
+      <form action={formAction} className="mt-2">
         <input type="hidden" name="jobId" value={jobId} />
         <input type="hidden" name="action" value="REJECT" />
         <button
           type="submit"
           disabled={isPending || !canReject}
-          className="rounded-md bg-red-700 px-3 py-1.5 text-sm text-white disabled:opacity-40"
+          className={`rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
         >
           Reject
         </button>
       </form>
 
-      <form action={formAction} className="mt-2 flex flex-wrap items-center gap-2">
+      <form action={formAction} className="mt-2">
         <input type="hidden" name="jobId" value={jobId} />
         <input type="hidden" name="action" value="MARK_INVALID" />
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          className={`rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground shadow-sm hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
         >
           Mark invalid
         </button>
       </form>
 
-      <form action={formAction} className="mt-2 flex flex-wrap items-center gap-2">
+      <form action={formAction} className="mt-2">
         <input type="hidden" name="jobId" value={jobId} />
         <input type="hidden" name="action" value="REQUEST_REVIEW" />
         <button
           type="submit"
           disabled={isPending}
-          className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm"
+          className={`rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground shadow-sm hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
         >
           Request review
         </button>
       </form>
 
       {!state.ok && state.error ? (
-        <p role="alert" className="mt-3 text-sm text-red-700">
+        <p role="alert" className="mt-3 text-sm text-destructive">
           {state.error}
         </p>
       ) : null}

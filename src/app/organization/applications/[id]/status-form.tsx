@@ -51,17 +51,21 @@ export function StatusForm({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
-      <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">
-        Update Status
-      </h3>
-      <form onSubmit={handleSubmit} className="mt-3 flex flex-wrap items-end gap-3">
+    <div className="rounded-xl border border-border bg-surface-raised/50 p-5">
+      <h3 className="text-sm font-semibold text-foreground">Update Status</h3>
+      <p className="mt-1 text-xs text-muted">
+        Move this application to the next stage.
+      </p>
+      <form
+        onSubmit={handleSubmit}
+        className="mt-3 flex flex-wrap items-end gap-3"
+      >
         <label className="flex flex-col gap-1 text-sm">
-          New status
+          <span className="font-medium text-foreground">New status</span>
           <select
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value as Status)}
-            className="rounded-md border border-gray-300 px-2 py-1 dark:border-gray-700 dark:bg-gray-800"
+            className="mt-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="">Select...</option>
             <option value="REVIEWING">Reviewing</option>
@@ -72,16 +76,18 @@ export function StatusForm({
         <button
           type="submit"
           disabled={!selectedStatus || loading}
-          className="rounded-md bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+          className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
         >
           {loading ? "Updating..." : "Update"}
         </button>
       </form>
       {error && (
-        <p className="mt-2 text-sm text-red-600">{error}</p>
+        <p role="alert" className="mt-2 text-sm text-destructive">{error}</p>
       )}
       {success && (
-        <p className="mt-2 text-sm text-green-600">Status updated successfully.</p>
+        <p role="status" className="mt-2 text-sm text-success">
+          Status updated successfully.
+        </p>
       )}
     </div>
   );

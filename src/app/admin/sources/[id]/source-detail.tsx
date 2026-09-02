@@ -37,25 +37,25 @@ export default function SourceDetail({ source }: SourceDetailProps) {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-lg border border-neutral-200 p-4">
-        <h2 className="text-lg font-semibold">Actions</h2>
+      <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-foreground">Actions</h2>
 
-        <form action={toggleFormAction} className="mt-3">
+        <form action={toggleFormAction} className="mt-4">
           <input type="hidden" name="sourceId" value={source.id} />
           <button
             type="submit"
             disabled={togglePending}
-            className={`rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-40 ${
+            className={`rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 ${
               source.isActive
-                ? "bg-amber-600 hover:bg-amber-700"
-                : "bg-green-600 hover:bg-green-700"
+                ? "bg-warning hover:opacity-90"
+                : "bg-success hover:opacity-90"
             }`}
           >
             {source.isActive ? "Deactivate" : "Activate"}
           </button>
         </form>
         {toggleState.error && (
-          <p role="alert" className="mt-2 text-sm text-red-700">{toggleState.error}</p>
+          <p role="alert" className="mt-2 text-sm text-destructive">{toggleState.error}</p>
         )}
 
         <form
@@ -65,29 +65,29 @@ export default function SourceDetail({ source }: SourceDetailProps) {
               e.preventDefault();
             }
           }}
-          className="mt-3"
+          className="mt-4"
         >
           <input type="hidden" name="sourceId" value={source.id} />
           <button
             type="submit"
             disabled={deletePending}
-            className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800 disabled:opacity-40"
+            className="rounded-lg bg-destructive px-4 py-2 text-sm font-semibold text-white shadow-sm hover:opacity-90 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
           >
             Delete source
           </button>
         </form>
         {deleteState.error && (
-          <p role="alert" className="mt-2 text-sm text-red-700">{deleteState.error}</p>
+          <p role="alert" className="mt-2 text-sm text-destructive">{deleteState.error}</p>
         )}
       </section>
 
-      <section className="rounded-lg border border-neutral-200 p-4">
-        <h2 className="text-lg font-semibold">Edit source</h2>
-        <form action={updateFormAction} className="mt-3 space-y-3">
+      <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-foreground">Edit source</h2>
+        <form action={updateFormAction} className="mt-4 space-y-4">
           <input type="hidden" name="sourceId" value={source.id} />
 
           <div>
-            <label htmlFor="name" className="block text-sm font-medium text-neutral-700">
+            <label htmlFor="name" className="block text-sm font-medium text-foreground">
               Name
             </label>
             <input
@@ -96,12 +96,12 @@ export default function SourceDetail({ source }: SourceDetailProps) {
               type="text"
               defaultValue={source.name}
               required
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             />
           </div>
 
           <div>
-            <label htmlFor="sourceType" className="block text-sm font-medium text-neutral-700">
+            <label htmlFor="sourceType" className="block text-sm font-medium text-foreground">
               Source type
             </label>
             <select
@@ -109,7 +109,7 @@ export default function SourceDetail({ source }: SourceDetailProps) {
               name="sourceType"
               defaultValue={source.sourceType}
               required
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <option value="MANUAL">MANUAL</option>
               <option value="WEBSITE">WEBSITE</option>
@@ -121,7 +121,7 @@ export default function SourceDetail({ source }: SourceDetailProps) {
           </div>
 
           <div>
-            <label htmlFor="baseUrl" className="block text-sm font-medium text-neutral-700">
+            <label htmlFor="baseUrl" className="block text-sm font-medium text-foreground">
               Base URL
             </label>
             <input
@@ -129,13 +129,13 @@ export default function SourceDetail({ source }: SourceDetailProps) {
               name="baseUrl"
               type="url"
               defaultValue={source.baseUrl ?? ""}
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               placeholder="https://example.com"
             />
           </div>
 
           <div>
-            <label htmlFor="trustLevel" className="block text-sm font-medium text-neutral-700">
+            <label htmlFor="trustLevel" className="block text-sm font-medium text-foreground">
               Trust level
             </label>
             <select
@@ -143,7 +143,7 @@ export default function SourceDetail({ source }: SourceDetailProps) {
               name="trustLevel"
               defaultValue={source.trustLevel}
               required
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <option value="HIGH">HIGH</option>
               <option value="MEDIUM">MEDIUM</option>
@@ -154,13 +154,13 @@ export default function SourceDetail({ source }: SourceDetailProps) {
           <button
             type="submit"
             disabled={updatePending}
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-40"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
           >
             Save changes
           </button>
         </form>
         {updateState.error && (
-          <p role="alert" className="mt-2 text-sm text-red-700">{updateState.error}</p>
+          <p role="alert" className="mt-2 text-sm text-destructive">{updateState.error}</p>
         )}
       </section>
     </div>

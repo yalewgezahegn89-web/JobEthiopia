@@ -168,4 +168,30 @@ describe("ProfilePage", () => {
     mocks.mockGetCurrentUser.mockResolvedValue({ ...CANDIDATE, role: "ADMIN" });
     await expect(ProfilePage()).rejects.toThrow("REDIRECT:/jobs");
   });
+
+  it("renders a single H1 with the page title", async () => {
+    const html = renderToStaticMarkup(await ProfilePage());
+    expect(html).toContain("My Profile");
+    const h1Count = (html.match(/<h1\b/g) ?? []).length;
+    expect(h1Count).toBe(1);
+  });
+
+  it("renders a Security section with change password", async () => {
+    const html = renderToStaticMarkup(await ProfilePage());
+    expect(html).toContain("Security");
+    expect(html).toContain("Change password");
+  });
+
+  it("renders a sign-out form posting to /logout", async () => {
+    const html = renderToStaticMarkup(await ProfilePage());
+    expect(html).toContain('action="/logout"');
+    expect(html).toContain('method="POST"');
+    expect(html).toContain("Sign out");
+  });
+
+  it("does not leak any password value", async () => {
+    const html = renderToStaticMarkup(await ProfilePage());
+    expect(html).not.toContain("OldPassword");
+    expect(html).not.toContain("NewPassword");
+  });
 });

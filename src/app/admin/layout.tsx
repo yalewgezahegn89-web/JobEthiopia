@@ -18,16 +18,16 @@ export default async function AdminLayout({
   if (!isStaffRole(user.role)) {
     return (
       <section className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-16 text-center">
-        <h1 className="text-2xl font-semibold">Forbidden</h1>
-        <p className="text-neutral-600">
+        <h1 className="text-2xl font-semibold text-foreground">Forbidden</h1>
+        <p className="text-muted">
           Your account does not have access to the admin workspace.
         </p>
-        <Link href="/" className="text-sm text-neutral-600 underline">
+        <Link href="/" className="text-sm text-muted underline">
           Back to JobEthiopia
         </Link>
       </section>
     );
   }
 
-  return <>{children}</>;
+  return <div className="min-h-screen bg-surface-raised">{children}</div>;
 }

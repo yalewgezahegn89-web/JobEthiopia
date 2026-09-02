@@ -4,17 +4,45 @@ import { redirect } from "next/navigation";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 import { verifySession } from "@/lib/auth/session";
 import { listEmployerJobs } from "@/lib/employer/jobs";
-import { OrganizationNav } from "@/app/organization/nav";
+import { Badge } from "@/components/ui/badge";
+import {
+  BriefcaseIcon,
+  PlusIcon,
+  ArrowRightIcon,
+} from "@/components/public/icons";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+import { EmptyState } from "@/components/public/empty-state";
 
-const STATUS_BADGES: Record<string, string> = {
-  DRAFT: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
-  PENDING_REVIEW:
-    "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
-  PUBLISHED:
-    "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  EXPIRED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-  REMOVED: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
+export const dynamic = "force-dynamic";
+
+const JOB_STATUS_META: Record<string, { label: string; variant: "default" | "success" | "warning" | "destructive" | "info" }> = {
+  DRAFT: { label: "Draft", variant: "default" },
+  PENDING_REVIEW: { label: "Pending review", variant: "warning" },
+  PUBLISHED: { label: "Published", variant: "success" },
+  EXPIRED: { label: "Expired", variant: "destructive" },
+  REMOVED: { label: "Removed", variant: "destructive" },
 };
+
+const VALID_STATUSES = [
+  "DRAFT",
+  "PENDING_REVIEW",
+  "PUBLISHED",
+  "EXPIRED",
+  "REMOVED",
+] as const;
+
+type JobStatus = (typeof VALID_STATUSES)[number];
+
+function formatDate(value: unknown): string {
+  if (!value) return "—";
+  const d = new Date(value as string | number);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
 
 export default async function EmployerJobsPage({
   searchParams,
@@ -34,15 +62,8 @@ export default async function EmployerJobsPage({
     typeof params.status === "string" ? params.status : undefined;
   const pageParam = typeof params.page === "string" ? params.page : undefined;
 
-  const validStatuses = [
-    "DRAFT",
-    "PENDING_REVIEW",
-    "PUBLISHED",
-    "EXPIRED",
-    "REMOVED",
-  ];
-  const status = validStatuses.includes(statusParam ?? "")
-    ? (statusParam as "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "EXPIRED" | "REMOVED")
+  const status = VALID_STATUSES.includes(statusParam as JobStatus)
+    ? (statusParam as JobStatus)
     : undefined;
   const page = pageParam ? Math.max(1, Number(pageParam) || 1) : 1;
 
@@ -51,181 +72,212 @@ export default async function EmployerJobsPage({
     result = await listEmployerJobs(user.id, { status, page, limit: 20 });
   } catch {
     return (
-      <>
-        <OrganizationNav />
-        <main className="mx-auto max-w-5xl px-4 py-8">
-          <p className="text-sm text-red-600">
-            Unable to load jobs. Please try again.
-          </p>
-        </main>
-      </>
+      <EmptyState
+        icon={<BriefcaseIcon className="h-7 w-7" />}
+        heading="Jobs"
+        body="Unable to load jobs. Please try again."
+      />
     );
   }
 
+  function statusUrl(s: JobStatus | undefined): string {
+    return s ? `/organization/jobs?status=${s}` : "/organization/jobs";
+  }
+
+  const filterStatus: JobStatus | undefined = status;
+
   return (
-    <>
-      <OrganizationNav />
-      <main className="mx-auto max-w-5xl px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+    <div>
+      <Breadcrumb
+        items={[{ label: "Home", href: "/organization" }, { label: "Jobs" }]}
+      />
+
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
+            Job management
+          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
             Jobs
           </h1>
-          <Link
-            href="/organization/jobs/create"
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-          >
-            Create Job
-          </Link>
+          <p className="mt-1 text-sm text-muted">
+            Manage and review your organization&apos;s job listings.
+          </p>
         </div>
+        <Link
+          href="/organization/jobs/create"
+          className="focus-visible:outline-2 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          <PlusIcon className="h-4 w-4" />
+          Create Job
+        </Link>
+      </div>
 
-        <div className="mb-4 flex gap-2">
+      <div className="mt-6 flex flex-nowrap gap-2 overflow-x-auto pb-1">
+        <Link
+          href={statusUrl(undefined)}
+          aria-current={!filterStatus ? "page" : undefined}
+          className={`focus-visible:outline-2 shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition-colors duration-150 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+            !filterStatus
+              ? "bg-primary text-white"
+              : "bg-surface text-muted hover:bg-surface-raised hover:text-foreground"
+          }`}
+        >
+          All
+        </Link>
+        {VALID_STATUSES.map((s) => (
           <Link
-            href="/organization/jobs"
-            className={`rounded px-3 py-1 text-sm ${
-              !status
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"
+            key={s}
+            href={statusUrl(s)}
+            aria-current={filterStatus === s ? "page" : undefined}
+            className={`focus-visible:outline-2 shrink-0 whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-semibold transition-colors duration-150 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+              filterStatus === s
+                ? "bg-primary text-white"
+                : "bg-surface text-muted hover:bg-surface-raised hover:text-foreground"
             }`}
           >
-            All
+            {JOB_STATUS_META[s].label}
           </Link>
-          {validStatuses.map((s) => (
-            <Link
-              key={s}
-              href={`/organization/jobs?status=${s}`}
-              className={`rounded px-3 py-1 text-sm ${
-                status === s
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300"
-              }`}
-            >
-              {s.replace("_", " ")}
-            </Link>
-          ))}
-        </div>
+        ))}
+      </div>
 
-        {result.items.length === 0 ? (
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            No jobs found.
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 dark:border-gray-800">
-                  <th className="pb-2 font-medium text-gray-500 dark:text-gray-400">
-                    Title
-                  </th>
-                  <th className="pb-2 font-medium text-gray-500 dark:text-gray-400">
-                    Organization
-                  </th>
-                  <th className="pb-2 font-medium text-gray-500 dark:text-gray-400">
-                    Status
-                  </th>
-                  <th className="pb-2 font-medium text-gray-500 dark:text-gray-400">
-                    Applications
-                  </th>
-                  <th className="pb-2 font-medium text-gray-500 dark:text-gray-400">
-                    Deadline
-                  </th>
-                  <th className="pb-2 font-medium text-gray-500 dark:text-gray-400">
-                    Created
-                  </th>
-                  <th className="pb-2 font-medium text-gray-500 dark:text-gray-400">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {result.items.map((job) => (
-                  <tr
-                    key={job.id}
-                    className="border-b border-gray-100 dark:border-gray-900"
-                  >
-                    <td className="py-3">
-                      <Link
-                        href={`/organization/jobs/${job.id}`}
-                        className="font-medium text-blue-600 hover:underline dark:text-blue-400"
-                      >
-                        {job.title}
-                      </Link>
-                    </td>
-                    <td className="py-3 text-gray-600 dark:text-gray-400">
-                      {job.organizationName}
-                    </td>
-                    <td className="py-3">
-                      <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_BADGES[job.status] ?? ""}`}
-                      >
-                        {job.status.replace("_", " ")}
-                      </span>
-                    </td>
-                    <td className="py-3 text-gray-600 dark:text-gray-400">
-                      <span className="text-sm">{job.applicationCount}</span>
-                      {job.needsReviewCount > 0 && (
-                        <span className="ml-1.5 inline-block rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                          {job.needsReviewCount} to review
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 text-gray-600 dark:text-gray-400">
-                      {job.deadline
-                        ? new Date(job.deadline).toLocaleDateString()
-                        : "—"}
-                    </td>
-                    <td className="py-3 text-gray-600 dark:text-gray-400">
-                      {new Date(job.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="py-3">
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/organization/jobs/${job.id}`}
-                          className="text-sm text-blue-600 hover:underline"
-                        >
-                          View
-                        </Link>
-                        {(job.status === "DRAFT" ||
-                          job.status === "PENDING_REVIEW") && (
-                          <Link
-                            href={`/organization/jobs/${job.id}/edit`}
-                            className="text-sm text-gray-600 hover:underline dark:text-gray-400"
-                          >
-                            Edit
-                          </Link>
-                        )}
-                      </div>
-                    </td>
+      {result.items.length === 0 ? (
+        <EmptyState
+          icon={<BriefcaseIcon className="h-7 w-7" />}
+          heading="No jobs found"
+          body="Create your first job to start receiving applications."
+          ctaHref="/organization/jobs/create"
+          ctaLabel="Create job"
+        />
+      ) : (
+        <>
+          <div className="mt-6 overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface-raised">
+                    <th className="px-4 py-3 font-semibold text-subtle">Title</th>
+                    <th className="px-4 py-3 font-semibold text-subtle">
+                      Organization
+                    </th>
+                    <th className="px-4 py-3 font-semibold text-subtle">Status</th>
+                    <th className="px-4 py-3 font-semibold text-subtle">
+                      Applications
+                    </th>
+                    <th className="px-4 py-3 font-semibold text-subtle">
+                      Deadline
+                    </th>
+                    <th className="px-4 py-3 font-semibold text-subtle">
+                      Created
+                    </th>
+                    <th className="px-4 py-3 text-right font-semibold text-subtle">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {result.items.map((job) => {
+                    const meta = JOB_STATUS_META[job.status] ?? {
+                      label: job.status.replace("_", " "),
+                      variant: "default" as const,
+                    };
+                    return (
+                      <tr
+                        key={job.id}
+                        className="transition-colors duration-150 hover:bg-surface-raised/60"
+                      >
+                        <td className="px-4 py-3">
+                          <Link
+                            href={`/organization/jobs/${job.id}`}
+                            className="focus-visible:outline-2 block font-semibold text-foreground focus-visible:outline-offset-2 focus-visible:outline-primary hover:text-primary"
+                          >
+                            {job.title}
+                          </Link>
+                          {job.status === "PENDING_REVIEW" && (
+                            <span className="mt-1 block text-xs text-warning">
+                              Awaiting staff review
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-muted">
+                          {job.organizationName}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge variant={meta.variant}>{meta.label}</Badge>
+                          <span className="sr-only">{job.status}</span>
+                        </td>
+                        <td className="px-4 py-3 text-muted">
+                          <span className="font-medium text-foreground">
+                            {job.applicationCount}
+                          </span>
+                          {job.needsReviewCount > 0 && (
+                            <span className="ml-2 inline-block rounded-full bg-warning-light px-2 py-0.5 text-xs font-semibold text-warning">
+                              {`${job.needsReviewCount} to review`}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-muted">
+                          {formatDate(job.deadline)}
+                        </td>
+                        <td className="px-4 py-3 text-muted">
+                          {formatDate(job.createdAt)}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <Link
+                              href={`/organization/jobs/${job.id}`}
+                              className="focus-visible:outline-2 inline-flex items-center gap-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary"
+                            >
+                              View
+                              <ArrowRightIcon className="h-3.5 w-3.5" />
+                            </Link>
+                            {(job.status === "DRAFT" ||
+                              job.status === "PENDING_REVIEW") && (
+                              <Link
+                                href={`/organization/jobs/${job.id}/edit`}
+                                className="focus-visible:outline-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:bg-surface-raised hover:text-foreground focus-visible:outline-offset-2 focus-visible:outline-primary"
+                              >
+                                Edit
+                              </Link>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        )}
 
-        {result.totalPages > 1 && (
-          <div className="mt-4 flex justify-center gap-2">
-            {result.page > 1 && (
-              <Link
-                href={`/organization/jobs?page=${result.page - 1}${status ? `&status=${status}` : ""}`}
-                className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-              >
-                Previous
-              </Link>
-            )}
-            <span className="px-3 py-1 text-sm text-gray-600 dark:text-gray-400">
-              Page {result.page} of {result.totalPages}
-            </span>
-            {result.page < result.totalPages && (
-              <Link
-                href={`/organization/jobs?page=${result.page + 1}${status ? `&status=${status}` : ""}`}
-                className="rounded border border-gray-300 px-3 py-1 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
-              >
-                Next
-              </Link>
-            )}
-          </div>
-        )}
-      </main>
-    </>
+          {result.totalPages > 1 && (
+            <nav
+              aria-label="Jobs pagination"
+              className="mt-4 flex items-center justify-center gap-2"
+            >
+              {result.page > 1 && (
+                <Link
+                  href={`/organization/jobs?page=${result.page - 1}${status ? `&status=${status}` : ""}`}
+                  className="focus-visible:outline-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  Previous
+                </Link>
+              )}
+              <span className="px-3 py-1.5 text-sm text-muted">
+                Page {result.page} of {result.totalPages}
+              </span>
+              {result.page < result.totalPages && (
+                <Link
+                  href={`/organization/jobs?page=${result.page + 1}${status ? `&status=${status}` : ""}`}
+                  className="focus-visible:outline-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  Next
+                </Link>
+              )}
+            </nav>
+          )}
+        </>
+      )}
+    </div>
   );
 }

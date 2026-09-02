@@ -8,6 +8,8 @@ import {
 import { fetchCategoryById } from "@/lib/categories/public";
 import { fetchJobs, type PublicJobSummary } from "@/lib/jobs/public";
 import JobCard from "@/components/job-card";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+import { UserIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -34,15 +36,15 @@ export default async function ProfessionPage({
 
   if (loadError) {
     return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-12 text-center">
+      <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
         <h1 className="text-2xl font-bold">Profession details</h1>
-        <p className="mt-4 text-gray-600 dark:text-gray-300">
+        <p className="mt-4 text-muted">
           We could not load this profession right now. Please try again
           shortly.
         </p>
         <Link
           href="/professions"
-          className="mt-6 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
+          className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           Back to Professions
         </Link>
@@ -81,78 +83,95 @@ export default async function ProfessionPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8">
-      <Link
-        href="/professions"
-        className="text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400"
-      >
-        &larr; Back to Professions
-      </Link>
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
+      <Breadcrumb
+        items={[
+          { label: "Home", href: "/" },
+          { label: "Professions", href: "/professions" },
+          { label: profession.name },
+        ]}
+      />
 
-      <article className="mt-4">
-        <header>
-          <h1 className="text-3xl font-bold tracking-tight">
+      <header className="mt-4 flex flex-wrap items-start gap-5">
+        <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-primary-light text-primary">
+          <UserIcon className="h-8 w-8" />
+        </span>
+        <div className="min-w-0 max-w-3xl">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
             {profession.name}
           </h1>
-        </header>
-
-        {profession.description && (
-          <p className="mt-3 text-gray-700 dark:text-gray-200">
-            {profession.description}
-          </p>
-        )}
-
-        <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
-          {category && (
-            <Link
-              href={`/categories/${category.id}`}
-              className="rounded-md bg-gray-100 px-2 py-1 font-semibold text-gray-700 hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              Part of {category.name}
-            </Link>
+          {profession.description && (
+            <p className="mt-2 text-base leading-7 text-muted">
+              {profession.description}
+            </p>
           )}
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            {category && (
+              <Link
+                href={`/categories/${category.id}`}
+                className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 text-xs font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                Part of {category.name}
+              </Link>
+            )}
+            <Link
+              href={`/jobs?professionId=${encodeURIComponent(profession.id)}`}
+              className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Browse all jobs in this profession
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <section aria-labelledby="profession-jobs-heading" className="mt-12">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
+              Latest in {profession.name}
+            </p>
+            <h2
+              id="profession-jobs-heading"
+              className="text-xl font-semibold tracking-tight text-foreground"
+            >
+              Jobs in {profession.name}
+            </h2>
+          </div>
+          <Link
+            href={`/jobs?professionId=${encodeURIComponent(profession.id)}`}
+            className="focus-visible:outline-2 hidden shrink-0 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary sm:inline-flex"
+          >
+            View all jobs
+          </Link>
         </div>
 
-        <Link
-          href={`/jobs?professionId=${encodeURIComponent(profession.id)}`}
-          className="mt-5 inline-block rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
-        >
-          Browse jobs in this profession
-        </Link>
-      </article>
-
-      <section aria-labelledby="profession-jobs-heading" className="mt-10">
-        <h2
-          id="profession-jobs-heading"
-          className="text-xl font-bold tracking-tight"
-        >
-          Jobs in {profession.name}
-        </h2>
-
         {jobsLoadError ? (
-          <p className="mt-4 text-gray-600 dark:text-gray-300">
+          <p className="mt-4 text-muted">
             We could not load jobs in this profession right now. Please try
             again shortly.
           </p>
         ) : professionJobs.length === 0 ? (
-          <div className="mt-4 rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700">
-            <h3 className="text-lg font-semibold">
-              No open jobs in this profession.
+          <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-6 py-14 text-center">
+            <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-raised text-primary">
+              <UserIcon className="h-7 w-7" />
+            </span>
+            <h3 className="mt-4 text-lg font-semibold text-foreground">
+              No open jobs in this profession
             </h3>
-            <p className="mt-1 text-gray-600 dark:text-gray-300">
+            <p className="mt-1 text-sm text-muted">
               There are no published jobs in this profession at the moment.
             </p>
             <Link
               href="/jobs"
-              className="mt-4 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
+              className="focus-visible:outline-2 mt-5 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Browse all jobs
             </Link>
           </div>
         ) : (
-          <ul className="mt-4 space-y-4">
+          <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {professionJobs.map((job) => (
-              <li key={job.id}>
+              <li key={job.id} className="h-full">
                 <JobCard job={job} />
               </li>
             ))}

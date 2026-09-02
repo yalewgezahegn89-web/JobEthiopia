@@ -23,39 +23,62 @@ export function NotesSection({
   const isOwn = (note: NoteView) => note.authorUserId === currentUserId;
 
   return (
-    <div className="rounded-lg border border-gray-200 p-6 dark:border-gray-800">
-      <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-        Internal Notes
-      </h2>
-      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        Internal notes — do not store passwords or highly sensitive secrets.
+    <div className="rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <div className="flex items-center gap-2">
+        <h2 className="text-base font-semibold tracking-tight text-foreground">
+          Internal Notes
+        </h2>
+        <span className="rounded-full bg-surface-raised px-2 py-0.5 text-xs font-semibold text-muted">
+          {notes.length}
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-muted">
+        Internal notes — visible only to your organization&apos;s team.
       </p>
 
       {notes.length === 0 ? (
-        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-          No internal notes yet.
-        </p>
+        <div className="mt-4 rounded-xl border border-dashed border-border bg-surface-raised/50 px-4 py-8 text-center">
+          <p className="text-sm text-muted">No internal notes yet.</p>
+          <p className="mt-1 text-xs text-subtle">
+            Add a note to share observations with your team.
+          </p>
+        </div>
       ) : (
         <ul className="mt-4 space-y-4">
           {notes.map((note) => (
             <li
               key={note.id}
-              className="rounded-md border border-gray-200 p-3 dark:border-gray-800"
+              className={`rounded-xl border p-4 ${
+                isOwn(note)
+                  ? "border-primary/20 bg-primary-light/40"
+                  : "border-border bg-surface-raised/50"
+              }`}
             >
-              <div className="flex items-center justify-between gap-4 text-xs text-gray-500 dark:text-gray-400">
-                <span className="font-medium text-gray-700 dark:text-gray-300">
-                  {note.authorUserId ? note.authorName ?? "Unknown member" : "Former member"}
+              <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-subtle">
+                <span className="inline-flex items-center gap-2 font-semibold text-foreground">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary-light text-primary">
+                    {(note.authorName ?? "?").charAt(0).toUpperCase()}
+                  </span>
+                  {note.authorUserId
+                    ? note.authorName ?? "Unknown member"
+                    : "Former member"}
                 </span>
-                <div className="flex items-center gap-3">
-                  <span>{new Date(note.createdAt).toLocaleString()}</span>
-                  {note.updatedAt !== note.createdAt && <span>· Edited</span>}
+                <div className="flex items-center gap-2 text-subtle">
+                  <time dateTime={note.createdAt}>
+                    {new Date(note.createdAt).toLocaleString()}
+                  </time>
+                  {note.updatedAt !== note.createdAt && (
+                    <span className="rounded-full bg-surface-raised px-2 py-0.5 font-medium text-muted">
+                      Edited
+                    </span>
+                  )}
                 </div>
               </div>
-              <p className="mt-2 whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100">
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-foreground">
                 {note.body}
               </p>
               {isOwn(note) && (
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-3 flex items-center gap-2 border-t border-border-subtle pt-3">
                   <EditNoteButton
                     applicationId={applicationId}
                     noteId={note.id}
@@ -72,7 +95,7 @@ export function NotesSection({
         </ul>
       )}
 
-      <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-800">
+      <div className="mt-4 border-t border-border-subtle pt-4">
         <AddNoteForm applicationId={applicationId} />
       </div>
     </div>

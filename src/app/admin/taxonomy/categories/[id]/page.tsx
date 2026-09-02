@@ -33,8 +33,8 @@ export default async function AdminCategoryDetailPage({
     return (
       <div>
         <AdminNav />
-        <main className="mx-auto w-full max-w-3xl px-4 py-8">
-          <p className="text-neutral-600">
+        <main className="mx-auto w-full max-w-4xl px-4 py-8">
+          <p className="text-sm text-destructive">
             We could not load this category right now. Please try again shortly.
           </p>
         </main>
@@ -49,76 +49,82 @@ export default async function AdminCategoryDetailPage({
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <Link href="/admin/taxonomy/categories" className="text-sm text-neutral-600 underline">
+      <main className="mx-auto w-full max-w-4xl px-4 py-8">
+        <Link href="/admin/taxonomy/categories" className="text-sm font-medium text-muted hover:text-primary">
           &larr; Back to categories
         </Link>
 
-        <h1 className="mt-2 text-2xl font-semibold">{category.name}</h1>
-        <p className="mt-1 text-sm text-neutral-600">
-          Slug: <strong className="font-mono">{category.slug}</strong> · Status:{" "}
-          <strong className={category.isActive ? "text-green-700" : "text-red-700"}>
+        <h1 className="mt-2 text-2xl font-semibold text-foreground">{category.name}</h1>
+        <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-muted">
+          <span>
+            Slug: <strong className="font-mono text-foreground">{category.slug}</strong>
+          </span>
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              category.isActive ? "bg-success-light text-success" : "bg-destructive-light text-destructive"
+            }`}
+          >
             {category.isActive ? "Active" : "Inactive"}
-          </strong>
-        </p>
+          </span>
+        </div>
 
         <div className="mt-4">
           <CategoryDetail category={category} />
         </div>
 
-        <section className="mt-6 space-y-2 text-sm">
-          <h2 className="text-lg font-semibold">Details</h2>
-          <dl className="grid gap-2 sm:grid-cols-2">
+        <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-foreground">Details</h2>
+          <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
             {category.description && (
               <div className="sm:col-span-2">
-                <dt className="text-neutral-500">Description</dt>
-                <dd>{category.description}</dd>
+                <dt className="text-sm text-muted">Description</dt>
+                <dd className="text-sm font-medium text-foreground">{category.description}</dd>
               </div>
             )}
             <div>
-              <dt className="text-neutral-500">Parent</dt>
-              <dd>{category.parentName ?? "None (root)"}</dd>
+              <dt className="text-sm text-muted">Parent</dt>
+              <dd className="text-sm font-medium text-foreground">{category.parentName ?? "None (root)"}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Sort order</dt>
-              <dd>{category.sortOrder}</dd>
+              <dt className="text-sm text-muted">Sort order</dt>
+              <dd className="text-sm font-medium text-foreground">{category.sortOrder}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Children</dt>
-              <dd>{category.childCount}</dd>
+              <dt className="text-sm text-muted">Children</dt>
+              <dd className="text-sm font-medium text-foreground">{category.childCount}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Jobs</dt>
-              <dd>{category.jobCount}</dd>
+              <dt className="text-sm text-muted">Jobs</dt>
+              <dd className="text-sm font-medium text-foreground">{category.jobCount}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Professions</dt>
-              <dd>{category.professionCount}</dd>
+              <dt className="text-sm text-muted">Professions</dt>
+              <dd className="text-sm font-medium text-foreground">{category.professionCount}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Created</dt>
-              <dd>{new Date(category.createdAt).toLocaleDateString()}</dd>
+              <dt className="text-sm text-muted">Created</dt>
+              <dd className="text-sm font-medium text-foreground">{new Date(category.createdAt).toLocaleDateString()}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Updated</dt>
-              <dd>{new Date(category.updatedAt).toLocaleDateString()}</dd>
+              <dt className="text-sm text-muted">Updated</dt>
+              <dd className="text-sm font-medium text-foreground">{new Date(category.updatedAt).toLocaleDateString()}</dd>
             </div>
           </dl>
         </section>
 
         {category.children.length > 0 && (
-          <section className="mt-6 text-sm">
-            <h2 className="text-lg font-semibold">Children</h2>
-            <ul className="mt-2 space-y-1">
+          <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+            <h2 className="text-lg font-semibold text-foreground">Children</h2>
+            <ul className="mt-4 space-y-2">
               {category.children.map((child) => (
-                <li key={child.id}>
+                <li key={child.id} className="rounded-lg border border-border bg-surface px-4 py-3">
                   <Link
                     href={`/admin/taxonomy/categories/${child.id}`}
-                    className="text-neutral-700 underline hover:text-neutral-900"
+                    className="font-semibold text-foreground hover:text-primary"
                   >
                     {child.name}
                   </Link>
-                  <span className="ml-2 font-mono text-xs text-neutral-500">{child.slug}</span>
+                  <span className="ml-2 font-mono text-xs text-subtle">{child.slug}</span>
                 </li>
               ))}
             </ul>

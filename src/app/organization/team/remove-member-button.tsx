@@ -42,11 +42,15 @@ export function RemoveMemberButton({
         type="button"
         onClick={remove}
         disabled={pending}
-        className="rounded border border-gray-300 px-3 py-1 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-red-300 dark:hover:bg-red-950"
+        className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg border border-destructive/40 bg-surface px-3 py-1.5 text-sm font-semibold text-destructive transition-colors hover:bg-destructive-light focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
       >
         {pending ? "Removing…" : "Remove"}
       </button>
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-1 text-xs text-destructive">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

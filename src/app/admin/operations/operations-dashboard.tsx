@@ -18,7 +18,7 @@ function formatTimestamp(ts: string | null): string {
 
 function Duration({ ms }: { ms: number | null }) {
   if (ms === null) return null;
-  return <span className="text-neutral-500"> ({ms}ms)</span>;
+  return <span className="text-subtle"> ({ms}ms)</span>;
 }
 
 function MaintenanceSection({
@@ -29,62 +29,62 @@ function MaintenanceSection({
   recent: MaintenanceRunSummary[];
 }) {
   return (
-    <section className="mt-6">
-      <h2 className="text-lg font-medium">Maintenance</h2>
+    <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <h2 className="text-lg font-semibold text-foreground">Maintenance</h2>
       {latest ? (
-        <div className="mt-2 rounded border border-neutral-200 p-4">
-          <div className="text-sm text-neutral-500">
+        <div className="mt-3">
+          <div className="text-sm text-muted">
             Last run: {formatTimestamp(latest.timestamp)}
             <Duration ms={latest.durationMs} />
           </div>
-          <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+          <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
             <div>
-              Expired jobs: <span className="font-medium">{latest.expiredJobs}</span>
+              <dt className="text-muted">Expired jobs</dt>
+              <dd className="font-medium text-foreground">{latest.expiredJobs}</dd>
             </div>
             <div>
-              Sources checked:{" "}
-              <span className="font-medium">{latest.sourcesChecked}</span>
+              <dt className="text-muted">Sources checked</dt>
+              <dd className="font-medium text-foreground">{latest.sourcesChecked}</dd>
             </div>
             <div>
-              Succeeded:{" "}
-              <span className="font-medium text-green-700">
-                {latest.sourcesSucceeded}
-              </span>
+              <dt className="text-muted">Succeeded</dt>
+              <dd className="font-medium text-success">{latest.sourcesSucceeded}</dd>
             </div>
             <div>
-              Failed:{" "}
-              <span
+              <dt className="text-muted">Failed</dt>
+              <dd
                 className={`font-medium ${
-                  latest.sourcesFailed > 0 ? "text-red-600" : "text-green-700"
+                  latest.sourcesFailed > 0 ? "text-destructive" : "text-success"
                 }`}
               >
                 {latest.sourcesFailed}
-              </span>
+              </dd>
             </div>
             <div>
-              Skipped: <span className="font-medium">{latest.sourcesSkipped}</span>
+              <dt className="text-muted">Skipped</dt>
+              <dd className="font-medium text-foreground">{latest.sourcesSkipped}</dd>
             </div>
-          </div>
+          </dl>
         </div>
       ) : (
-        <p className="mt-2 text-sm text-neutral-500">No maintenance runs recorded.</p>
+        <p className="mt-2 text-sm text-muted">No maintenance runs recorded.</p>
       )}
       {recent.length > 1 && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-sm text-neutral-500 hover:text-neutral-700">
+          <summary className="cursor-pointer text-sm text-muted hover:text-foreground">
             Recent history ({recent.length} runs)
           </summary>
           <div className="mt-2 space-y-2">
             {recent.map((run, i) => (
               <div
                 key={`${run.timestamp}-${i}`}
-                className="rounded border border-neutral-100 p-3 text-sm"
+                className="rounded-lg border border-border-subtle bg-surface-raised p-3 text-sm"
               >
-                <div className="text-neutral-500">
+                <div className="text-muted">
                   {formatTimestamp(run.timestamp)}
                   <Duration ms={run.durationMs} />
                 </div>
-                <div>
+                <div className="text-foreground">
                   Expired: {run.expiredJobs} | Checked: {run.sourcesChecked} |
                   Failed: {run.sourcesFailed}
                 </div>
@@ -105,77 +105,80 @@ function IngestionSection({
   recent: IngestionBatchSummary[];
 }) {
   return (
-    <section className="mt-6">
-      <h2 className="text-lg font-medium">Ingestion</h2>
+    <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <h2 className="text-lg font-semibold text-foreground">Ingestion</h2>
       {latest ? (
-        <div className="mt-2 rounded border border-neutral-200 p-4">
-          <div className="text-sm text-neutral-500">
+        <div className="mt-3">
+          <div className="text-sm text-muted">
             Last batch: {formatTimestamp(latest.timestamp)}
             <Duration ms={latest.durationMs} />
           </div>
           {latest.sourceName && (
-            <div className="mt-1 text-sm">Source: {latest.sourceName}</div>
+            <div className="mt-1 text-sm text-foreground">Source: {latest.sourceName}</div>
           )}
-          <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+          <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 text-sm sm:grid-cols-3">
             <div>
-              Created: <span className="font-medium text-green-700">{latest.created}</span>
+              <dt className="text-muted">Created</dt>
+              <dd className="font-medium text-success">{latest.created}</dd>
             </div>
             <div>
-              Updated: <span className="font-medium">{latest.updated}</span>
+              <dt className="text-muted">Updated</dt>
+              <dd className="font-medium text-foreground">{latest.updated}</dd>
             </div>
             <div>
-              Duplicate: <span className="font-medium">{latest.duplicate}</span>
+              <dt className="text-muted">Duplicate</dt>
+              <dd className="font-medium text-foreground">{latest.duplicate}</dd>
             </div>
             <div>
-              Failed:{" "}
-              <span
+              <dt className="text-muted">Failed</dt>
+              <dd
                 className={`font-medium ${
-                  latest.failed > 0 ? "text-red-600" : "text-green-700"
+                  latest.failed > 0 ? "text-destructive" : "text-success"
                 }`}
               >
                 {latest.failed}
-              </span>
+              </dd>
             </div>
             {latest.linked !== null && (
               <div>
-                Linked: <span className="font-medium">{latest.linked}</span>
+                <dt className="text-muted">Linked</dt>
+                <dd className="font-medium text-foreground">{latest.linked}</dd>
               </div>
             )}
             {latest.possibleDuplicate !== null && (
               <div>
-                Possible dupes:{" "}
-                <span className="font-medium">{latest.possibleDuplicate}</span>
+                <dt className="text-muted">Possible dupes</dt>
+                <dd className="font-medium text-foreground">{latest.possibleDuplicate}</dd>
               </div>
             )}
             {latest.total !== null && (
               <div>
-                Total: <span className="font-medium">{latest.total}</span>
+                <dt className="text-muted">Total</dt>
+                <dd className="font-medium text-foreground">{latest.total}</dd>
               </div>
             )}
-          </div>
+          </dl>
         </div>
       ) : (
-        <p className="mt-2 text-sm text-neutral-500">
-          No ingestion batches recorded.
-        </p>
+        <p className="mt-2 text-sm text-muted">No ingestion batches recorded.</p>
       )}
       {recent.length > 1 && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-sm text-neutral-500 hover:text-neutral-700">
+          <summary className="cursor-pointer text-sm text-muted hover:text-foreground">
             Recent history ({recent.length} batches)
           </summary>
           <div className="mt-2 space-y-2">
             {recent.map((batch, i) => (
               <div
                 key={`${batch.timestamp}-${i}`}
-                className="rounded border border-neutral-100 p-3 text-sm"
+                className="rounded-lg border border-border-subtle bg-surface-raised p-3 text-sm"
               >
-                <div className="text-neutral-500">
+                <div className="text-muted">
                   {formatTimestamp(batch.timestamp)}
                   <Duration ms={batch.durationMs} />
                   {batch.sourceName && ` — ${batch.sourceName}`}
                 </div>
-                <div>
+                <div className="text-foreground">
                   Created: {batch.created} | Updated: {batch.updated} |
                   Duplicate: {batch.duplicate} | Failed: {batch.failed}
                 </div>
@@ -190,29 +193,27 @@ function IngestionSection({
 
 function FailingSourcesSection({ sources }: { sources: FailingSource[] }) {
   return (
-    <section className="mt-6">
-      <h2 className="text-lg font-medium">Failing Sources</h2>
+    <section className="mt-6 rounded-xl border border-destructive/20 bg-destructive-light p-6 shadow-sm">
+      <h2 className="text-lg font-semibold text-foreground">Failing Sources</h2>
       {sources.length > 0 ? (
-        <div className="mt-2 space-y-2">
+        <div className="mt-3 space-y-2">
           {sources.map((source) => (
             <div
               key={source.id}
-              className="rounded border border-red-200 bg-red-50 p-3 text-sm"
+              className="rounded-lg border border-destructive/20 bg-surface p-4 text-sm"
             >
-              <div className="font-medium">{source.name}</div>
-              <div className="mt-1 text-red-600">
+              <div className="font-semibold text-foreground">{source.name}</div>
+              <div className="mt-1 text-destructive">
                 Consecutive failures: {source.consecutiveFailures}
               </div>
               {source.lastError && (
-                <div className="mt-1 text-neutral-600">
-                  Error: {source.lastError}
-                </div>
+                <div className="mt-1 text-muted">Error: {source.lastError}</div>
               )}
-              <div className="mt-1 text-neutral-500">
+              <div className="mt-1 text-muted">
                 Last attempted: {formatTimestamp(source.lastAttemptedCheck)}
               </div>
               {source.lastSuccessfulCheck && (
-                <div className="text-neutral-500">
+                <div className="text-muted">
                   Last success: {formatTimestamp(source.lastSuccessfulCheck)}
                 </div>
               )}
@@ -220,7 +221,7 @@ function FailingSourcesSection({ sources }: { sources: FailingSource[] }) {
           ))}
         </div>
       ) : (
-        <p className="mt-2 text-sm text-neutral-500">No failing sources.</p>
+        <p className="mt-2 text-sm text-muted">No failing sources.</p>
       )}
     </section>
   );

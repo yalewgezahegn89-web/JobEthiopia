@@ -17,11 +17,11 @@ export default async function AdminCategoryCreatePage() {
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <Link href="/admin/taxonomy/categories" className="text-sm text-neutral-600 underline">
+      <main className="mx-auto w-full max-w-4xl px-4 py-8">
+        <Link href="/admin/taxonomy/categories" className="text-sm font-medium text-muted hover:text-primary">
           &larr; Back to categories
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold">Create Category</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-foreground">Create Category</h1>
         <div className="mt-4">
           <CreateCategoryForm />
         </div>

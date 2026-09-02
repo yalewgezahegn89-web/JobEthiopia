@@ -7,9 +7,9 @@ export default function Loading() {
     >
       <span
         aria-hidden="true"
-        className="h-8 w-8 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900 dark:border-gray-700 dark:border-t-gray-100"
+        className="h-8 w-8 animate-spin rounded-full border-2 border-border border-t-primary"
       />
-      <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
+      <p className="text-sm font-medium text-muted">
         Loading…
       </p>
       <span className="sr-only">Loading</span>

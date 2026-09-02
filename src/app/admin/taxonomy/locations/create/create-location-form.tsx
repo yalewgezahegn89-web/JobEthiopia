@@ -16,14 +16,14 @@ export default function CreateLocationForm() {
 
   if (state.ok && state.redirect) {
     return (
-      <section className="rounded-lg border border-green-200 bg-green-50 p-4">
-        <h2 className="text-lg font-semibold text-green-900">Location created</h2>
-        <p className="mt-2 text-sm text-green-800">
+      <section className="mt-6 rounded-xl border border-border bg-success-light p-6 shadow-sm">
+        <h2 className="text-lg font-semibold text-success">Location created</h2>
+        <p className="mt-2 text-sm text-muted">
           The location was created successfully.
         </p>
         <Link
           href="/admin/taxonomy/locations"
-          className="mt-3 inline-block text-sm font-medium text-green-800 underline"
+          className="mt-3 inline-block text-sm font-medium text-success hover:text-primary"
         >
           &larr; Back to locations
         </Link>
@@ -32,11 +32,11 @@ export default function CreateLocationForm() {
   }
 
   return (
-    <section className="rounded-lg border border-neutral-200 p-4">
-      <h2 className="text-lg font-semibold">New location</h2>
-      <form action={formAction} className="mt-3 space-y-3">
+    <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+      <h2 className="text-lg font-semibold text-foreground">New location</h2>
+      <form action={formAction} className="mt-4 space-y-4">
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-neutral-700">
+          <label htmlFor="name" className="block text-sm font-medium text-foreground">
             Name
           </label>
           <input
@@ -44,12 +44,12 @@ export default function CreateLocationForm() {
             name="name"
             type="text"
             required
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+            className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           />
         </div>
 
         <div>
-          <label htmlFor="slug" className="block text-sm font-medium text-neutral-700">
+          <label htmlFor="slug" className="block text-sm font-medium text-foreground">
             Slug
           </label>
           <input
@@ -58,13 +58,13 @@ export default function CreateLocationForm() {
             type="text"
             required
             pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$"
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-mono"
+            className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground font-mono focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             placeholder="e.g. addis-ababa"
           />
         </div>
 
         <div>
-          <label htmlFor="type" className="block text-sm font-medium text-neutral-700">
+          <label htmlFor="type" className="block text-sm font-medium text-foreground">
             Type
           </label>
           <select
@@ -72,7 +72,7 @@ export default function CreateLocationForm() {
             name="type"
             required
             defaultValue=""
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+            className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             <option value="" disabled>
               Select a type
@@ -86,21 +86,21 @@ export default function CreateLocationForm() {
         </div>
 
         <div>
-          <label htmlFor="parentId" className="block text-sm font-medium text-neutral-700">
+          <label htmlFor="parentId" className="block text-sm font-medium text-foreground">
             Parent location ID (optional)
           </label>
           <input
             id="parentId"
             name="parentId"
             type="text"
-            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm font-mono"
+            className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground font-mono focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             placeholder="UUID or leave empty for root"
           />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="latitude" className="block text-sm font-medium text-neutral-700">
+            <label htmlFor="latitude" className="block text-sm font-medium text-foreground">
               Latitude
             </label>
             <input
@@ -110,11 +110,11 @@ export default function CreateLocationForm() {
               step="any"
               min="-90"
               max="90"
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             />
           </div>
           <div>
-            <label htmlFor="longitude" className="block text-sm font-medium text-neutral-700">
+            <label htmlFor="longitude" className="block text-sm font-medium text-foreground">
               Longitude
             </label>
             <input
@@ -124,7 +124,7 @@ export default function CreateLocationForm() {
               step="any"
               min="-180"
               max="180"
-              className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2 text-sm"
+              className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             />
           </div>
         </div>
@@ -132,13 +132,13 @@ export default function CreateLocationForm() {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-40"
+          className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
         >
           Create location
         </button>
       </form>
       {state.error && (
-        <p role="alert" className="mt-2 text-sm text-red-700">
+        <p role="alert" className="mt-2 text-sm text-destructive">
           {state.error}
         </p>
       )}

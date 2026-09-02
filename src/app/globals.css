@@ -1,21 +1,72 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FAFAF8;
+  --foreground: #1A1A1A;
+  --surface: #FFFFFF;
+  --surface-raised: #F5F4F0;
+  --muted: #6B6B6B;
+  --subtle: #A3A3A3;
+  --border: #E5E4E0;
+  --border-subtle: #EDECEA;
+  --primary: #0D7377;
+  --primary-hover: #0A5D60;
+  --primary-light: #E6F4F5;
+  --accent: #E8A838;
+  --accent-light: #FDF4E3;
+  --success: #16A34A;
+  --success-light: #DCFCE7;
+  --warning: #E8A838;
+  --warning-light: #FEF3C7;
+  --destructive: #DC2626;
+  --destructive-light: #FEE2E2;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-border: var(--border);
+  --color-border-subtle: var(--border-subtle);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-light: var(--primary-light);
+  --color-accent: var(--accent);
+  --color-accent-light: var(--accent-light);
+  --color-success: var(--success);
+  --color-success-light: var(--success-light);
+  --color-warning: var(--warning);
+  --color-warning-light: var(--warning-light);
+  --color-destructive: var(--destructive);
+  --color-destructive-light: var(--destructive-light);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #0F0F0F;
+    --foreground: #EDECEA;
+    --surface: #1A1A1A;
+    --surface-raised: #242424;
+    --muted: #9A9A9A;
+    --subtle: #6B6B6B;
+    --border: #2E2E2E;
+    --border-subtle: #242424;
+    --primary: #2DB5B9;
+    --primary-hover: #3CC5C9;
+    --primary-light: #0D3537;
+    --accent: #F0B94D;
+    --accent-light: #3D2E10;
+    --success: #22C55E;
+    --success-light: #0D3318;
+    --warning: #F0B94D;
+    --warning-light: #3D2E10;
+    --destructive: #EF4444;
+    --destructive-light: #3B1111;
   }
 }
 
@@ -23,4 +74,18 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Smooth transitions for interactive elements */
+a, button, input, select, textarea {
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+}
+
+/* Focus ring utility */
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }

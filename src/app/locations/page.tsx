@@ -3,7 +3,13 @@ import Link from "next/link";
 import {
   fetchLocations,
   type PublicLocationList,
+  type PublicLocationSummary,
 } from "@/lib/locations/public";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+import { PageHeader } from "@/components/public/page-header";
+import { EmptyState } from "@/components/public/empty-state";
+import { Pagination } from "@/components/public/pagination";
+import { PinIcon, GlobeIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -46,14 +52,14 @@ export default async function LocationsPage({
 
   if (loadError) {
     return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-12 text-center">
+      <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
         <h1 className="text-2xl font-bold">Locations</h1>
-        <p className="mt-4 text-gray-600 dark:text-gray-300">
+        <p className="mt-4 text-muted">
           We could not load locations right now. Please try again shortly.
         </p>
         <Link
           href="/locations"
-          className="mt-6 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
+          className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           Retry
         </Link>
@@ -78,82 +84,83 @@ export default async function LocationsPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8">
-      <h1 className="text-3xl font-bold tracking-tight">Locations</h1>
-      <p className="mt-1 text-gray-600 dark:text-gray-300">
-        Browse job locations across Ethiopia.
-      </p>
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
+      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Locations" }]} />
+
+      <div className="mt-4">
+        <PageHeader
+          eyebrow="Explore by region"
+          title="Locations"
+          description="Explore jobs by location and find opportunities near you across Ethiopia."
+        />
+      </div>
+
+      <div className="mt-4 flex items-center gap-2 text-sm text-muted">
+        <GlobeIcon className="h-4 w-4 text-primary" />
+        <span>Countries, regions, cities, and districts</span>
+      </div>
 
       {items.length === 0 ? (
-        <div
-          className="mt-10 rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700"
-          role="status"
-        >
-          <h2 className="text-lg font-semibold">No locations found</h2>
-          <p className="mt-1 text-gray-600 dark:text-gray-300">
-            There are no active locations to show right now.
-          </p>
-        </div>
+        <EmptyState
+          icon={<PinIcon className="h-7 w-7" />}
+          heading="No locations found"
+          body="There are no active locations to show right now. Check back soon."
+        />
       ) : (
         <>
-          <ul className="mt-6 grid gap-4 sm:grid-cols-2">
-            {items.map((location) => (
-              <li key={location.id}>
-                <Link
-                  href={`/locations/${location.id}`}
-                  className="block h-full rounded-lg border border-gray-200 p-4 transition-colors hover:border-blue-400 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-800 dark:hover:bg-gray-900"
-                >
-                  <h2 className="text-lg font-semibold text-blue-700 dark:text-blue-400">
-                    {location.name}
-                  </h2>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
-                    <span className="rounded-md bg-gray-100 px-2 py-1 dark:bg-gray-800">
-                      {location.type.replace("_", " ")}
-                    </span>
-                  </div>
-                </Link>
+          <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((location, index) => (
+              <li key={location.id} className="h-full">
+                <LocationCard location={location} index={index} />
               </li>
             ))}
           </ul>
 
-          {totalPages > 1 && (
-            <nav
-              className="mt-8 flex items-center justify-between gap-4"
-              aria-label="Pagination"
-            >
-              {currentPage > 1 ? (
-                <Link
-                  href={hrefWithPage(currentPage - 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Previous
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Previous
-                </span>
-              )}
-
-              <span className="text-sm text-gray-600 dark:text-gray-300">
-                Page {currentPage} of {totalPages}
-              </span>
-
-              {currentPage < totalPages ? (
-                <Link
-                  href={hrefWithPage(currentPage + 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Next
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Next
-                </span>
-              )}
-            </nav>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            hrefForPage={hrefWithPage}
+          />
         </>
       )}
     </div>
+  );
+}
+
+function LocationCard({
+  location,
+  index,
+}: {
+  location: PublicLocationSummary;
+  index: number;
+}) {
+  const amber = index % 2 === 1;
+  return (
+    <Link
+      href={`/locations/${location.id}`}
+      className="group flex h-full items-center gap-4 rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+    >
+      <span
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg ${
+          amber ? "bg-accent-light text-warning" : "bg-primary-light text-primary"
+        }`}
+      >
+        <PinIcon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <h2 className="line-clamp-1 text-base font-semibold tracking-tight text-foreground">
+          {location.name}
+        </h2>
+        <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-subtle">
+          {location.type.replace("_", " ")}
+        </p>
+      </div>
+      <span
+        aria-hidden="true"
+        className="text-subtle transition-transform duration-200 group-hover:translate-x-0.5"
+      >
+        →
+      </span>
+    </Link>
   );
 }

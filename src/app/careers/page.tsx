@@ -5,6 +5,11 @@ import {
   type PublicArticleList,
   type PublicArticleSummary,
 } from "@/lib/careerArticles/public";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+import { PageHeader } from "@/components/public/page-header";
+import { EmptyState } from "@/components/public/empty-state";
+import { Pagination } from "@/components/public/pagination";
+import { BookIcon, CalendarIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -60,15 +65,15 @@ export default async function CareersPage({
 
   if (loadError) {
     return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-12 text-center">
+      <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
         <h1 className="text-2xl font-bold">Career Resources</h1>
-        <p className="mt-4 text-gray-600 dark:text-gray-300">
+        <p className="mt-4 text-muted">
           We could not load career resources right now. Please try again
           shortly.
         </p>
         <Link
           href="/careers"
-          className="mt-6 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
+          className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           Retry
         </Link>
@@ -83,6 +88,8 @@ export default async function CareersPage({
   const totalPages = pagination.totalPages;
 
   const categories = uniqueSortedCategories(items);
+  const featured = items[0] ?? null;
+  const rest = featured ? items.slice(1) : items;
 
   function hrefWithPage(targetPage: number): string {
     const query = new URLSearchParams();
@@ -94,138 +101,150 @@ export default async function CareersPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8">
-      <h1 className="text-3xl font-bold tracking-tight">Career Resources</h1>
-      <p className="mt-1 text-gray-600 dark:text-gray-300">
-        Career advice and resources to help you grow.
-      </p>
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
+      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Careers" }]} />
 
-      <form
-        action="/careers"
-        method="get"
-        className="mt-6 flex flex-col gap-3 rounded-lg border border-gray-200 p-4 dark:border-gray-800"
-      >
-        <div className="grid gap-3 sm:grid-cols-3 sm:items-end">
-          <div className="sm:col-span-2">
-            <label htmlFor="category" className="text-sm font-semibold">
-              Category
-            </label>
-            <select
-              id="category"
-              name="category"
-              defaultValue={category ?? ""}
-              className="mt-1 w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-900"
-            >
-              <option value="">All categories</option>
-              {categories.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </div>
+      <div className="mt-4">
+        <PageHeader
+          eyebrow="Career resources"
+          title="Career resources"
+          description="Practical advice and guidance to help you grow your career and land the right role."
+        />
+      </div>
 
-          <div className="flex flex-wrap justify-end gap-2">
+      {categories.length > 0 && (
+        <nav
+          aria-label="Article categories"
+          className="mt-6 flex flex-wrap items-center gap-2"
+        >
             {category && (
               <Link
                 href="/careers"
-                className="rounded-md px-4 py-2 text-sm font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-gray-100"
+                className="inline-flex items-center rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                Clear filters
+                All
               </Link>
             )}
-            <button
-              type="submit"
-              className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
-            >
-              Filter
-            </button>
-          </div>
-        </div>
-      </form>
+            {categories.map((name) => {
+              const active = category === name;
+              return (
+                <Link
+                  key={name}
+                  href={active ? "/careers" : `/careers?category=${encodeURIComponent(name)}`}
+                  aria-current={active ? "page" : undefined}
+                  className={`inline-flex items-center rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                    active
+                      ? "bg-primary text-white"
+                      : "border border-border bg-surface text-muted hover:bg-surface-raised"
+                  }`}
+                >
+                  {name}
+                </Link>
+              );
+            })}
+        </nav>
+      )}
 
       {items.length === 0 ? (
-        <div
-          className="mt-10 rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700"
-          role="status"
-        >
-          <h2 className="text-lg font-semibold">No articles found</h2>
-          <p className="mt-1 text-gray-600 dark:text-gray-300">
-            Try a different category or check back later.
-          </p>
-        </div>
+        <EmptyState
+          icon={<BookIcon className="h-7 w-7" />}
+          heading="No career resources yet"
+          body="Try a different category or check back later."
+        />
       ) : (
         <>
-          <ul className="mt-6 space-y-4">
-            {items.map((article) => (
-              <li key={article.id}>
-                <Link
-                  href={`/careers/${article.id}`}
-                  className="block rounded-lg border border-gray-200 p-4 transition-colors hover:border-blue-400 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-900"
-                >
-                  <h2 className="text-lg font-semibold text-blue-700 dark:text-blue-400">
-                    {article.title}
-                  </h2>
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300">
-                    {article.category && (
-                      <span className="rounded-md bg-gray-100 px-2 py-1 dark:bg-gray-800">
-                        {article.category}
-                      </span>
-                    )}
-                    {article.publishedAt && (
-                      <span className="rounded-md bg-gray-100 px-2 py-1 dark:bg-gray-800">
-                        Published {article.publishedAt}
-                      </span>
-                    )}
-                  </div>
-                  {article.excerpt && (
-                    <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                      {article.excerpt}
-                    </p>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
+          {featured && <FeaturedArticle article={featured} />}
 
-          {totalPages > 1 && (
-            <nav
-              className="mt-8 flex items-center justify-between gap-4"
-              aria-label="Pagination"
-            >
-              {currentPage > 1 ? (
-                <Link
-                  href={hrefWithPage(currentPage - 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Previous
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Previous
-                </span>
-              )}
-
-              <span className="text-sm text-gray-600 dark:text-gray-300">
-                Page {currentPage} of {totalPages}
-              </span>
-
-              {currentPage < totalPages ? (
-                <Link
-                  href={hrefWithPage(currentPage + 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Next
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Next
-                </span>
-              )}
-            </nav>
+          {rest.length > 0 && (
+            <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {rest.map((article) => (
+                <li key={article.id} className="h-full">
+                  <ArticleCard article={article} />
+                </li>
+              ))}
+            </ul>
           )}
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            hrefForPage={hrefWithPage}
+          />
         </>
       )}
     </div>
+  );
+}
+
+function FeaturedArticle({
+  article,
+}: {
+  article: PublicArticleSummary;
+}) {
+  return (
+    <article className="group mt-8 rounded-xl border border-border bg-surface shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md">
+      <div className="grid gap-0 lg:grid-cols-[1fr_1.4fr]">
+        <div className="flex items-center justify-center rounded-t-xl bg-accent-light lg:rounded-l-xl lg:rounded-tr-none">
+          <BookIcon className="h-14 w-14 text-warning" />
+        </div>
+        <div className="p-6 sm:p-7">
+          {article.category && (
+            <span className="inline-flex rounded-full bg-accent-light px-2.5 py-0.5 text-xs font-semibold text-warning">
+              {article.category}
+            </span>
+          )}
+          <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground">
+            <Link
+              href={`/careers/${article.id}`}
+              className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary group-hover:text-primary"
+            >
+              {article.title}
+            </Link>
+          </h2>
+          {article.excerpt && (
+            <p className="mt-2 line-clamp-3 text-base leading-7 text-muted">
+              {article.excerpt}
+            </p>
+          )}
+          {article.publishedAt && (
+            <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-subtle">
+              <CalendarIcon className="h-3.5 w-3.5" />
+              Published {article.publishedAt}
+            </p>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function ArticleCard({ article }: { article: PublicArticleSummary }) {
+  return (
+    <Link
+      href={`/careers/${article.id}`}
+      className="group flex h-full flex-col rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+    >
+      <div className="flex items-center gap-2">
+        {article.category && (
+          <span className="inline-flex rounded-full bg-accent-light px-2.5 py-0.5 text-xs font-semibold text-warning">
+            {article.category}
+          </span>
+        )}
+      </div>
+      <h3 className="mt-3 text-base font-semibold leading-snug tracking-tight text-foreground group-hover:text-primary">
+        {article.title}
+      </h3>
+      {article.excerpt && (
+        <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted">
+          {article.excerpt}
+        </p>
+      )}
+      {article.publishedAt && (
+        <p className="mt-auto inline-flex items-center gap-1.5 pt-4 text-xs text-subtle">
+          <CalendarIcon className="h-3.5 w-3.5" />
+          Published {article.publishedAt}
+        </p>
+      )}
+    </Link>
   );
 }

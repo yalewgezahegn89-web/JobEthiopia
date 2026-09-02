@@ -14,8 +14,8 @@ export default function SiteFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-gray-200 dark:border-gray-800">
-      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-6 text-sm text-gray-500 dark:text-gray-400">
+    <footer className="border-t border-border-subtle bg-surface">
+      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-4 px-4 py-8 text-sm text-muted sm:px-6 lg:px-8">
         <p>&copy; {year} JobEthiopia</p>
         <nav aria-label="Footer">
           <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">
@@ -23,7 +23,7 @@ export default function SiteFooter() {
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="font-medium text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  className="font-medium text-muted hover:text-primary transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   {link.label}
                 </Link>

@@ -37,8 +37,8 @@ export default async function AdminSourceDetailPage({
     return (
       <div>
         <AdminNav />
-        <main className="mx-auto w-full max-w-3xl px-4 py-8">
-          <p className="text-neutral-600">
+        <main className="mx-auto w-full max-w-4xl px-4 py-8">
+          <p className="text-sm text-destructive">
             We could not load this source right now. Please try again shortly.
           </p>
         </main>
@@ -53,93 +53,104 @@ export default async function AdminSourceDetailPage({
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <Link href="/admin/sources" className="text-sm text-neutral-600 underline">
+      <main className="mx-auto w-full max-w-4xl px-4 py-8">
+        <Link href="/admin/sources" className="text-sm font-medium text-muted hover:text-primary">
           &larr; Back to sources
         </Link>
 
-        <h1 className="mt-2 text-2xl font-semibold">{source.name}</h1>
-        <p className="mt-1 text-sm text-neutral-600">
-          Type: <strong>{source.sourceType}</strong> · Trust:{" "}
-          <strong>{source.trustLevel}</strong> · Status:{" "}
-          <strong className={source.isActive ? "text-green-700" : "text-red-700"}>
+        <h1 className="mt-2 text-2xl font-semibold text-foreground">{source.name}</h1>
+        <p className="mt-2 text-sm text-muted">
+          <span className="font-medium text-foreground">Type:</span>{" "}
+          <span className="inline-flex items-center rounded-full border border-border-subtle bg-surface-raised px-2.5 py-0.5 text-xs font-semibold text-muted">
+            {source.sourceType}
+          </span>{" "}
+          <span className="font-medium text-foreground">Trust:</span>{" "}
+          <span className="inline-flex items-center rounded-full border border-border-subtle bg-surface-raised px-2.5 py-0.5 text-xs font-semibold text-muted">
+            {source.trustLevel}
+          </span>{" "}
+          <span className="font-medium text-foreground">Status:</span>{" "}
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              source.isActive ? "bg-success-light text-success" : "bg-destructive-light text-destructive"
+            }`}
+          >
             {source.isActive ? "Active" : "Inactive"}
-          </strong>
+          </span>
         </p>
 
         <div className="mt-4">
           <SourceDetail source={source} />
         </div>
 
-        <section className="mt-6 space-y-2 text-sm">
-          <h2 className="text-lg font-semibold">Health</h2>
-          <dl className="grid gap-2 sm:grid-cols-2">
+        <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-foreground">Health</h2>
+          <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
             <div>
-              <dt className="text-neutral-500">Last successful check</dt>
-              <dd>{source.lastSuccessfulCheck ? new Date(source.lastSuccessfulCheck).toLocaleString() : "Never"}</dd>
+              <dt className="text-sm text-muted">Last successful check</dt>
+              <dd className="text-sm font-medium text-foreground">{source.lastSuccessfulCheck ? new Date(source.lastSuccessfulCheck).toLocaleString() : "Never"}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Last attempted check</dt>
-              <dd>{source.lastAttemptedCheck ? new Date(source.lastAttemptedCheck).toLocaleString() : "Never"}</dd>
+              <dt className="text-sm text-muted">Last attempted check</dt>
+              <dd className="text-sm font-medium text-foreground">{source.lastAttemptedCheck ? new Date(source.lastAttemptedCheck).toLocaleString() : "Never"}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Last error</dt>
-              <dd className={source.lastError ? "text-red-700" : ""}>
+              <dt className="text-sm text-muted">Last error</dt>
+              <dd className={`text-sm font-medium ${source.lastError ? "text-destructive" : "text-foreground"}`}>
                 {source.lastError ?? "None"}
               </dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Consecutive failures</dt>
-              <dd className={source.consecutiveFailures > 0 ? "text-red-700 font-medium" : ""}>
+              <dt className="text-sm text-muted">Consecutive failures</dt>
+              <dd className={`text-sm font-medium ${source.consecutiveFailures > 0 ? "text-destructive" : "text-foreground"}`}>
                 {source.consecutiveFailures}
               </dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Check frequency (minutes)</dt>
-              <dd>{source.checkFrequencyMinutes ?? "Not configured"}</dd>
+              <dt className="text-sm text-muted">Check frequency (minutes)</dt>
+              <dd className="text-sm font-medium text-foreground">{source.checkFrequencyMinutes ?? "Not configured"}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Base URL</dt>
-              <dd>{source.baseUrl ?? "Not configured"}</dd>
+              <dt className="text-sm text-muted">Base URL</dt>
+              <dd className="text-sm font-medium text-foreground">{source.baseUrl ?? "Not configured"}</dd>
             </div>
           </dl>
         </section>
 
-        <section className="mt-6 space-y-2 text-sm">
-          <h2 className="text-lg font-semibold">Details</h2>
-          <dl className="grid gap-2 sm:grid-cols-2">
+        <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-foreground">Details</h2>
+          <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
             <div>
-              <dt className="text-neutral-500">Created</dt>
-              <dd>{new Date(source.createdAt).toLocaleDateString()}</dd>
+              <dt className="text-sm text-muted">Created</dt>
+              <dd className="text-sm font-medium text-foreground">{new Date(source.createdAt).toLocaleDateString()}</dd>
             </div>
             <div>
-              <dt className="text-neutral-500">Updated</dt>
-              <dd>{new Date(source.updatedAt).toLocaleDateString()}</dd>
+              <dt className="text-sm text-muted">Updated</dt>
+              <dd className="text-sm font-medium text-foreground">{new Date(source.updatedAt).toLocaleDateString()}</dd>
             </div>
           </dl>
         </section>
 
-        <section className="mt-6">
-          <h2 className="text-lg font-semibold">Audit history</h2>
+        <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">
+          <h2 className="text-lg font-semibold text-foreground">Audit history</h2>
           {audit.length === 0 ? (
-            <p className="mt-2 text-sm text-neutral-600">
+            <p className="mt-2 text-sm text-muted">
               No management events recorded yet.
             </p>
           ) : (
-            <ul className="mt-2 space-y-2 text-sm">
+            <ul className="mt-3 space-y-3">
               {audit.map((entry) => (
-                <li key={entry.id} className="rounded-md border border-neutral-200 p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{entry.action}</span>
-                    <span className="text-xs text-neutral-500">
+                <li key={entry.id} className="rounded-lg border border-border bg-surface p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <span className="font-semibold text-foreground">{entry.action}</span>
+                    <span className="text-sm text-muted">
                       {new Date(entry.createdAt).toLocaleString()}
                     </span>
                   </div>
-                  <div className="mt-1 text-xs text-neutral-500">
+                  <div className="mt-1 text-sm text-muted">
                     by {entry.actorEmail ?? "system"}
                   </div>
                   {entry.metadata ? (
-                    <pre className="mt-1 overflow-x-auto text-xs text-neutral-600">
+                    <pre className="mt-2 overflow-x-auto rounded-lg bg-surface-raised p-3 text-xs text-muted">
                       {JSON.stringify(entry.metadata, null, 2)}
                     </pre>
                   ) : null}

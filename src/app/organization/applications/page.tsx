@@ -9,6 +9,9 @@ import {
 import type { ApplicationStatus } from "@/lib/applications/dal";
 import type { ApplicationSort } from "@/lib/employer/applications";
 import { BulkApplicationActions } from "@/components/employer/bulk-application-actions";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+import { EmptyState } from "@/components/public/empty-state";
+import { UserIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +19,17 @@ export const metadata: Metadata = {
   title: "Applications | JobEthiopia Employer",
   description: "Review applications submitted to your organization's jobs.",
 };
+
+const STATUS_LABELS: Record<string, string> = {
+  SUBMITTED: "Submitted",
+  REVIEWING: "Reviewing",
+  SHORTLISTED: "Shortlisted",
+  REJECTED: "Rejected",
+  WITHDRAWN: "Withdrawn",
+};
+
+const selectClass =
+  "mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20";
 
 export default async function EmployerApplicationsPage({
   searchParams,
@@ -111,26 +125,38 @@ export default async function EmployerApplicationsPage({
 
   return (
     <div>
-      <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-        Applications
-      </h1>
-      <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-        Applications submitted to your organization&apos;s jobs.
-      </p>
+      <Breadcrumb
+        items={[{ label: "Home", href: "/organization" }, { label: "Applications" }]}
+      />
 
-      <form method="get" className="mt-4 flex flex-wrap items-end gap-3">
+      <div className="mt-4">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
+          Employer workspace
+        </p>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+          Applications
+        </h1>
+        <p className="mt-1 text-sm text-muted">
+          Applications submitted to your organization&apos;s jobs.
+        </p>
+      </div>
+
+      <form
+        method="get"
+        className="mt-6 grid grid-cols-1 gap-4 rounded-xl border border-border bg-surface p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4"
+      >
         <label className="flex flex-col gap-1 text-sm">
-          Status
+          <span className="font-medium text-foreground">Status</span>
           <select
             name="status"
             defaultValue={status ?? ""}
-            className="rounded-md border border-gray-300 px-2 py-1 dark:border-gray-700 dark:bg-gray-800"
+            className={selectClass}
           >
             <option value="">All statuses</option>
             {["SUBMITTED", "REVIEWING", "SHORTLISTED", "REJECTED", "WITHDRAWN"].map(
               (s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {STATUS_LABELS[s]}
                 </option>
               ),
             )}
@@ -138,11 +164,11 @@ export default async function EmployerApplicationsPage({
         </label>
         {jobOptions.length > 0 && (
           <label className="flex flex-col gap-1 text-sm">
-            Job
+            <span className="font-medium text-foreground">Job</span>
             <select
               name="jobId"
               defaultValue={jobId ?? ""}
-              className="rounded-md border border-gray-300 px-2 py-1 dark:border-gray-700 dark:bg-gray-800"
+              className={selectClass}
             >
               <option value="">All jobs</option>
               {jobOptions.map((j) => (
@@ -154,49 +180,51 @@ export default async function EmployerApplicationsPage({
           </label>
         )}
         <label className="flex flex-col gap-1 text-sm">
-          Sort
+          <span className="font-medium text-foreground">Sort</span>
           <select
             name="sort"
             defaultValue={sort}
-            className="rounded-md border border-gray-300 px-2 py-1 dark:border-gray-700 dark:bg-gray-800"
+            className={selectClass}
           >
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="updated">Recently updated</option>
           </select>
         </label>
-        <button
-          type="submit"
-          className="rounded-md border border-gray-300 px-3 py-1 text-sm dark:border-gray-700"
-        >
-          Filter
-        </button>
-        {hasActiveFilters && (
-          <Link
-            href="/organization/applications"
-            className="rounded-md border border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-400"
+        <div className="flex items-end gap-2">
+          <button
+            type="submit"
+            className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            Clear filters
-          </Link>
-        )}
+            Filter
+          </button>
+          {hasActiveFilters && (
+            <Link
+              href="/organization/applications"
+              className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-muted transition-colors hover:bg-surface-raised hover:text-foreground focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Clear filters
+            </Link>
+          )}
+        </div>
       </form>
 
       {loadError ? (
-        <div className="mt-6 rounded-lg border border-gray-200 p-8 text-center dark:border-gray-800">
-          <p className="text-gray-600 dark:text-gray-400">
-            Could not load applications. Please try again shortly.
-          </p>
-        </div>
+        <EmptyState
+          icon={<UserIcon className="h-7 w-7" />}
+          heading="Applications"
+          body="Could not load applications. Please try again shortly."
+        />
       ) : items.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-gray-200 p-8 text-center dark:border-gray-800">
-          <p className="text-gray-600 dark:text-gray-400">
-            No applications found.
-          </p>
-        </div>
+        <EmptyState
+          icon={<UserIcon className="h-7 w-7" />}
+          heading="No applications found"
+          body="No applications match your current filters."
+        />
       ) : (
         <>
-          <p className="mt-4 text-sm text-gray-500">
-            {total} application{total === 1 ? "" : "s"} total
+          <p className="mt-4 text-sm text-muted">
+            {`${total} application${total === 1 ? "" : "s"} total`}
           </p>
           <BulkApplicationActions
             key={`${status ?? "all"}-${jobId ?? "all"}-${sort}-${page}`}
@@ -212,25 +240,28 @@ export default async function EmployerApplicationsPage({
             }))}
           />
           {totalPages > 1 && (
-            <nav className="mt-4 flex items-center justify-between">
+            <nav
+              aria-label="Applications pagination"
+              className="mt-4 flex items-center justify-between gap-3"
+            >
               <div className="flex gap-1">
                 {page > 1 && (
                   <a
                     href={buildFilterUrl({ page: page - 1 })}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700"
+                    className="focus-visible:outline-2 rounded-lg border border-border bg-surface px-4 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary"
                   >
                     Previous
                   </a>
                 )}
               </div>
-              <span className="text-sm text-gray-500">
+              <span className="text-sm text-muted">
                 Page {page} of {totalPages}
               </span>
               <div className="flex gap-1">
                 {page < totalPages && (
                   <a
                     href={buildFilterUrl({ page: page + 1 })}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm dark:border-gray-700"
+                    className="focus-visible:outline-2 rounded-lg border border-border bg-surface px-4 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary"
                   >
                     Next
                   </a>
