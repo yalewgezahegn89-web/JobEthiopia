@@ -14,9 +14,17 @@
  *     request is rejected. Server Actions / forms run within the app origin,
  *     so a missing origin on a state-changing request is treated as unsafe.
  *
- * The trusted origin is taken from APP_BASE_URL, falling back to
- * http://localhost:3000 for local development. Internal configuration is never
- * exposed in the returned error.
+ * Trusted origins:
+ *   - Always: the canonical origin derived from APP_BASE_URL (falling back to
+ *     http://localhost:3000 for local development).
+ *   - Vercel Preview only (VERCEL_ENV === "preview"): the exact current
+ *     deployment origin, built from https://${VERCEL_URL}. This is matched as
+ *     an exact origin, so arbitrary or unrelated *.vercel.app hosts, subdomains
+ *     of the canonical host, and strings that merely contain a trusted hostname
+ *     remain rejected. Production deployments intentionally trust only the
+ *     canonical APP_BASE_URL origin.
+ *
+ * Internal configuration is never exposed in the returned error.
  */
 import { headers } from "next/headers";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
@@ -53,13 +61,39 @@ export function getTrustedOrigin(): string | null {
 }
 
 /**
+ * Returns the complete set of origins trusted for CSRF validation.
+ *
+ * The canonical APP_BASE_URL origin is always trusted. In Vercel Preview only,
+ * the exact current deployment origin (https://${VERCEL_URL}) is added so the
+ * polished Preview login can authenticate. The deployment origin is derived and
+ * then parsed, so it is trusted only when it yields a valid http(s) origin and
+ * is matched by exact string equality.
+ */
+export function getTrustedOrigins(): Set<string> {
+  const trusted = new Set<string>();
+
+  const canonical = getTrustedOrigin();
+  if (canonical) trusted.add(canonical);
+
+  if (process.env.VERCEL_ENV === "preview") {
+    const deploymentHost = process.env.VERCEL_URL;
+    if (deploymentHost && !deploymentHost.includes("://")) {
+      const deploymentOrigin = parseOrigin(`https://${deploymentHost}`);
+      if (deploymentOrigin) trusted.add(deploymentOrigin);
+    }
+  }
+
+  return trusted;
+}
+
+/**
  * Validates a request context. Returns true when the supplied Origin (or
- * Referer fallback) matches the trusted application origin. Throws CsrfError
- * when the request is untrusted or ambiguous.
+ * Referer fallback) matches one of the trusted application origins. Throws
+ * CsrfError when the request is untrusted or ambiguous.
  */
 export function assertTrustedCsrf(context: CsrfContext): boolean {
-  const trusted = getTrustedOrigin();
-  if (!trusted) throw new CsrfError();
+  const trustedOrigins = getTrustedOrigins();
+  if (trustedOrigins.size === 0) throw new CsrfError();
 
   const candidateValue = context.origin ?? context.referer ?? null;
   if (!candidateValue) {
@@ -67,7 +101,7 @@ export function assertTrustedCsrf(context: CsrfContext): boolean {
   }
 
   const candidateOrigin = parseOrigin(candidateValue);
-  if (!candidateOrigin || candidateOrigin !== trusted) {
+  if (!candidateOrigin || !trustedOrigins.has(candidateOrigin)) {
     throw new CsrfError();
   }
 

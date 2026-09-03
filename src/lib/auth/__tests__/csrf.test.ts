@@ -17,6 +17,7 @@ import {
   parseOrigin,
   getAppBaseUrl,
   getTrustedOrigin,
+  getTrustedOrigins,
 } from "@/lib/auth/csrf";
 
 beforeEach(() => {
@@ -59,6 +60,101 @@ describe("getTrustedOrigin", () => {
   it("falls back to localhost for local development", () => {
     vi.stubEnv("APP_BASE_URL", "");
     expect(getTrustedOrigin()).toBe("http://localhost:3000");
+  });
+});
+
+describe("Vercel Preview trusted origins", () => {
+  it("adds the exact current Preview deployment origin when VERCEL_ENV=preview", () => {
+    vi.stubEnv("APP_BASE_URL", "https://jobs.et");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv(
+      "VERCEL_URL",
+      "jobethiopia-staging-c4diapfup-instagrambirr-9264.vercel.app",
+    );
+    expect(getTrustedOrigins()).toEqual(
+      new Set([
+        "https://jobs.et",
+        "https://jobethiopia-staging-c4diapfup-instagrambirr-9264.vercel.app",
+      ]),
+    );
+  });
+
+  it("accepts the exact current Preview deployment origin in preview", () => {
+    vi.stubEnv("APP_BASE_URL", "https://jobs.et");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "jobethiopia-staging-abc123.vercel.app");
+    expect(() =>
+      assertTrustedCsrf({
+        origin: "https://jobethiopia-staging-abc123.vercel.app",
+      }),
+    ).not.toThrow();
+  });
+
+  it("still accepts the exact canonical production origin in preview", () => {
+    vi.stubEnv("APP_BASE_URL", "https://jobs.et");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "jobethiopia-staging-abc123.vercel.app");
+    expect(() => assertTrustedCsrf({ origin: "https://jobs.et" })).not.toThrow();
+  });
+
+  it("rejects an arbitrary, unrelated Vercel deployment origin in preview", () => {
+    vi.stubEnv("APP_BASE_URL", "https://jobs.et");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "jobethiopia-staging-abc123.vercel.app");
+    expect(() =>
+      assertTrustedCsrf({
+        origin: "https://some-other-project-xyz123.vercel.app",
+      }),
+    ).toThrow(CsrfError);
+  });
+
+  it("rejects a lookalike Vercel origin that only contains the trusted deployment host", () => {
+    vi.stubEnv("APP_BASE_URL", "https://jobs.et");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "jobethiopia-staging-abc123.vercel.app");
+    expect(() =>
+      assertTrustedCsrf({
+        origin: "https://jobethiopia-staging-abc123.vercel.app.evil.example",
+      }),
+    ).toThrow(CsrfError);
+    expect(() =>
+      assertTrustedCsrf({
+        origin: "https://evil-jobethiopia-staging-abc123.vercel.app",
+      }),
+    ).toThrow(CsrfError);
+  });
+
+  it("rejects a different scheme for the trusted Preview deployment origin", () => {
+    vi.stubEnv("APP_BASE_URL", "https://jobs.et");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "jobethiopia-staging-abc123.vercel.app");
+    expect(() =>
+      assertTrustedCsrf({
+        origin: "http://jobethiopia-staging-abc123.vercel.app",
+      }),
+    ).toThrow(CsrfError);
+  });
+
+  it("does not trust the deployment origin outside of preview", () => {
+    vi.stubEnv("APP_BASE_URL", "https://jobs.et");
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("VERCEL_URL", "jobethiopia-staging-abc123.vercel.app");
+    expect(getTrustedOrigins()).toEqual(new Set(["https://jobs.et"]));
+    expect(() =>
+      assertTrustedCsrf({
+        origin: "https://jobethiopia-staging-abc123.vercel.app",
+      }),
+    ).toThrow(CsrfError);
+  });
+
+  it("ignores a missing or unparsable VERCEL_URL in preview", () => {
+    vi.stubEnv("APP_BASE_URL", "https://jobs.et");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("VERCEL_URL", "");
+    expect(getTrustedOrigins()).toEqual(new Set(["https://jobs.et"]));
+
+    vi.stubEnv("VERCEL_URL", "https://already-has-scheme.vercel.app");
+    expect(getTrustedOrigins()).toEqual(new Set(["https://jobs.et"]));
   });
 });
 
