@@ -11,6 +11,7 @@ export {
   userRoleEnum,
   applicationStatusEnum,
   employerOnboardingRequestStatusEnum,
+  authProviderEnum,
 } from "./enums";
 
 export { locations } from "./locations";
@@ -32,3 +33,5 @@ export { employerOnboardingRequests } from "./employerOnboardingRequests";
 export { auditLog } from "./auditLog";
 export { savedJobs } from "./savedJobs";
 export { applicationNotes } from "./applicationNotes";
+export { authAccounts } from "./authAccounts";
+export { phoneVerifications } from "./phoneVerifications";

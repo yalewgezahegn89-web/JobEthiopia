@@ -88,3 +88,11 @@ export const employerOnboardingRequestStatusEnum = pgEnum(
   "employer_onboarding_request_status",
   ["PENDING", "APPROVED", "REJECTED"],
 );
+
+export const authProviderEnum = pgEnum("auth_provider", [
+  "password",
+  "phone",
+  "google",
+  "apple",
+  "telegram",
+]);

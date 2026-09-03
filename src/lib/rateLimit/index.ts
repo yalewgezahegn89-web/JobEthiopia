@@ -28,7 +28,10 @@ export type RateLimitBucket =
   | "applications"
   | "resume"
   | "bulk"
-  | "register";
+  | "register"
+  | "otp-request"
+  | "otp-resend"
+  | "otp-verify";
 
 /**
  * Builds the deterministic in-memory bucket key for a bucket + client identity.
@@ -44,6 +47,19 @@ export function buildRateLimitKey(
   clientIp: string,
 ): string {
   return `${bucket}:${clientIp}`;
+}
+
+/**
+ * Builds a deterministic in-memory bucket key for a bucket + arbitrary scope
+ * string. Unlike buildRateLimitKey (which is tied to a client IP), the scope
+ * can be a phone number or any identity. Intended for OTP controls that need
+ * to limit per phone number as well as per request source.
+ */
+export function buildScopedRateLimitKey(
+  bucket: RateLimitBucket,
+  scope: string,
+): string {
+  return `${bucket}:${scope}`;
 }
 
 const buckets = new Map<string, number[]>();
