@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import ForgotPasswordForm from "./forgot-password-form";
+import { AuthCard } from "@/components/auth/auth-card";
 
 export const metadata: Metadata = {
   title: "Reset password",
@@ -8,18 +9,20 @@ export const metadata: Metadata = {
 
 export default function ForgotPasswordPage() {
   return (
-    <section className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-16">
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold text-foreground">Reset your password</h1>
-        <p className="mt-1 text-muted">
-          Enter the email associated with your account and we&apos;ll send you a
-          reset link.
-        </p>
-      </div>
+    <AuthCard
+      eyebrow="Account recovery"
+      title="Reset your password"
+      description="Enter the email associated with your account and we'll send you a reset link."
+      footer={
+        <Link
+          href="/login"
+          className="text-sm font-medium text-primary hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          Back to sign in
+        </Link>
+      }
+    >
       <ForgotPasswordForm />
-      <Link href="/login" className="text-sm text-muted underline">
-        Back to sign in
-      </Link>
-    </section>
+    </AuthCard>
   );
 }
