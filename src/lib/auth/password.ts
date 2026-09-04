@@ -148,6 +148,12 @@ export async function changePassword(
     return { ok: false, reason: "not_found" };
   }
 
+  // A user without a stored password (e.g. phone-first candidate) cannot
+  // complete a password change with a current password.
+  if (!user.passwordHash) {
+    return { ok: false, reason: "invalid_current" };
+  }
+
   const valid = await verifyPassword(user.passwordHash, currentPassword);
   if (!valid) {
     return { ok: false, reason: "invalid_current" };

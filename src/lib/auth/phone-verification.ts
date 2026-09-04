@@ -23,6 +23,7 @@ import {
   hashOtp,
   evaluateOtp,
   OTP_RESEND_COOLDOWN_MS,
+  OTP_TTL_MS,
 } from "./otp";
 import { OTP_AUDIT_ACTIONS } from "./constants";
 import { writeAuditLog } from "./audit";
@@ -38,6 +39,7 @@ export type OtpDelivery = (params: {
 const REQUEST_PER_PHONE = { limit: 5, windowMs: 60 * 60 * 1000 };
 const REQUEST_PER_IP = { limit: 10, windowMs: 60 * 60 * 1000 };
 const VERIFY_PER_PHONE = { limit: 10, windowMs: 15 * 60 * 1000 };
+const VERIFY_PER_REQUEST = { limit: 15, windowMs: 15 * 60 * 1000 };
 
 export type RequestOtpResult =
   | { ok: true; requestId: string; phone: EthiopianPhone }
@@ -47,7 +49,13 @@ export type VerifyOtpResult =
   | { ok: true; phone: EthiopianPhone; userId: string | null }
   | {
       ok: false;
-      reason: "not_found" | "already_used" | "expired" | "max_attempts" | "invalid";
+      reason:
+        | "not_found"
+        | "already_used"
+        | "expired"
+        | "max_attempts"
+        | "invalid"
+        | "rate_limited";
     };
 
 export type LinkPhoneResult =
@@ -95,6 +103,13 @@ export async function requestOtp(
     }
   }
 
+  // Resend cooldown bucket: bound how often a new code can be issued for the
+  // same phone beyond the DB-observed cooldown window.
+  const resendKey = buildScopedRateLimitKey("otp-resend", phone);
+  if (!checkRateLimit(resendKey, { limit: 1, windowMs: OTP_RESEND_COOLDOWN_MS }, currentTime).allowed) {
+    return { ok: false, reason: "resend_too_soon" };
+  }
+
   // Resend cooldown: the most recent active issuance must be older than the
   // cooldown window before a new code can be requested.
   const recent = await db.query.phoneVerifications.findFirst({
@@ -109,7 +124,7 @@ export async function requestOtp(
 
   const code = generateOtpCode();
   const otpHash = await hashOtp(code);
-  const expiresAt = new Date(currentTime + 5 * 60 * 1000);
+  const expiresAt = new Date(currentTime + OTP_TTL_MS);
 
   let requestId: string;
   try {
@@ -161,11 +176,21 @@ export async function requestOtp(
  * Enforces: exists, not already used, not expired, within max attempts, and
  * correctness. Increments the attempt counter on failures. Writes
  * OTP_VERIFIED / OTP_FAILED audit events (never the code).
+ *
+ * Atomicity: the verifiedAt null -> timestamp transition is performed as a
+ * single conditional UPDATE (WHERE verifiedAt IS NULL) so that when two
+ * concurrent requests submit the same correct code, the database permits only
+ * one of them to consume it. The loser observes zero rows updated and is
+ * treated as "already_used" rather than re-verifying or double-consuming.
+ *
+ * Rate limiting: applies the otp-verify bucket scoped by phone and by request
+ * identity, so verification attempts are bounded independently of the
+ * per-record attempt counter.
  */
 export async function verifyOtp(
   requestId: string,
   codeValue: string,
-  options: { now?: number } = {},
+  options: { now?: number; phone?: string; ip?: string } = {},
 ): Promise<VerifyOtpResult> {
   const currentTime = options.now ?? Date.now();
 
@@ -179,6 +204,24 @@ export async function verifyOtp(
   // Stored phone numbers are already normalized E.164; fall back to the stored
   // value typed as an EthiopianPhone if re-normalization ever disagrees.
   const phoneForAudit: EthiopianPhone = phone ?? (record.phoneNumber as EthiopianPhone);
+
+  // Verification rate limiting: bound attempts per phone and per request so we
+  // never rely solely on the per-record 5-attempt counter.
+  const verifyPhoneKey = buildScopedRateLimitKey("otp-verify", phoneForAudit);
+  if (!checkRateLimit(verifyPhoneKey, VERIFY_PER_PHONE, currentTime).allowed) {
+    return { ok: false, reason: "rate_limited" };
+  }
+  const verifyRequestKey = buildScopedRateLimitKey("otp-verify", requestId);
+  if (!checkRateLimit(verifyRequestKey, VERIFY_PER_REQUEST, currentTime).allowed) {
+    return { ok: false, reason: "rate_limited" };
+  }
+  const ip = options.ip?.trim();
+  if (ip) {
+    const verifyIpKey = buildScopedRateLimitKey("otp-verify", ip);
+    if (!checkRateLimit(verifyIpKey, VERIFY_PER_REQUEST, currentTime).allowed) {
+      return { ok: false, reason: "rate_limited" };
+    }
+  }
 
   const verdict = await evaluateOtp(
     record.otpHash,
@@ -211,11 +254,17 @@ export async function verifyOtp(
       return { ok: false, reason: "expired" };
     }
 
-    // Invalid code: increment attempts and record a failed attempt.
+    // Invalid code: increment attempts (only while unverified) and record a
+    // failed attempt.
     await db
       .update(phoneVerifications)
       .set({ attempts: record.attempts + 1 })
-      .where(eq(phoneVerifications.id, requestId))
+      .where(
+        and(
+          eq(phoneVerifications.id, requestId),
+          isNull(phoneVerifications.verifiedAt),
+        ),
+      )
       .catch(() => undefined);
 
     await writeAuditLog({
@@ -228,11 +277,31 @@ export async function verifyOtp(
     return { ok: false, reason: "invalid" };
   }
 
-  await db
+  // Atomic consumption: only one concurrent request may flip verifiedAt from
+  // null to a timestamp. If the conditional update matches zero rows, a
+  // concurrent request already consumed this OTP.
+  const consumed = await db
     .update(phoneVerifications)
-    .set({ attempts: record.attempts + 1, verifiedAt: new Date(currentTime) })
-    .where(eq(phoneVerifications.id, requestId))
+    .set({ verifiedAt: new Date(currentTime) })
+    .where(
+      and(
+        eq(phoneVerifications.id, requestId),
+        isNull(phoneVerifications.verifiedAt),
+      ),
+    )
+    .returning({ id: phoneVerifications.id })
     .catch(() => undefined);
+
+  if (!consumed || consumed.length === 0) {
+    await writeAuditLog({
+      action: OTP_AUDIT_ACTIONS.OTP_FAILED,
+      actorUserId: record.userId,
+      targetType: "phone_verification",
+      targetId: requestId,
+      metadata: { phone: phoneForAudit, reason: "already_used" },
+    });
+    return { ok: false, reason: "already_used" };
+  }
 
   await writeAuditLog({
     action: OTP_AUDIT_ACTIONS.OTP_VERIFIED,

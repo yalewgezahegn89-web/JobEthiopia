@@ -77,12 +77,12 @@ export async function equalizeUnknownEmailWork(): Promise<void> {
  */
 export async function createPasswordResetToken(
   userId: string,
-): Promise<{ rawToken: string; email: string; expiresAt: Date } | null> {
+): Promise<{ rawToken: string; email: string | null; expiresAt: Date } | null> {
   const user = await db.query.users.findFirst({
     where: eq(users.id, userId),
     columns: { id: true, email: true, isActive: true },
   });
-  if (!user || !user.isActive) {
+  if (!user || !user.isActive || !user.email) {
     return null;
   }
 
@@ -109,7 +109,7 @@ export async function createPasswordResetToken(
  */
 export async function findValidPasswordResetToken(
   rawToken: string,
-): Promise<{ userId: string; email: string } | null> {
+): Promise<{ userId: string; email: string | null } | null> {
   if (!rawToken) return null;
 
   const tokenHash = hashResetToken(rawToken);
@@ -235,7 +235,7 @@ export async function resetPasswordWithToken(
  */
 export async function requestPasswordReset(
   userId: string,
-): Promise<{ rawToken: string; email: string; expiresAt: Date } | null> {
+): Promise<{ rawToken: string; email: string | null; expiresAt: Date } | null> {
   const token = await createPasswordResetToken(userId);
   if (!token) return null;
 
