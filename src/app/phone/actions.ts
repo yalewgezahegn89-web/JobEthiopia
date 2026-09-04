@@ -15,13 +15,19 @@ import {
   PHONE_ERROR_OTP,
   type PhoneStepResult,
 } from "./phone-action-types";
+import { devOtpRequestOptions } from "./phone-otp-delivery";
 
 /**
  * STEP 1 — request a verification code for a phone number.
  *
  * The OTP delivery callback is deliberately abstract in this stage (no SMS
  * provider). requestOtp persists the code hash and returns a requestId used for
- * the subsequent verification step. No code is ever logged or returned.
+ * the subsequent verification step. No code is ever returned to the client.
+ *
+ * In DEVELOPMENT/STAGING ONLY, and ONLY when NODE_ENV !== "production" AND
+ * PHONE_OTP_DEV_DELIVERY=log is set, the dev delivery callback attached below
+ * prints the code to the server log so the browser flow can be verified. In
+ * production the callback is undefined and no code is ever logged.
  */
 export async function requestPhoneOtp(
   rawPhone: string,
@@ -32,7 +38,7 @@ export async function requestPhoneOtp(
     return { ok: false, error: PHONE_ERROR_GENERIC };
   }
 
-  const result = await requestOtp(rawPhone, {}).catch(() => ({
+  const result = await requestOtp(rawPhone, devOtpRequestOptions()).catch(() => ({
     ok: false as const,
     reason: "error" as const,
   }));
