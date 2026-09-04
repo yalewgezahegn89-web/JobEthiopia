@@ -8,7 +8,7 @@ import {
   submitPhoneCode,
   createPhoneAccount,
 } from "./actions";
-import type { PhoneStepResult } from "./actions";
+import type { PhoneStepResult } from "./phone-action-types";
 
 type Step = "phone" | "code" | "name";
 
