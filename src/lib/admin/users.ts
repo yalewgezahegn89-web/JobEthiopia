@@ -17,7 +17,7 @@ function isValidUuid(value: string): boolean {
 export type UserAdminSummary = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   role: UserRole;
   isActive: boolean;
   createdAt: string;
@@ -195,7 +195,7 @@ export async function getUserAuditHistory(userId: string): Promise<UserAuditEntr
     new Set(events.map((e) => e.actorUserId).filter(Boolean)),
   ) as string[];
 
-  let actorEmails = new Map<string, string>();
+  let actorEmails = new Map<string, string | null>();
   if (actorIds.length > 0) {
     const actors = await db
       .select({ id: users.id, email: users.email })

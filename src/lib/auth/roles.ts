@@ -17,7 +17,7 @@ export const STAFF_ROLES: readonly UserRole[] = [
 
 export interface AuthUser {
   id: string;
-  email: string;
+  email: string | null;
   name: string;
   role: UserRole;
 }

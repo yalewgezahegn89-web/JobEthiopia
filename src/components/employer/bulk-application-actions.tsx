@@ -9,7 +9,7 @@ export type BulkApplicationRow = {
   jobTitle: string;
   organizationName: string;
   candidateName: string;
-  candidateEmail: string;
+  candidateEmail: string | null;
   status: string;
   createdAt: string;
 };

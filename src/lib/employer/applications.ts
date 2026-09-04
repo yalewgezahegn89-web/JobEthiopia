@@ -32,7 +32,7 @@ export type EmployerApplicationListItem = {
   organizationId: string;
   organizationName: string;
   candidateName: string;
-  candidateEmail: string;
+  candidateEmail: string | null;
   status: ApplicationStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -52,7 +52,7 @@ export type EmployerApplicationDetail = {
   jobTitle: string;
   organizationName: string;
   candidateName: string;
-  candidateEmail: string;
+  candidateEmail: string | null;
   coverLetter: string | null;
   status: ApplicationStatus;
   createdAt: Date;

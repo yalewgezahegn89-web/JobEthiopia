@@ -79,7 +79,7 @@ export async function listAuditLogs(input: {
     new Set(rows.map((r) => r.actorUserId).filter(Boolean)),
   ) as string[];
 
-  let actorEmails = new Map<string, string>();
+  let actorEmails = new Map<string, string | null>();
   if (actorIds.length > 0) {
     const actors = await db
       .select({ id: users.id, email: users.email })

@@ -90,7 +90,7 @@ export default async function ProfilePage() {
           </p>
           <p className="flex items-center gap-1.5 truncate text-sm text-muted">
             <UserIcon className="h-4 w-4 text-subtle" />
-            {user.email}
+            {user.email ?? "No email on file"}
           </p>
         </div>
       </div>
@@ -160,7 +160,7 @@ export default async function ProfilePage() {
             <div className="mt-6">
               <ProfileForm
                 name={user.name}
-                email={user.email}
+                email={user.email ?? ""}
                 phone={profile?.phone ?? null}
                 locationId={profile?.locationId ?? null}
                 professionalSummary={profile?.professionalSummary ?? null}

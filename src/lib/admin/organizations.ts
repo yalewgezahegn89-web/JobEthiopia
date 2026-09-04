@@ -272,7 +272,7 @@ export async function getOrganizationAuditHistory(orgId: string): Promise<Organi
   if (events.length === 0) return [];
 
   const actorIds = Array.from(new Set(events.map((e) => e.actorUserId).filter(Boolean))) as string[];
-  let actorEmails = new Map<string, string>();
+  let actorEmails = new Map<string, string | null>();
   if (actorIds.length > 0) {
     const actors = await db
       .select({ id: users.id, email: users.email })

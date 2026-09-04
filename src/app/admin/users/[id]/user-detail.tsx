@@ -17,7 +17,7 @@ type UserDetailProps = {
   user: {
     id: string;
     name: string;
-    email: string;
+    email: string | null;
     role: UserRole;
     isActive: boolean;
     sessionCount: number;

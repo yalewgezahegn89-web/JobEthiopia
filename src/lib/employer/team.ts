@@ -26,7 +26,7 @@ export type EmployerTeamMember = {
   organizationName: string;
   userId: string;
   name: string;
-  email: string;
+  email: string | null;
   role: string;
   isActive: boolean;
   joinedAt: Date;
