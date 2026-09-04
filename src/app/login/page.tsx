@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import LoginForm from "./login-form";
+import { PhoneOption } from "@/components/auth/phone-option";
 import { Card } from "@/components/ui/card";
 import { BrandMark } from "@/components/ui/brand-mark";
 
@@ -31,6 +32,7 @@ export default function LoginPage() {
             </p>
           </div>
           <LoginForm />
+          <PhoneOption actionLabel="Continue with phone" />
           <div className="mt-6 border-t border-border-subtle pt-6 text-center">
             <p className="text-sm text-muted">
               New to JobEthiopia?{" "}

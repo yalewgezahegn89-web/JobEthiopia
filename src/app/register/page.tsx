@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import RegisterForm from "./register-form";
+import { PhoneOption } from "@/components/auth/phone-option";
 import { AuthCard } from "@/components/auth/auth-card";
 
 export const metadata: Metadata = {
@@ -33,6 +34,7 @@ export default function RegisterPage() {
       }
     >
       <RegisterForm />
+      <PhoneOption actionLabel="Sign up with phone" />
     </AuthCard>
   );
 }
