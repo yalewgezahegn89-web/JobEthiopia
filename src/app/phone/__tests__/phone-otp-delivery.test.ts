@@ -6,47 +6,61 @@ describe("resolveDevOtpDelivery", () => {
     vi.restoreAllMocks();
   });
 
-  it("does not attach delivery when NODE_ENV is production, even if the flag is log", () => {
+  it("attaches delivery on Vercel Preview when the flag is log", () => {
     const deliver = resolveDevOtpDelivery({
-      nodeEnv: "production",
-      phoneOtpDevDelivery: "log",
-    });
-    expect(deliver).toBeUndefined();
-  });
-
-  it("does not attach delivery in production when the flag is absent", () => {
-    expect(
-      resolveDevOtpDelivery({ nodeEnv: "production" }),
-    ).toBeUndefined();
-  });
-
-  it("does not attach delivery in non-production when the flag is absent (default)", () => {
-    expect(
-      resolveDevOtpDelivery({ nodeEnv: "development" }),
-    ).toBeUndefined();
-  });
-
-  it("does not attach delivery when the flag value is not exactly 'log'", () => {
-    expect(
-      resolveDevOtpDelivery({
-        nodeEnv: "development",
-        phoneOtpDevDelivery: "sms",
-      }),
-    ).toBeUndefined();
-  });
-
-  it("attaches delivery only when non-production AND the flag is log", () => {
-    const deliver = resolveDevOtpDelivery({
-      nodeEnv: "development",
+      vercelEnv: "preview",
       phoneOtpDevDelivery: "log",
     });
     expect(typeof deliver).toBe("function");
   });
 
+  it("does NOT attach delivery on Vercel Production even when the flag is log", () => {
+    const deliver = resolveDevOtpDelivery({
+      vercelEnv: "production",
+      phoneOtpDevDelivery: "log",
+    });
+    expect(deliver).toBeUndefined();
+  });
+
+  it("does NOT attach delivery on Vercel Production when the flag is absent", () => {
+    expect(
+      resolveDevOtpDelivery({ vercelEnv: "production" }),
+    ).toBeUndefined();
+  });
+
+  it("does NOT attach delivery on Vercel Preview when the flag is absent (default)", () => {
+    expect(
+      resolveDevOtpDelivery({ vercelEnv: "preview" }),
+    ).toBeUndefined();
+  });
+
+  it("does NOT attach delivery when the flag value is not exactly 'log'", () => {
+    expect(
+      resolveDevOtpDelivery({
+        vercelEnv: "preview",
+        phoneOtpDevDelivery: "sms",
+      }),
+    ).toBeUndefined();
+  });
+
+  it("attaches delivery in local development (no VERCEL_ENV) when the flag is log (preserves prior local behavior)", () => {
+    const deliver = resolveDevOtpDelivery({
+      vercelEnv: undefined,
+      phoneOtpDevDelivery: "log",
+    });
+    expect(typeof deliver).toBe("function");
+  });
+
+  it("does NOT attach delivery in local development (no VERCEL_ENV) when the flag is absent", () => {
+    expect(
+      resolveDevOtpDelivery({ vercelEnv: undefined }),
+    ).toBeUndefined();
+  });
+
   it("the dev callback logs a clearly prefixed message with phone, requestId, and code", async () => {
     const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
     const deliver = resolveDevOtpDelivery({
-      nodeEnv: "development",
+      vercelEnv: "preview",
       phoneOtpDevDelivery: "log",
     });
     expect(deliver).toBeDefined();
