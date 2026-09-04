@@ -217,6 +217,59 @@ describe("Homepage", () => {
     expect(html).toContain("Application deadlines");
   });
 
+  it("renders closing soon jobs ordered by nearest deadline first", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+
+    const jobA = makeJob({
+      id: "job-a",
+      title: "Job A — 6 days",
+      deadline: new Date(now + 6 * day).toISOString(),
+    });
+    const jobB = makeJob({
+      id: "job-b",
+      title: "Job B — 2 days",
+      deadline: new Date(now + 2 * day).toISOString(),
+    });
+    const jobC = makeJob({
+      id: "job-c",
+      title: "Job C — 4 days",
+      deadline: new Date(now + 4 * day).toISOString(),
+    });
+
+    const regularJobs = [
+      makeJob({ id: "reg-1", title: "Regular 1" }),
+      makeJob({ id: "reg-2", title: "Regular 2" }),
+    ];
+
+    mocks.mockFetchJobs.mockImplementation((query: { limit?: number }) => {
+      if (query.limit === 5) {
+        return Promise.resolve({
+          items: regularJobs,
+          pagination: { page: 1, limit: 5, total: 2, totalPages: 1 },
+        });
+      }
+      return Promise.resolve({
+        items: [jobA, jobB, jobC],
+        pagination: { page: 1, limit: 20, total: 3, totalPages: 1 },
+      });
+    });
+
+    const html = await renderHome();
+
+    expect(html).toContain("Closing soon");
+
+    const posB = html.indexOf("Job B — 2 days");
+    const posC = html.indexOf("Job C — 4 days");
+    const posA = html.indexOf("Job A — 6 days");
+
+    expect(posB).toBeGreaterThan(-1);
+    expect(posC).toBeGreaterThan(-1);
+    expect(posA).toBeGreaterThan(-1);
+    expect(posB).toBeLessThan(posC);
+    expect(posC).toBeLessThan(posA);
+  });
+
   it("renders explore sections with professions, categories, and locations", async () => {
     const html = await renderHome();
     expect(html).toContain("Explore careers by path");

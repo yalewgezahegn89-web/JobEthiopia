@@ -18,14 +18,17 @@ export function selectClosingJobs(
     return [];
   }
 
-  const closing: PublicJobSummary[] = [];
-  for (const item of items) {
-    if (closingState(item.deadline, item.status, options.now) === "CLOSING") {
-      closing.push(item);
-      if (closing.length >= count) {
-        break;
-      }
-    }
-  }
+  const closing = items
+    .filter(
+      (item) =>
+        closingState(item.deadline, item.status, options.now) === "CLOSING",
+    )
+    .sort((a, b) => {
+      const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
+      const db = b.deadline ? new Date(b.deadline).getTime() : Infinity;
+      return da - db;
+    })
+    .slice(0, count);
+
   return closing;
 }
