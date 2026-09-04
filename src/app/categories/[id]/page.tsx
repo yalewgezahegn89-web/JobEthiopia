@@ -6,16 +6,68 @@ import {
   type PublicCategoryDetail,
 } from "@/lib/categories/public";
 import { fetchJobs, type PublicJobSummary } from "@/lib/jobs/public";
+import { getAppBaseUrl } from "@/lib/appBaseUrl";
 import JobCard from "@/components/job-card";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { TagIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Category | JobEthiopia",
-  description: "Browse jobs in this category on JobEthiopia.",
-};
+function truncateMetadata(value: string, maxLength: number): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length <= maxLength) return clean;
+  return clean.slice(0, maxLength - 3).trimEnd() + "...";
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+
+  let category: PublicCategoryDetail | null = null;
+  try {
+    category = await fetchCategoryById(id);
+  } catch {
+    // fall through to fallback metadata
+  }
+
+  if (!category) {
+    return {
+      title: "Category | JobEthiopia",
+      description: "Browse jobs in this category on JobEthiopia.",
+    };
+  }
+
+  const name = category.name;
+  const description = category.description
+    ? truncateMetadata(category.description, 160)
+    : `${name} — explore jobs in this category on JobEthiopia.`;
+
+  const baseUrl = getAppBaseUrl();
+  const canonicalUrl = `${baseUrl}/categories/${id}`;
+
+  return {
+    title: name,
+    description,
+    openGraph: {
+      title: `${name} | JobEthiopia`,
+      description,
+      url: canonicalUrl,
+      type: "website",
+      siteName: "JobEthiopia",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${name} | JobEthiopia`,
+      description,
+    },
+    alternates: {
+      canonical: canonicalUrl,
+    },
+  };
+}
 
 export default async function CategoryPage({
   params,

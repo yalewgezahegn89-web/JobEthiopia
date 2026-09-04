@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchJobs } from "@/lib/jobs/public";
 import { fetchCareerArticles } from "@/lib/careerArticles/public";
@@ -13,6 +14,12 @@ import { EmployerCta } from "@/components/homepage/employer-cta";
 import { CareerResources } from "@/components/homepage/career-resources";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "JobEthiopia | Find Jobs in Ethiopia",
+  description:
+    "Find verified job opportunities across Ethiopia by profession, category, and location.",
+};
 
 export default async function Home() {
   const [jobsResult, articlesResult, closingResult, categoriesResult, professionsResult, locationsResult] =

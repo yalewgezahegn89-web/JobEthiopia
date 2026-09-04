@@ -66,6 +66,7 @@ function SearchPanel({ locations }: { locations: PublicLocationSummary[] }) {
   return (
     <form
       action="/jobs"
+      aria-label="Search jobs"
       method="get"
       className="mt-8 overflow-hidden rounded-xl border border-border bg-surface shadow-md"
     >

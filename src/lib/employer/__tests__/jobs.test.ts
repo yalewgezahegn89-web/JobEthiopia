@@ -24,6 +24,7 @@ vi.mock("@/lib/ingestion/slug", () => ({
 
 import {
   listEmployerJobs,
+  createEmployerJob,
 } from "../jobs";
 import {
   listEmployerApplications,
@@ -340,5 +341,364 @@ describe("listEmployerJobsForFilter", () => {
     expect(result).toHaveLength(2);
     expect(result[0].id).toBe(JOB_ID);
     expect(result[1].id).toBe(JOB_ID_2);
+  });
+});
+
+function buildTxSelectChain(result: unknown[]) {
+  const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+  chain.from = vi.fn().mockReturnValue(chain);
+  chain.where = vi.fn().mockReturnValue(chain);
+  chain.limit = vi.fn().mockResolvedValue(result);
+  return chain;
+}
+
+function buildTxInsertChain(result: unknown) {
+  const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+  chain.values = vi.fn().mockReturnValue(chain);
+  chain.returning = vi.fn().mockResolvedValue(
+    Array.isArray(result) ? result : [result],
+  );
+  return chain;
+}
+
+function buildSuccessTxChain(createdJob: Record<string, unknown>) {
+  const tx = {
+    select: vi.fn()
+      .mockReturnValueOnce(
+        buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: true }]),
+      )
+      .mockReturnValueOnce(
+        buildTxSelectChain([{ id: ORG_ID, status: "ACTIVE" }]),
+      )
+      .mockReturnValueOnce(
+        buildTxSelectChain([{ id: "m1" }]),
+      )
+      .mockReturnValueOnce(
+        buildTxSelectChain([{ name: "Acme Corp" }]),
+      ),
+    insert: vi.fn()
+      .mockReturnValueOnce(buildTxInsertChain(createdJob))
+      .mockReturnValueOnce(buildTxInsertChain(undefined)),
+  };
+  return tx;
+}
+
+describe("createEmployerJob", () => {
+  const INPUT = {
+    organizationId: ORG_ID,
+    title: "Software Engineer",
+    description: "Build great things",
+  };
+
+  const CREATED_JOB = {
+    id: JOB_ID,
+    title: "Software Engineer",
+    slug: "software-engineer",
+    organizationId: ORG_ID,
+    description: "Build great things",
+    categoryId: null,
+    professionId: null,
+    locationId: null,
+    responsibilities: null,
+    requirements: null,
+    educationRequirements: null,
+    benefits: null,
+    experienceMin: null,
+    experienceMax: null,
+    employmentType: null,
+    salaryMin: null,
+    salaryMax: null,
+    salaryCurrency: null,
+    salaryPeriod: null,
+    postedAt: null,
+    deadline: null,
+    applicationUrl: null,
+    status: "DRAFT",
+    verificationStatus: "PENDING",
+    createdAt: new Date("2026-01-01"),
+    updatedAt: new Date("2026-01-01"),
+  };
+
+  it("returns USER_INACTIVE when user is not ORGANIZATION_ADMIN", async () => {
+    const tx = {
+      select: vi.fn().mockReturnValue(
+        buildTxSelectChain([{ role: "CANDIDATE", isActive: true }]),
+      ),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result).toEqual({ ok: false, code: "USER_INACTIVE" });
+  });
+
+  it("returns USER_INACTIVE when user is inactive", async () => {
+    const tx = {
+      select: vi.fn().mockReturnValue(
+        buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: false }]),
+      ),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result).toEqual({ ok: false, code: "USER_INACTIVE" });
+  });
+
+  it("returns USER_INACTIVE when user does not exist", async () => {
+    const tx = {
+      select: vi.fn().mockReturnValue(buildTxSelectChain([])),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result).toEqual({ ok: false, code: "USER_INACTIVE" });
+  });
+
+  it("returns FORBIDDEN when organization does not exist", async () => {
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: true }]),
+        )
+        .mockReturnValueOnce(buildTxSelectChain([])),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+  });
+
+  it("returns ORG_INACTIVE when organization is not ACTIVE", async () => {
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: true }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: ORG_ID, status: "INACTIVE" }]),
+        ),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result).toEqual({ ok: false, code: "ORG_INACTIVE" });
+  });
+
+  it("returns FORBIDDEN when user has no organization membership", async () => {
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: true }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: ORG_ID, status: "ACTIVE" }]),
+        )
+        .mockReturnValueOnce(buildTxSelectChain([])),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+  });
+
+  it("creates job with DRAFT status and PENDING verificationStatus", async () => {
+    const tx = buildSuccessTxChain(CREATED_JOB);
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item.status).toBe("DRAFT");
+      expect(result.item.verificationStatus).toBe("PENDING");
+    }
+  });
+
+  it("generates slug from title", async () => {
+    const tx = buildSuccessTxChain(CREATED_JOB);
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item.slug).toBe("software-engineer");
+    }
+  });
+
+  it("returns correct EmployerJobDetail shape on success", async () => {
+    const tx = buildSuccessTxChain(CREATED_JOB);
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item).toMatchObject({
+        id: JOB_ID,
+        title: "Software Engineer",
+        slug: "software-engineer",
+        organizationId: ORG_ID,
+        organizationName: "Acme Corp",
+        description: "Build great things",
+        status: "DRAFT",
+        verificationStatus: "PENDING",
+        categoryId: null,
+        professionId: null,
+        locationId: null,
+        categoryName: null,
+        professionName: null,
+        locationName: null,
+      });
+      expect(result.item).toHaveProperty("createdAt");
+      expect(result.item).toHaveProperty("updatedAt");
+    }
+  });
+
+  it("writes JOB_CREATED audit log with authenticated employer as actor", async () => {
+    const tx = buildSuccessTxChain(CREATED_JOB);
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await createEmployerJob(USER_ID, INPUT);
+
+    const auditInsert = tx.insert.mock.results[1].value;
+    expect(auditInsert.values).toHaveBeenCalledTimes(1);
+    const auditData = auditInsert.values.mock.calls[0][0];
+    expect(auditData).toEqual({
+      actorUserId: USER_ID,
+      action: "JOB_CREATED",
+      targetType: "job",
+      targetId: JOB_ID,
+      metadata: { source: "employer", organizationId: ORG_ID },
+    });
+  });
+
+  it("forces status to DRAFT even if client attempts to override", async () => {
+    const tx = buildSuccessTxChain(CREATED_JOB);
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await createEmployerJob(USER_ID, INPUT);
+
+    const jobInsert = tx.insert.mock.results[0].value;
+    const insertData = jobInsert.values.mock.calls[0][0];
+    expect(insertData.status).toBe("DRAFT");
+    expect(insertData.verificationStatus).toBe("PENDING");
+  });
+
+  it("returns SLUG_COLLISION after exhausting retries", async () => {
+    const slugError = new Error("duplicate key value violates unique constraint: jobs_slug_unique");
+
+    const slugErrorChain = {
+      values: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockRejectedValue(slugError),
+    };
+
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: true }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: ORG_ID, status: "ACTIVE" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: "m1" }]),
+        ),
+      insert: vi.fn().mockReturnValue(slugErrorChain),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result).toEqual({ ok: false, code: "SLUG_COLLISION" });
+  });
+
+  it("retries slug on collision and succeeds on next attempt", async () => {
+    const slugError = new Error("duplicate key value violates unique constraint: jobs_slug_unique");
+    const retryJob = { ...CREATED_JOB, slug: "software-engineer-1" };
+
+    const slugErrorChain = {
+      values: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockRejectedValue(slugError),
+    };
+    const successChain = buildTxInsertChain(retryJob);
+
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: true }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: ORG_ID, status: "ACTIVE" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: "m1" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ name: "Acme Corp" }]),
+        ),
+      insert: vi.fn()
+        .mockReturnValueOnce(slugErrorChain)
+        .mockReturnValueOnce(successChain)
+        .mockReturnValueOnce(buildTxInsertChain(undefined)),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item.slug).toBe("software-engineer-1");
+    }
+  });
+
+  it("throws non-slug errors instead of retrying", async () => {
+    const dbError = new Error("connection refused");
+
+    const dbErrorChain = {
+      values: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockRejectedValue(dbError),
+    };
+
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: true }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: ORG_ID, status: "ACTIVE" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: "m1" }]),
+        ),
+      insert: vi.fn().mockReturnValue(dbErrorChain),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await expect(createEmployerJob(USER_ID, INPUT)).rejects.toThrow(
+      "connection refused",
+    );
   });
 });

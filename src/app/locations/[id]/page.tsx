@@ -6,16 +6,67 @@ import {
   type PublicLocationDetail,
 } from "@/lib/locations/public";
 import { fetchJobs, type PublicJobSummary } from "@/lib/jobs/public";
+import { getAppBaseUrl } from "@/lib/appBaseUrl";
 import JobCard from "@/components/job-card";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { PinIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Location | JobEthiopia",
-  description: "Browse jobs in this location on JobEthiopia.",
-};
+function truncateMetadata(value: string, maxLength: number): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length <= maxLength) return clean;
+  return clean.slice(0, maxLength - 3).trimEnd() + "...";
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+
+  let location: PublicLocationDetail | null = null;
+  try {
+    location = await fetchLocationById(id);
+  } catch {
+    // fall through to fallback metadata
+  }
+
+  if (!location) {
+    return {
+      title: "Location | JobEthiopia",
+      description: "Browse jobs in this location on JobEthiopia.",
+    };
+  }
+
+  const name = location.name;
+  const typeLabel = location.type.replace("_", " ").toLowerCase();
+  const description = `${name} — explore ${typeLabel} jobs on JobEthiopia.`;
+
+  const baseUrl = getAppBaseUrl();
+  const canonicalUrl = `${baseUrl}/locations/${id}`;
+
+  return {
+    title: name,
+    description,
+    openGraph: {
+      title: `${name} | JobEthiopia`,
+      description,
+      url: canonicalUrl,
+      type: "website",
+      siteName: "JobEthiopia",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${name} | JobEthiopia`,
+      description,
+    },
+    alternates: {
+      canonical: canonicalUrl,
+    },
+  };
+}
 
 export default async function LocationPage({
   params,

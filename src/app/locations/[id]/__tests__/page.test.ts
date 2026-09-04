@@ -38,7 +38,7 @@ vi.mock("@/lib/jobs/public", async (importOriginal) => {
   };
 });
 
-import LocationPage from "@/app/locations/[id]/page";
+import LocationPage, { generateMetadata } from "@/app/locations/[id]/page";
 
 const LOCATION_ID = "loc-1";
 
@@ -178,5 +178,57 @@ describe("LocationPage", () => {
   it("calls notFound when the location does not exist", async () => {
     mocks.mockFetchLocationById.mockResolvedValue(null);
     await expect(renderPage()).rejects.toThrow("NOT_FOUND");
+  });
+});
+
+describe("LocationPage generateMetadata", () => {
+  it("returns dynamic title from the location name", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
+    expect(metadata.title).toBe("Addis Ababa");
+  });
+
+  it("returns description based on location name and type", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
+    expect(metadata.description).toContain("Addis Ababa");
+    expect(metadata.description).toContain("city");
+  });
+
+  it("returns OpenGraph metadata", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
+    expect(metadata.openGraph).toBeDefined();
+    expect(metadata.openGraph!.title).toContain("Addis Ababa");
+    expect(metadata.openGraph!.siteName).toBe("JobEthiopia");
+    expect(metadata.openGraph!.type).toBe("website");
+  });
+
+  it("returns Twitter metadata", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
+    expect(metadata.twitter).toBeDefined();
+    expect(metadata.twitter!.title).toContain("Addis Ababa");
+    expect(metadata.twitter!.card).toBe("summary_large_image");
+  });
+
+  it("returns canonical URL using /locations/{id}", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
+    expect(metadata.alternates).toBeDefined();
+    expect(metadata.alternates!.canonical).toContain(`/locations/${LOCATION_ID}`);
+  });
+
+  it("returns fallback metadata for a missing location", async () => {
+    mocks.mockFetchLocationById.mockResolvedValue(null);
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
+    expect(metadata.title).toBe("Location | JobEthiopia");
+  });
+
+  it("returns fallback metadata when fetching throws", async () => {
+    mocks.mockFetchLocationById.mockRejectedValue(new Error("network error"));
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
+    expect(metadata.title).toBe("Location | JobEthiopia");
+  });
+
+  it("formats location type in description", async () => {
+    mocks.mockFetchLocationById.mockResolvedValue(makeLocation({ type: "REGION" }));
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
+    expect(metadata.description).toContain("region");
   });
 });

@@ -61,7 +61,7 @@ vi.mock("@/components/saved-jobs/save-button", () => ({
     createElement("button", { "data-save-job": jobId }, "Save"),
 }));
 
-import JobPage from "@/app/jobs/[id]/page";
+import JobPage, { generateMetadata } from "@/app/jobs/[id]/page";
 
 const CANDIDATE = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -313,5 +313,96 @@ describe("JobPage layout", () => {
     mocks.mockGetCurrentUser.mockResolvedValue({ ...CANDIDATE, role: "ADMIN" });
     const html = await renderJob();
     expect(html).not.toContain("data-apply-job");
+  });
+});
+
+describe("JobPage generateMetadata", () => {
+  it("returns dynamic title containing the job title", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
+    expect(metadata.title).toBe("Senior Accountant");
+  });
+
+  it("returns description derived from the job description", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
+    expect(metadata.description).toContain("skilled accountant");
+  });
+
+  it("returns Open Graph metadata", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
+    expect(metadata.openGraph).toBeDefined();
+    expect(metadata.openGraph!.title).toContain("Senior Accountant");
+    expect(metadata.openGraph!.description).toContain("skilled accountant");
+    expect(metadata.openGraph!.siteName).toBe("JobEthiopia");
+  });
+
+  it("returns Twitter metadata", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
+    expect(metadata.twitter).toBeDefined();
+    expect(metadata.twitter!.title).toContain("Senior Accountant");
+    expect(metadata.twitter!.description).toContain("skilled accountant");
+    expect(metadata.twitter!.card).toBe("summary_large_image");
+  });
+
+  it("returns canonical URL using /jobs/{id}", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
+    expect(metadata.alternates).toBeDefined();
+    expect(metadata.alternates!.canonical).toContain(`/jobs/${JOB_ID}`);
+  });
+
+  it("returns fallback metadata for a missing job", async () => {
+    mocks.mockFetchJobById.mockResolvedValue(null);
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
+    expect(metadata.title).toBe("Job | JobEthiopia");
+    expect(metadata.description).toBe("Job details on JobEthiopia.");
+  });
+
+  it("returns fallback metadata when fetching throws", async () => {
+    mocks.mockFetchJobById.mockRejectedValue(new Error("network error"));
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
+    expect(metadata.title).toBe("Job | JobEthiopia");
+  });
+
+  it("generates description from job title and org when description is null", async () => {
+    mocks.mockFetchJobById.mockResolvedValue(makeJob({ description: null }));
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
+    expect(metadata.description).toContain("Senior Accountant");
+    expect(metadata.description).toContain("ACME Plc");
+  });
+
+  it("truncates long descriptions for metadata", async () => {
+    const longDesc = "A".repeat(300);
+    mocks.mockFetchJobById.mockResolvedValue(makeJob({ description: longDesc }));
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
+    expect(metadata.description!.length).toBeLessThanOrEqual(160);
+    expect(metadata.description).toContain("...");
+  });
+});
+
+describe("Job detail loading skeleton", () => {
+  it("renders accessible loading landmark with sr-only announcement", async () => {
+    const { default: Loading } = await import("@/app/jobs/[id]/loading");
+    const element = Loading();
+    const html = renderToStaticMarkup(element);
+    expect(html).toContain('role="status"');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain("Loading job details");
+  });
+
+  it("renders breadcrumb skeleton with aria-label", async () => {
+    const { default: Loading } = await import("@/app/jobs/[id]/loading");
+    const html = renderToStaticMarkup(Loading());
+    expect(html).toContain('aria-label="Breadcrumb"');
+  });
+
+  it("renders two-column layout skeleton for desktop", async () => {
+    const { default: Loading } = await import("@/app/jobs/[id]/loading");
+    const html = renderToStaticMarkup(Loading());
+    expect(html).toContain("lg:grid-cols-[1fr_320px]");
+  });
+
+  it("renders sidebar with Job overview label", async () => {
+    const { default: Loading } = await import("@/app/jobs/[id]/loading");
+    const html = renderToStaticMarkup(Loading());
+    expect(html).toContain('aria-label="Job overview"');
   });
 });

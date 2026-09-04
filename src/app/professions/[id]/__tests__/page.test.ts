@@ -47,7 +47,7 @@ vi.mock("@/lib/jobs/public", async (importOriginal) => {
   };
 });
 
-import ProfessionPage from "@/app/professions/[id]/page";
+import ProfessionPage, { generateMetadata } from "@/app/professions/[id]/page";
 
 const PROFESSION_ID = "prof-1";
 
@@ -184,5 +184,57 @@ describe("ProfessionPage", () => {
   it("calls notFound when the profession does not exist", async () => {
     mocks.mockFetchProfessionById.mockResolvedValue(null);
     await expect(renderPage()).rejects.toThrow("NOT_FOUND");
+  });
+});
+
+describe("ProfessionPage generateMetadata", () => {
+  it("returns dynamic title from the profession name", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
+    expect(metadata.title).toBe("Accounting");
+  });
+
+  it("returns description from the profession description", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
+    expect(metadata.description).toContain("accountants and auditors");
+  });
+
+  it("returns OpenGraph metadata", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
+    expect(metadata.openGraph).toBeDefined();
+    expect(metadata.openGraph!.title).toContain("Accounting");
+    expect(metadata.openGraph!.siteName).toBe("JobEthiopia");
+    expect(metadata.openGraph!.type).toBe("website");
+  });
+
+  it("returns Twitter metadata", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
+    expect(metadata.twitter).toBeDefined();
+    expect(metadata.twitter!.title).toContain("Accounting");
+    expect(metadata.twitter!.card).toBe("summary_large_image");
+  });
+
+  it("returns canonical URL using /professions/{id}", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
+    expect(metadata.alternates).toBeDefined();
+    expect(metadata.alternates!.canonical).toContain(`/professions/${PROFESSION_ID}`);
+  });
+
+  it("returns fallback metadata for a missing profession", async () => {
+    mocks.mockFetchProfessionById.mockResolvedValue(null);
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
+    expect(metadata.title).toBe("Profession | JobEthiopia");
+  });
+
+  it("returns fallback metadata when fetching throws", async () => {
+    mocks.mockFetchProfessionById.mockRejectedValue(new Error("network error"));
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
+    expect(metadata.title).toBe("Profession | JobEthiopia");
+  });
+
+  it("generates description from name when description is null", async () => {
+    mocks.mockFetchProfessionById.mockResolvedValue(makeProfession({ description: null }));
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
+    expect(metadata.description).toContain("Accounting");
+    expect(metadata.description).toContain("JobEthiopia");
   });
 });

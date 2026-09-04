@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { organizations } from "@/db/schema/organizations";
@@ -42,7 +42,7 @@ export async function GET(
 
   try {
     const job = await db.query.jobs.findFirst({
-      where: eq(jobs.id, parsed.data.id),
+      where: and(eq(jobs.id, parsed.data.id), eq(jobs.status, "PUBLISHED")),
     });
 
     if (!job) {

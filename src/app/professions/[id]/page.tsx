@@ -7,16 +7,68 @@ import {
 } from "@/lib/professions/public";
 import { fetchCategoryById } from "@/lib/categories/public";
 import { fetchJobs, type PublicJobSummary } from "@/lib/jobs/public";
+import { getAppBaseUrl } from "@/lib/appBaseUrl";
 import JobCard from "@/components/job-card";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { UserIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Profession | JobEthiopia",
-  description: "Browse jobs in this profession on JobEthiopia.",
-};
+function truncateMetadata(value: string, maxLength: number): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length <= maxLength) return clean;
+  return clean.slice(0, maxLength - 3).trimEnd() + "...";
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+
+  let profession: PublicProfessionDetail | null = null;
+  try {
+    profession = await fetchProfessionById(id);
+  } catch {
+    // fall through to fallback metadata
+  }
+
+  if (!profession) {
+    return {
+      title: "Profession | JobEthiopia",
+      description: "Browse jobs in this profession on JobEthiopia.",
+    };
+  }
+
+  const name = profession.name;
+  const description = profession.description
+    ? truncateMetadata(profession.description, 160)
+    : `${name} — explore jobs in this profession on JobEthiopia.`;
+
+  const baseUrl = getAppBaseUrl();
+  const canonicalUrl = `${baseUrl}/professions/${id}`;
+
+  return {
+    title: name,
+    description,
+    openGraph: {
+      title: `${name} | JobEthiopia`,
+      description,
+      url: canonicalUrl,
+      type: "website",
+      siteName: "JobEthiopia",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${name} | JobEthiopia`,
+      description,
+    },
+    alternates: {
+      canonical: canonicalUrl,
+    },
+  };
+}
 
 export default async function ProfessionPage({
   params,

@@ -38,7 +38,7 @@ vi.mock("@/lib/jobs/public", async (importOriginal) => {
   };
 });
 
-import CategoryPage from "@/app/categories/[id]/page";
+import CategoryPage, { generateMetadata } from "@/app/categories/[id]/page";
 
 const CATEGORY_ID = "cat-1";
 
@@ -150,5 +150,57 @@ describe("CategoryPage", () => {
   it("calls notFound when the category does not exist", async () => {
     mocks.mockFetchCategoryById.mockResolvedValue(null);
     await expect(renderPage()).rejects.toThrow("NOT_FOUND");
+  });
+});
+
+describe("CategoryPage generateMetadata", () => {
+  it("returns dynamic title from the category name", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
+    expect(metadata.title).toBe("Finance");
+  });
+
+  it("returns description from the category description", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
+    expect(metadata.description).toContain("Accounting, banking");
+  });
+
+  it("returns OpenGraph metadata", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
+    expect(metadata.openGraph).toBeDefined();
+    expect(metadata.openGraph!.title).toContain("Finance");
+    expect(metadata.openGraph!.siteName).toBe("JobEthiopia");
+    expect(metadata.openGraph!.type).toBe("website");
+  });
+
+  it("returns Twitter metadata", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
+    expect(metadata.twitter).toBeDefined();
+    expect(metadata.twitter!.title).toContain("Finance");
+    expect(metadata.twitter!.card).toBe("summary_large_image");
+  });
+
+  it("returns canonical URL using /categories/{id}", async () => {
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
+    expect(metadata.alternates).toBeDefined();
+    expect(metadata.alternates!.canonical).toContain(`/categories/${CATEGORY_ID}`);
+  });
+
+  it("returns fallback metadata for a missing category", async () => {
+    mocks.mockFetchCategoryById.mockResolvedValue(null);
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
+    expect(metadata.title).toBe("Category | JobEthiopia");
+  });
+
+  it("returns fallback metadata when fetching throws", async () => {
+    mocks.mockFetchCategoryById.mockRejectedValue(new Error("network error"));
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
+    expect(metadata.title).toBe("Category | JobEthiopia");
+  });
+
+  it("generates description from name when description is null", async () => {
+    mocks.mockFetchCategoryById.mockResolvedValue(makeCategory({ description: null }));
+    const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
+    expect(metadata.description).toContain("Finance");
+    expect(metadata.description).toContain("JobEthiopia");
   });
 });

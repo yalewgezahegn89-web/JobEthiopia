@@ -632,7 +632,12 @@ describe("GET /api/jobs/[id]", () => {
   const VALID_ID = "550e8400-e29b-41d4-a716-446655440000";
 
   describe("successful retrieval", () => {
-    it("returns existing job", async () => {
+    it("returns existing PUBLISHED job", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+      });
+
       const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
       const response = await GET_BY_ID(request, {
         params: Promise.resolve({ id: VALID_ID }),
@@ -655,6 +660,7 @@ describe("GET /api/jobs/[id]", () => {
     it("includes joined organization, category, profession, and location data", async () => {
       mockJobsFindFirst.mockResolvedValue({
         ...SAMPLE_JOB,
+        status: "PUBLISHED",
         organizationId: ORGANIZATION_ID,
         categoryId: CATEGORY_ID,
         professionId: PROFESSION_ID,
@@ -711,7 +717,10 @@ describe("GET /api/jobs/[id]", () => {
     });
 
     it("missing entity relationships resolve to null", async () => {
-      mockJobsFindFirst.mockResolvedValue(SAMPLE_JOB);
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+      });
 
       const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
       const response = await GET_BY_ID(request, {
@@ -742,6 +751,60 @@ describe("GET /api/jobs/[id]", () => {
     });
   });
 
+  describe("publication status", () => {
+    it("returns 404 for a DRAFT job", async () => {
+      mockJobsFindFirst.mockResolvedValue(null);
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe("Job not found");
+    });
+
+    it("returns 404 for a PENDING_REVIEW job", async () => {
+      mockJobsFindFirst.mockResolvedValue(null);
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe("Job not found");
+    });
+
+    it("returns 404 for a REMOVED job", async () => {
+      mockJobsFindFirst.mockResolvedValue(null);
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe("Job not found");
+    });
+
+    it("returns 404 for an EXPIRED job", async () => {
+      mockJobsFindFirst.mockResolvedValue(null);
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe("Job not found");
+    });
+  });
+
   describe("validation", () => {
     it("invalid UUID returns 400", async () => {
       const request = makeGetRequest("http://localhost/api/jobs/not-a-uuid");
@@ -757,7 +820,7 @@ describe("GET /api/jobs/[id]", () => {
 
   describe("error handling", () => {
     it("database error returns 500", async () => {
-      mockJobsFindFirst.mockRejectedValue(new Error("DB connection failed"));
+      mockJobsFindFirst.mockRejectedValueOnce(new Error("DB connection failed"));
 
       const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
       const response = await GET_BY_ID(request, {
@@ -770,7 +833,7 @@ describe("GET /api/jobs/[id]", () => {
     });
 
     it("database error details are not leaked", async () => {
-      mockJobsFindFirst.mockRejectedValue(
+      mockJobsFindFirst.mockRejectedValueOnce(
         new Error("SECRET_DB_PASSWORD=xyz connection refused"),
       );
 

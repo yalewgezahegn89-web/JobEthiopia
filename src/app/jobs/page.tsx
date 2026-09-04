@@ -5,6 +5,9 @@ import {
   type PublicJobList,
   type PublicJobSummary,
 } from "@/lib/jobs/public";
+import { fetchCategories } from "@/lib/categories/public";
+import { fetchProfessions } from "@/lib/professions/public";
+import { fetchLocations } from "@/lib/locations/public";
 import JobCard from "@/components/job-card";
 
 export const dynamic = "force-dynamic";
@@ -31,24 +34,6 @@ function toPositiveInteger(value: string | undefined, fallback: number): number 
 
 type FilterOption = { id: string; name: string };
 
-function uniqueFilterOptions(
-  items: PublicJobSummary[],
-  pickId: (item: PublicJobSummary) => string | null,
-  pickName: (item: PublicJobSummary) => string | null,
-): FilterOption[] {
-  const byId = new Map<string, string>();
-  for (const item of items) {
-    const id = pickId(item);
-    const name = pickName(item);
-    if (id && name) {
-      byId.set(id, name);
-    }
-  }
-  return [...byId.entries()]
-    .map(([id, name]) => ({ id, name }))
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
-
 function uniqueEmploymentTypes(items: PublicJobSummary[]): string[] {
   const values = items
     .map((item) => item.employmentType)
@@ -73,18 +58,26 @@ export default async function JobsPage({
   let result: PublicJobList | null = null;
   let loadError = false;
 
-  try {
-    result = await fetchJobs({
-      q: q || undefined,
-      categoryId,
-      professionId,
-      locationId,
-      employmentType,
-      page,
-      limit: 20,
-    });
-  } catch {
+  const [jobsResult, categoriesResult, professionsResult, locationsResult] =
+    await Promise.all([
+      fetchJobs({
+        q: q || undefined,
+        categoryId,
+        professionId,
+        locationId,
+        employmentType,
+        page,
+        limit: 20,
+      }).catch(() => null),
+      fetchCategories({ limit: 200 }).catch(() => null),
+      fetchProfessions({ limit: 200 }).catch(() => null),
+      fetchLocations({ limit: 200 }).catch(() => null),
+    ]);
+
+  if (jobsResult === null) {
     loadError = true;
+  } else {
+    result = jobsResult;
   }
 
   if (loadError) {
@@ -111,21 +104,15 @@ export default async function JobsPage({
   const total = pagination.total;
   const totalPages = pagination.totalPages;
 
-  const categories = uniqueFilterOptions(
-    items,
-    (item) => item.categoryId,
-    (item) => item.categoryName,
-  );
-  const professions = uniqueFilterOptions(
-    items,
-    (item) => item.professionId,
-    (item) => item.professionName,
-  );
-  const locations = uniqueFilterOptions(
-    items,
-    (item) => item.locationId,
-    (item) => item.locationName,
-  );
+  const categories = (categoriesResult?.items ?? [])
+    .map((c) => ({ id: c.id, name: c.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const professions = (professionsResult?.items ?? [])
+    .map((p) => ({ id: p.id, name: p.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const locations = (locationsResult?.items ?? [])
+    .map((l) => ({ id: l.id, name: l.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
   const employmentTypes = uniqueEmploymentTypes(items);
 
   const hasFilters = Boolean(
@@ -284,7 +271,7 @@ function SearchForm({
   employmentType?: string;
 }) {
   return (
-    <form action="/jobs" method="get" className="space-y-5">
+    <form action="/jobs" aria-label="Search jobs" method="get" className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <svg

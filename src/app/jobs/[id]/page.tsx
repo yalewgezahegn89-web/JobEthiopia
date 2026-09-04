@@ -13,6 +13,8 @@ import {
 import { selectRelatedJobs } from "@/lib/jobs/related";
 import { getCurrentUser } from "@/lib/auth/context";
 import { isJobSaved } from "@/lib/savedJobs/dal";
+import { getAppBaseUrl } from "@/lib/appBaseUrl";
+import { Breadcrumb } from "@/components/public/breadcrumb";
 import JobShare from "@/components/job-share";
 import { ApplyButton } from "@/components/applications/apply-button";
 import { SaveButton } from "@/components/saved-jobs/save-button";
@@ -22,10 +24,66 @@ import { BrandMark } from "@/components/ui/brand-mark";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Job | JobEthiopia",
-  description: "Job details on JobEthiopia.",
-};
+function truncateMetadata(value: string, maxLength: number): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length <= maxLength) return clean;
+  return clean.slice(0, maxLength - 3).trimEnd() + "...";
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+
+  let job: PublicJobDetail | null = null;
+  try {
+    job = await fetchJobById(id);
+  } catch {
+    // fall through to fallback metadata
+  }
+
+  if (!job) {
+    return {
+      title: "Job | JobEthiopia",
+      description: "Job details on JobEthiopia.",
+    };
+  }
+
+  const title = job.title;
+  const org = job.organizationName ?? "";
+  const description = job.description
+    ? truncateMetadata(job.description, 160)
+    : `${title}${org ? ` at ${org}` : ""} — find verified jobs on JobEthiopia.`;
+
+  const baseUrl = getAppBaseUrl();
+  const canonicalUrl = `${baseUrl}/jobs/${id}`;
+
+  const openGraph = {
+    title: `${title} | JobEthiopia`,
+    description,
+    url: canonicalUrl,
+    type: "article" as const,
+    siteName: "JobEthiopia",
+  };
+
+  const twitter = {
+    card: "summary_large_image" as const,
+    title: `${title} | JobEthiopia`,
+    description,
+  };
+
+  return {
+    title,
+    description,
+    openGraph,
+    twitter,
+    alternates: {
+      canonical: canonicalUrl,
+    },
+  };
+}
 
 function formatEmploymentType(value: string | null): string | null {
   return value ? value.replace("_", " ") : null;
@@ -200,7 +258,13 @@ export default async function JobPage({
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
-      <Breadcrumb title={job.title} />
+      <Breadcrumb
+        items={[
+          { label: "Home", href: "/" },
+          { label: "Jobs", href: "/jobs" },
+          { label: job.title },
+        ]}
+      />
 
       <article className="mt-5">
         <JobHeader
@@ -321,40 +385,6 @@ export default async function JobPage({
         />
       )}
     </div>
-  );
-}
-
-function Breadcrumb({ title }: { title: string }) {
-  return (
-    <nav aria-label="Breadcrumb" className="py-1">
-      <ol className="flex flex-wrap items-center gap-1.5 text-sm text-subtle">
-        <li>
-          <Link
-            href="/"
-            className="hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          >
-            Home
-          </Link>
-        </li>
-        <li aria-hidden="true" className="text-subtle">
-          /
-        </li>
-        <li>
-          <Link
-            href="/jobs"
-            className="hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          >
-            Jobs
-          </Link>
-        </li>
-        <li aria-hidden="true" className="text-subtle">
-          /
-        </li>
-        <li aria-current="page" className="truncate font-medium text-foreground">
-          {title}
-        </li>
-      </ol>
-    </nav>
   );
 }
 

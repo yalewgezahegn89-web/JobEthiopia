@@ -179,6 +179,7 @@ describe("Homepage", () => {
   it("renders a working search form submitting to /jobs", async () => {
     const html = await renderHome();
     expect(html).toContain('action="/jobs"');
+    expect(html).toContain('aria-label="Search jobs"');
     expect(html).toContain("method=\"get\"");
     expect(html).toContain("name=\"q\"");
     expect(html).toContain("Search jobs by keyword");
@@ -317,6 +318,15 @@ describe("Homepage", () => {
     const html = await renderHome();
     expect(html).toContain(
       "We could not load the latest career resources right now",
+    );
+  });
+
+  it("exports page-specific SEO metadata", async () => {
+    const { metadata } = await import("@/app/page");
+    expect(metadata).toBeDefined();
+    expect(metadata.title).toBe("JobEthiopia | Find Jobs in Ethiopia");
+    expect(metadata.description).toBe(
+      "Find verified job opportunities across Ethiopia by profession, category, and location.",
     );
   });
 });
