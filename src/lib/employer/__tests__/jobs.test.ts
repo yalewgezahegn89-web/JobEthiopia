@@ -25,6 +25,7 @@ vi.mock("@/lib/ingestion/slug", () => ({
 import {
   listEmployerJobs,
   createEmployerJob,
+  changeEmployerJobStatus,
 } from "../jobs";
 import {
   listEmployerApplications,
@@ -700,5 +701,288 @@ describe("createEmployerJob", () => {
     await expect(createEmployerJob(USER_ID, INPUT)).rejects.toThrow(
       "connection refused",
     );
+  });
+});
+
+function buildTxChain(result: unknown) {
+  const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+  chain.from = vi.fn().mockReturnValue(chain);
+  chain.where = vi.fn().mockReturnValue(chain);
+  chain.limit = vi.fn().mockResolvedValue(result);
+  return chain;
+}
+
+function buildChangeStatusTxChain(opts: {
+  job?: { id: string; currentStatus: string; organizationId: string } | null;
+  user?: { role: string; isActive: boolean } | null;
+  org?: { status: string } | null;
+  membership?: { id: string } | null;
+  updateResult?: { id: string; status: string };
+}) {
+  const jobRow = opts.job !== undefined ? opts.job : { id: JOB_ID, currentStatus: "DRAFT", organizationId: ORG_ID };
+  const userRow = opts.user !== undefined ? opts.user : { role: "ORGANIZATION_ADMIN", isActive: true };
+  const orgRow = opts.org !== undefined ? opts.org : { status: "ACTIVE" };
+  const membershipRow = opts.membership !== undefined ? opts.membership : { id: "m1" };
+  const updateRow = opts.updateResult ?? { id: JOB_ID, status: "PENDING_REVIEW" };
+
+  const tx = {
+    select: vi.fn()
+      .mockReturnValueOnce(buildTxChain(jobRow !== null ? [jobRow] : []))
+      .mockReturnValueOnce(buildTxChain(userRow !== null ? [userRow] : []))
+      .mockReturnValueOnce(buildTxChain(orgRow !== null ? [orgRow] : []))
+      .mockReturnValueOnce(buildTxChain(membershipRow !== null ? [membershipRow] : [])),
+    update: vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({
+          returning: vi.fn().mockResolvedValue([updateRow]),
+        }),
+      }),
+    }),
+    insert: vi.fn().mockReturnValue({
+      values: vi.fn().mockResolvedValue(undefined),
+    }),
+  };
+  return tx;
+}
+
+describe("changeEmployerJobStatus", () => {
+  it("returns NOT_FOUND when job does not exist", async () => {
+    const tx = buildChangeStatusTxChain({ job: null });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+    expect(result).toEqual({ ok: false, code: "NOT_FOUND" });
+  });
+
+  it("returns USER_INACTIVE when role is not ORGANIZATION_ADMIN", async () => {
+    const tx = buildChangeStatusTxChain({ user: { role: "CANDIDATE", isActive: true } });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+    expect(result).toEqual({ ok: false, code: "USER_INACTIVE" });
+  });
+
+  it("returns USER_INACTIVE when user is inactive", async () => {
+    const tx = buildChangeStatusTxChain({ user: { role: "ORGANIZATION_ADMIN", isActive: false } });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+    expect(result).toEqual({ ok: false, code: "USER_INACTIVE" });
+  });
+
+  it("returns USER_INACTIVE when user does not exist", async () => {
+    const tx = buildChangeStatusTxChain({ user: null });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+    expect(result).toEqual({ ok: false, code: "USER_INACTIVE" });
+  });
+
+  it("returns FORBIDDEN when organization does not exist", async () => {
+    const tx = buildChangeStatusTxChain({ org: null });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+  });
+
+  it("returns ORG_INACTIVE when organization is inactive", async () => {
+    const tx = buildChangeStatusTxChain({ org: { status: "INACTIVE" } });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+    expect(result).toEqual({ ok: false, code: "ORG_INACTIVE" });
+  });
+
+  it("returns FORBIDDEN when no organization membership exists", async () => {
+    const tx = buildChangeStatusTxChain({ membership: null });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+  });
+
+  it("returns INVALID_TRANSITION for DRAFT → PUBLISHED", async () => {
+    const tx = buildChangeStatusTxChain({
+      job: { id: JOB_ID, currentStatus: "DRAFT", organizationId: ORG_ID },
+    });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "PUBLISHED" as never);
+    expect(result).toEqual({ ok: false, code: "INVALID_TRANSITION" });
+  });
+
+  it("returns INVALID_TRANSITION for PUBLISHED → PENDING_REVIEW", async () => {
+    const tx = buildChangeStatusTxChain({
+      job: { id: JOB_ID, currentStatus: "PUBLISHED", organizationId: ORG_ID },
+    });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+    expect(result).toEqual({ ok: false, code: "INVALID_TRANSITION" });
+  });
+
+  it("returns INVALID_TRANSITION for REMOVED → DRAFT", async () => {
+    const tx = buildChangeStatusTxChain({
+      job: { id: JOB_ID, currentStatus: "REMOVED", organizationId: ORG_ID },
+    });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "DRAFT");
+    expect(result).toEqual({ ok: false, code: "INVALID_TRANSITION" });
+  });
+
+  it("succeeds for DRAFT → PENDING_REVIEW", async () => {
+    const tx = buildChangeStatusTxChain({
+      job: { id: JOB_ID, currentStatus: "DRAFT", organizationId: ORG_ID },
+      updateResult: { id: JOB_ID, status: "PENDING_REVIEW" },
+    });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item).toEqual({ id: JOB_ID, status: "PENDING_REVIEW" });
+    }
+  });
+
+  it("succeeds for PENDING_REVIEW → DRAFT", async () => {
+    const tx = buildChangeStatusTxChain({
+      job: { id: JOB_ID, currentStatus: "PENDING_REVIEW", organizationId: ORG_ID },
+      updateResult: { id: JOB_ID, status: "DRAFT" },
+    });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "DRAFT");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item).toEqual({ id: JOB_ID, status: "DRAFT" });
+    }
+  });
+
+  it("writes audit log with correct actor/fromStatus/toStatus/source metadata", async () => {
+    const tx = buildChangeStatusTxChain({
+      job: { id: JOB_ID, currentStatus: "DRAFT", organizationId: ORG_ID },
+      updateResult: { id: JOB_ID, status: "PENDING_REVIEW" },
+    });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+
+    const auditValues = tx.insert.mock.results[0].value;
+    expect(auditValues.values).toHaveBeenCalledTimes(1);
+    const auditData = auditValues.values.mock.calls[0][0];
+    expect(auditData).toEqual({
+      actorUserId: USER_ID,
+      action: "JOB_UPDATED",
+      targetType: "job",
+      targetId: JOB_ID,
+      metadata: {
+        source: "employer",
+        fromStatus: "DRAFT",
+        toStatus: "PENDING_REVIEW",
+      },
+    });
+  });
+
+  it("returns item with correct id and status on success", async () => {
+    const tx = buildChangeStatusTxChain({
+      job: { id: JOB_ID, currentStatus: "DRAFT", organizationId: ORG_ID },
+      updateResult: { id: JOB_ID, status: "PENDING_REVIEW" },
+    });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item.id).toBe(JOB_ID);
+      expect(result.item.status).toBe("PENDING_REVIEW");
+    }
+  });
+
+  it("reads organizationId from the database job record", async () => {
+    const customOrgId = "99999999-9999-4999-8999-999999999999";
+    const tx = buildChangeStatusTxChain({
+      job: { id: JOB_ID, currentStatus: "DRAFT", organizationId: customOrgId },
+      updateResult: { id: JOB_ID, status: "PENDING_REVIEW" },
+    });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+
+    const auditValues = tx.insert.mock.results[0].value;
+    const auditData = auditValues.values.mock.calls[0][0];
+    expect(auditData.metadata).toEqual({
+      source: "employer",
+      fromStatus: "DRAFT",
+      toStatus: "PENDING_REVIEW",
+    });
+  });
+
+  it("uses server-side userId as actor, not client-supplied", async () => {
+    const actorId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const tx = buildChangeStatusTxChain({
+      job: { id: JOB_ID, currentStatus: "DRAFT", organizationId: ORG_ID },
+      updateResult: { id: JOB_ID, status: "PENDING_REVIEW" },
+    });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await changeEmployerJobStatus(actorId, JOB_ID, "PENDING_REVIEW");
+
+    const auditValues = tx.insert.mock.results[0].value;
+    const auditData = auditValues.values.mock.calls[0][0];
+    expect(auditData.actorUserId).toBe(actorId);
+  });
+
+  it("does not modify verificationStatus during status transition", async () => {
+    const tx = buildChangeStatusTxChain({
+      job: { id: JOB_ID, currentStatus: "DRAFT", organizationId: ORG_ID },
+      updateResult: { id: JOB_ID, status: "PENDING_REVIEW" },
+    });
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await changeEmployerJobStatus(USER_ID, JOB_ID, "PENDING_REVIEW");
+
+    const updateCall = tx.update.mock.results[0].value;
+    const setData = updateCall.set.mock.calls[0][0];
+    expect(setData).not.toHaveProperty("verificationStatus");
+    expect(setData).toEqual({
+      status: "PENDING_REVIEW",
+      updatedAt: expect.any(Date),
+    });
   });
 });
