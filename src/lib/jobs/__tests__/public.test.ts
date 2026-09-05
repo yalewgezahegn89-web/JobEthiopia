@@ -11,6 +11,8 @@ import {
   freshnessLabel,
   closingState,
   buildShareLinks,
+  isJobStale,
+  DEFAULT_STALE_MAX_AGE_DAYS,
 } from "../public";
 
 const BASE_URL = "https://example.com";
@@ -738,5 +740,65 @@ describe("buildShareLinks", () => {
     expect(links.whatsappUrl).not.toContain("applicationUrl");
     expect(links.whatsappUrl).not.toContain("lastVerifiedAt");
     expect(links.whatsappUrl).not.toContain("firstSeenAt");
+  });
+});
+
+describe("isJobStale", () => {
+  const now = new Date("2026-06-01T12:00:00.000Z");
+
+  it("returns true when lastVerifiedAt is null", () => {
+    expect(isJobStale(null, 30, now)).toBe(true);
+  });
+
+  it("returns true when lastVerifiedAt is undefined", () => {
+    expect(isJobStale(undefined, 30, now)).toBe(true);
+  });
+
+  it("returns true when lastVerifiedAt is an invalid date", () => {
+    expect(isJobStale("not-a-date", 30, now)).toBe(true);
+  });
+
+  it("returns false when lastVerifiedAt is recent (1 day ago)", () => {
+    expect(isJobStale("2026-05-31T12:00:00.000Z", 30, now)).toBe(false);
+  });
+
+  it("returns false when lastVerifiedAt is 29 days ago (below threshold)", () => {
+    expect(isJobStale("2026-05-03T12:00:00.000Z", 30, now)).toBe(false);
+  });
+
+  it("returns true when lastVerifiedAt is exactly 30 days ago (at threshold)", () => {
+    expect(isJobStale("2026-05-02T12:00:00.000Z", 30, now)).toBe(true);
+  });
+
+  it("returns true when lastVerifiedAt is 31 days ago (above threshold)", () => {
+    expect(isJobStale("2026-05-01T12:00:00.000Z", 30, now)).toBe(true);
+  });
+
+  it("returns false when lastVerifiedAt is in the future", () => {
+    expect(isJobStale("2026-06-02T12:00:00.000Z", 30, now)).toBe(false);
+  });
+
+  it("respects configurable maxAgeDays", () => {
+    const lastVerified = "2026-05-23T12:00:00.000Z";
+    expect(isJobStale(lastVerified, 7, now)).toBe(true);
+    expect(isJobStale(lastVerified, 10, now)).toBe(false);
+  });
+
+  it("defaults to DEFAULT_STALE_MAX_AGE_DAYS when maxAgeDays is omitted", () => {
+    expect(DEFAULT_STALE_MAX_AGE_DAYS).toBe(30);
+    const reference = new Date("2026-06-01T12:00:00.000Z");
+    const recent = "2026-05-30T12:00:00.000Z";
+    const old = "2026-04-01T12:00:00.000Z";
+    expect(isJobStale(recent, 30, reference)).toBe(false);
+    expect(isJobStale(old, 30, reference)).toBe(true);
+  });
+
+  it("treats a job verified just now as not stale", () => {
+    expect(isJobStale(now.toISOString(), 30, now)).toBe(false);
+  });
+
+  it("treats a job verified 1ms ago as not stale", () => {
+    const oneMsAgo = new Date(now.getTime() - 1).toISOString();
+    expect(isJobStale(oneMsAgo, 30, now)).toBe(false);
   });
 });

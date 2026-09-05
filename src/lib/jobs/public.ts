@@ -1,5 +1,25 @@
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
 
+export const DEFAULT_STALE_MAX_AGE_DAYS = 30;
+
+export function isJobStale(
+  lastVerifiedAt: string | null | undefined,
+  maxAgeDays: number = DEFAULT_STALE_MAX_AGE_DAYS,
+  now?: Date,
+): boolean {
+  if (lastVerifiedAt == null) {
+    return true;
+  }
+  const date = new Date(lastVerifiedAt);
+  if (Number.isNaN(date.getTime())) {
+    return true;
+  }
+  const reference = now ?? new Date();
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const elapsedMs = reference.getTime() - date.getTime();
+  return elapsedMs >= maxAgeDays * msPerDay;
+}
+
 export type PublicJobQuery = {
   q?: string;
   categoryId?: string;

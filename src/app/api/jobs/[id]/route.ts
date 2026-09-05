@@ -12,6 +12,7 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
+import { isJobStale } from "@/lib/jobs/public";
 
 type JobStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "EXPIRED" | "REMOVED";
 
@@ -46,6 +47,10 @@ export async function GET(
     });
 
     if (!job) {
+      return jsonError("Job not found", 404);
+    }
+
+    if (isJobStale(job.lastVerifiedAt as string | null)) {
       return jsonError("Job not found", 404);
     }
 

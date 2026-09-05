@@ -13,6 +13,7 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize, escapeLikePattern } from "@/lib/apiUtils";
+import { DEFAULT_STALE_MAX_AGE_DAYS } from "@/lib/jobs/public";
 
 function toEntityMap<T extends { id: string }>(rows: T[]): Map<string, T> {
   return new Map(rows.map((row) => [row.id, row]));
@@ -122,7 +123,13 @@ export async function GET(request: Request) {
       organizationNameIds = matches.map((match) => match.id);
     }
 
-    const conditions: (SQL | undefined)[] = [eq(jobs.status, "PUBLISHED")];
+    const now = new Date();
+    const staleCutoff = new Date(now.getTime() - DEFAULT_STALE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
+
+    const conditions: (SQL | undefined)[] = [
+      eq(jobs.status, "PUBLISHED"),
+      sql`(${jobs.lastVerifiedAt} IS NULL OR ${jobs.lastVerifiedAt} >= ${staleCutoff.toISOString()})`,
+    ];
     if (employmentType) {
       conditions.push(eq(jobs.employmentType, employmentType));
     }

@@ -89,6 +89,7 @@ vi.mock("../../../db/schema/jobs", () => ({
     employmentType: "jobs.employmentType",
     createdAt: "jobs.createdAt",
     updatedAt: "jobs.updatedAt",
+    lastVerifiedAt: "jobs.lastVerifiedAt",
   },
 }));
 
@@ -107,6 +108,7 @@ const SAMPLE_JOB = {
   status: "DRAFT",
   employmentType: "FULL_TIME",
   createdAt: new Date("2026-01-15"),
+  lastVerifiedAt: new Date("2026-08-20"),
 };
 
 function makeGetRequest(url: string): Request {
@@ -891,6 +893,60 @@ describe("GET /api/jobs/[id]", () => {
 
       expect(body).not.toContain("SECRET_DB_PASSWORD");
       expect(body).not.toContain("xyz");
+    });
+  });
+
+  describe("stale job filtering", () => {
+    it("returns 404 when lastVerifiedAt is null (never verified)", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: null,
+      });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe("Job not found");
+    });
+
+    it("returns 404 when lastVerifiedAt is older than 30 days", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: new Date("2026-04-01"),
+      });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe("Job not found");
+    });
+
+    it("returns 200 when lastVerifiedAt is recent (within 30 days)", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: new Date("2026-08-20"),
+      });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item).toBeDefined();
+      expect(data.item.id).toBe(VALID_ID);
     });
   });
 });
