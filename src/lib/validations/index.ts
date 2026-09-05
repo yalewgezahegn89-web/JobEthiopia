@@ -41,7 +41,6 @@ export const createOrganizationSchema = z.object({
   websiteUrl: z.string().url().nullable().optional(),
   logoUrl: z.string().url().nullable().optional(),
   locationId: z.string().uuid().nullable().optional(),
-  isVerified: z.boolean().optional().default(false),
   status: OrganizationStatus.optional().default("ACTIVE"),
 });
 

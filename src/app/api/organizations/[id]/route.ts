@@ -90,6 +90,8 @@ export async function PUT(
     return jsonError(`${path}${issue.message}`, 400);
   }
 
+  const { isVerified: _callerIsVerified, ...updateData } = parsed.data;
+
   try {
     const existing = await db.query.organizations.findFirst({
       where: eq(organizations.id, parsedId.data.id),
@@ -102,7 +104,7 @@ export async function PUT(
 
     const [updated] = await db
       .update(organizations)
-      .set(parsed.data)
+      .set(updateData)
       .where(eq(organizations.id, parsedId.data.id))
       .returning({
         id: organizations.id,

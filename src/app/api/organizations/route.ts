@@ -40,10 +40,12 @@ export async function POST(request: Request) {
     return jsonError(`${path}${issue.message}`, 400);
   }
 
+  const { isVerified: _callerIsVerified, ...insertData } = parsed.data;
+
   try {
     const [created] = await db
       .insert(organizations)
-      .values(parsed.data)
+      .values(insertData)
       .returning({
         id: organizations.id,
         name: organizations.name,

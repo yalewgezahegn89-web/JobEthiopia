@@ -59,6 +59,10 @@ import {
   PUT,
   DELETE,
 } from "../../../app/api/organizations/[id]/route";
+import {
+  createOrganizationSchema,
+  updateOrganizationSchema,
+} from "../../validations";
 
 const VALID_ID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -575,6 +579,55 @@ describe("POST /api/organizations", () => {
       expect(data.item.isVerified).toBe(false);
     });
 
+    it("isVerified=true in request body is stripped and not written to DB", async () => {
+      mockInsertSuccess({ ...SAMPLE_ORG, isVerified: false });
+
+      const request = makePostRequest({
+        name: "Black Lion Hospital",
+        slug: "black-lion-hospital",
+        isVerified: true,
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.item.isVerified).toBe(false);
+
+      const insertCall = mockDbInsert.mock.calls.at(-1);
+      const insertValues = insertCall?.[0] as unknown as { values: (v: unknown) => unknown } | undefined;
+      expect(insertValues).toBeDefined();
+    });
+
+    it("isVerified=false in request body is stripped and not written to DB", async () => {
+      mockInsertSuccess({ ...SAMPLE_ORG, isVerified: false });
+
+      const request = makePostRequest({
+        name: "Black Lion Hospital",
+        slug: "black-lion-hospital",
+        isVerified: false,
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.item.isVerified).toBe(false);
+    });
+
+    it("isVerified cannot be set via alternate payload shape", async () => {
+      mockInsertSuccess({ ...SAMPLE_ORG, isVerified: false });
+
+      const request = makePostRequest({
+        name: "Black Lion Hospital",
+        slug: "black-lion-hospital",
+        verification: { isVerified: true },
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.item.isVerified).toBe(false);
+    });
+
     it("full body with all optional fields returns 201", async () => {
       const fullOrg = {
         ...SAMPLE_ORG,
@@ -967,6 +1020,53 @@ describe("PUT /api/organizations/[id]", () => {
 
       expect(Object.keys(data)).toEqual(["item"]);
     });
+
+    it("isVerified=true is stripped from PUT and not written to DB", async () => {
+      mockUpdateSuccess({ ...SAMPLE_ORG, isVerified: false });
+
+      const request = makePutRequest(VALID_ID, { isVerified: true });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item.isVerified).toBe(false);
+
+      const updateCall = mockDbUpdate.mock.calls.at(-1);
+      const updateFn = updateCall?.[0] as unknown as { set: (v: unknown) => unknown } | undefined;
+      expect(updateFn).toBeDefined();
+    });
+
+    it("isVerified=false is stripped from PUT and not written to DB", async () => {
+      mockUpdateSuccess({ ...SAMPLE_ORG, isVerified: true });
+
+      const request = makePutRequest(VALID_ID, { isVerified: false });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item.isVerified).toBe(true);
+    });
+
+    it("isVerified cannot be changed via PUT even with valid API key", async () => {
+      mockUpdateSuccess({ ...SAMPLE_ORG, isVerified: false, name: "Updated Name" });
+
+      const request = makePutRequest(VALID_ID, {
+        name: "Updated Name",
+        isVerified: true,
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item.name).toBe("Updated Name");
+      expect(data.item.isVerified).toBe(false);
+    });
   });
 
   describe("slug conflict", () => {
@@ -1146,5 +1246,64 @@ describe("DELETE /api/organizations/[id]", () => {
       expect(body).not.toContain("SECRET_DB_PASSWORD");
       expect(body).not.toContain("xyz");
     });
+  });
+});
+
+describe("Schema-level isVerified rejection", () => {
+  it("createOrganizationSchema rejects isVerified field", () => {
+    const result = createOrganizationSchema.safeParse({
+      name: "Test Org",
+      slug: "test-org",
+      isVerified: true,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty("isVerified");
+    }
+  });
+
+  it("updateOrganizationSchema rejects isVerified field", () => {
+    const result = updateOrganizationSchema.safeParse({
+      name: "Updated Org",
+      isVerified: true,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty("isVerified");
+    }
+  });
+
+  it("createOrganizationSchema accepts valid fields without isVerified", () => {
+    const result = createOrganizationSchema.safeParse({
+      name: "Test Org",
+      slug: "test-org",
+      description: "A test organization",
+      industry: "Technology",
+      websiteUrl: "https://example.com",
+      logoUrl: "https://example.com/logo.png",
+      locationId: "110e8400-e29b-41d4-a716-446655440010",
+      status: "ACTIVE",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty("isVerified");
+      expect(result.data.status).toBe("ACTIVE");
+    }
+  });
+
+  it("createOrganizationSchema defaults status to ACTIVE without isVerified", () => {
+    const result = createOrganizationSchema.safeParse({
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty("isVerified");
+      expect(result.data.status).toBe("ACTIVE");
+    }
   });
 });
