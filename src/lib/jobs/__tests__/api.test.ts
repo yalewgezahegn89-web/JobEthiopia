@@ -113,6 +113,18 @@ function makeGetRequest(url: string): Request {
   return new Request(url, { method: "GET" });
 }
 
+function sqlContains(node: unknown, needle: string): boolean {
+  if (node === null || node === undefined) return false;
+  if (typeof node === "string") return node.includes(needle);
+  if (Array.isArray(node)) return node.some((c) => sqlContains(c, needle));
+  if (typeof node === "object") {
+    return Object.values(node as Record<string, unknown>).some((v) =>
+      sqlContains(v, needle),
+    );
+  }
+  return false;
+}
+
 function makeJobListRequest(
   searchParams?: Record<string, string>,
 ): Request {
@@ -282,6 +294,40 @@ describe("GET /api/jobs", () => {
       const response = await GET(request);
 
       expect(response.status).toBe(200);
+    });
+
+    it("listing always filters to PUBLISHED even without a status param", async () => {
+      const request = makeJobListRequest();
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(mockJobsFindMany).toHaveBeenCalled();
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, "PUBLISHED")).toBe(true);
+      expect(mockDbWhere).toHaveBeenCalled();
+      expect(sqlContains(mockDbWhere.mock.calls[0][0], "PUBLISHED")).toBe(true);
+    });
+
+    it("status=DRAFT cannot leak drafts into the public listing", async () => {
+      const request = makeJobListRequest({ status: "DRAFT" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(mockJobsFindMany).toHaveBeenCalled();
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, "PUBLISHED")).toBe(true);
+      expect(sqlContains(findManyWhere, "DRAFT")).toBe(false);
+    });
+
+    it("status=REMOVED cannot leak removed jobs into the public listing", async () => {
+      const request = makeJobListRequest({ status: "REMOVED" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(mockJobsFindMany).toHaveBeenCalled();
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, "PUBLISHED")).toBe(true);
+      expect(sqlContains(findManyWhere, "REMOVED")).toBe(false);
     });
 
     it("employmentType filter is passed to DB query", async () => {
@@ -993,6 +1039,17 @@ describe("PATCH /api/jobs/[id]", () => {
       expect(response.status).toBe(400);
       expect(data.error).toContain("verificationStatus");
     });
+
+    it("rejects valid verificationStatus update (not writable via PATCH)", async () => {
+      const request = makePatchRequest(VALID_ID, { verificationStatus: "VERIFIED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("verificationStatus");
+    });
   });
 
   describe("not found", () => {
@@ -1022,19 +1079,6 @@ describe("PATCH /api/jobs/[id]", () => {
 
       expect(response.status).toBe(200);
       expect(data.item.status).toBe("PUBLISHED");
-      expect(data.item.verificationStatus).toBe("VERIFIED");
-    });
-
-    it("valid verificationStatus update returns 200", async () => {
-      mockUpdateSuccess({ ...UPDATED_JOB, verificationStatus: "VERIFIED" });
-
-      const request = makePatchRequest(VALID_ID, { verificationStatus: "VERIFIED" });
-      const response = await PATCH(request, {
-        params: Promise.resolve({ id: VALID_ID }),
-      });
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
       expect(data.item.verificationStatus).toBe("VERIFIED");
     });
 
@@ -1383,9 +1427,8 @@ describe("PATCH /api/jobs/[id]", () => {
     });
 
     describe("verificationStatus independence", () => {
-      it("verificationStatus-only update works from any status", async () => {
+      it("verificationStatus-only update is rejected regardless of current status", async () => {
         mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "REMOVED" });
-        mockUpdateSuccess({ ...UPDATED_JOB, status: "REMOVED", verificationStatus: "VERIFIED" });
 
         const request = makePatchRequest(VALID_ID, { verificationStatus: "VERIFIED" });
         const response = await PATCH(request, {
@@ -1393,18 +1436,31 @@ describe("PATCH /api/jobs/[id]", () => {
         });
         const data = await response.json();
 
-        expect(response.status).toBe(200);
-        expect(data.item.verificationStatus).toBe("VERIFIED");
+        expect(response.status).toBe(400);
+        expect(data.error).toContain("verificationStatus");
       });
 
-      it("combined valid status + verificationStatus returns 200", async () => {
+      it("combined valid status + verificationStatus is rejected", async () => {
         mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
-        mockUpdateSuccess(UPDATED_JOB);
 
         const request = makePatchRequest(VALID_ID, {
           status: "PUBLISHED",
           verificationStatus: "VERIFIED",
         });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(400);
+        expect(data.error).toContain("verificationStatus");
+      });
+
+      it("status-only update still works (verificationStatus blocked, status not affected)", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+        mockUpdateSuccess(UPDATED_JOB);
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
         const response = await PATCH(request, {
           params: Promise.resolve({ id: VALID_ID }),
         });
@@ -1412,23 +1468,6 @@ describe("PATCH /api/jobs/[id]", () => {
 
         expect(response.status).toBe(200);
         expect(data.item.status).toBe("PUBLISHED");
-        expect(data.item.verificationStatus).toBe("VERIFIED");
-      });
-
-      it("combined invalid status + verificationStatus returns 409", async () => {
-        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "REMOVED" });
-
-        const request = makePatchRequest(VALID_ID, {
-          status: "PUBLISHED",
-          verificationStatus: "VERIFIED",
-        });
-        const response = await PATCH(request, {
-          params: Promise.resolve({ id: VALID_ID }),
-        });
-        const data = await response.json();
-
-        expect(response.status).toBe(409);
-        expect(data.error).toBe("Invalid status transition from REMOVED to PUBLISHED");
       });
     });
 
@@ -1730,7 +1769,6 @@ function makePostRequest(body: unknown, headers?: Record<string, string>): Reque
 const VALID_POST_BODY = {
   title: "Software Engineer",
   slug: "software-engineer",
-  organizationId: "550e8400-e29b-41d4-a716-446655440000",
   description: "A software engineering role",
 };
 
@@ -1740,6 +1778,7 @@ describe("POST /api/jobs", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     vi.stubEnv("INGESTION_API_KEY", API_KEY);
+    vi.stubEnv("INGESTION_ORGANIZATION_ID", "550e8400-e29b-41d4-a716-446655440000");
     const mod = await import("../../../app/api/jobs/route");
     POST = mod.POST;
   });
@@ -1787,7 +1826,6 @@ describe("POST /api/jobs", () => {
     it("missing title returns 400", async () => {
       const request = makePostRequest({
         slug: "test",
-        organizationId: "550e8400-e29b-41d4-a716-446655440000",
         description: "desc",
       });
       const response = await POST(request);
@@ -1800,7 +1838,6 @@ describe("POST /api/jobs", () => {
     it("missing slug returns 400", async () => {
       const request = makePostRequest({
         title: "Test",
-        organizationId: "550e8400-e29b-41d4-a716-446655440000",
         description: "desc",
       });
       const response = await POST(request);
@@ -1810,10 +1847,11 @@ describe("POST /api/jobs", () => {
       expect(data.error).toContain("slug");
     });
 
-    it("missing organizationId returns 400", async () => {
+    it("rejects caller-supplied organizationId", async () => {
       const request = makePostRequest({
         title: "Test",
         slug: "test",
+        organizationId: "550e8400-e29b-41d4-a716-446655440000",
         description: "desc",
       });
       const response = await POST(request);
@@ -1823,11 +1861,38 @@ describe("POST /api/jobs", () => {
       expect(data.error).toContain("organizationId");
     });
 
+    it("rejects caller-supplied status PUBLISHED", async () => {
+      const request = makePostRequest({
+        title: "Test",
+        slug: "test",
+        status: "PUBLISHED",
+        description: "desc",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("status");
+    });
+
+    it("rejects caller-supplied verificationStatus VERIFIED", async () => {
+      const request = makePostRequest({
+        title: "Test",
+        slug: "test",
+        verificationStatus: "VERIFIED",
+        description: "desc",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("verificationStatus");
+    });
+
     it("missing description returns 400", async () => {
       const request = makePostRequest({
         title: "Test",
         slug: "test",
-        organizationId: "550e8400-e29b-41d4-a716-446655440000",
       });
       const response = await POST(request);
       const data = await response.json();
@@ -1836,25 +1901,10 @@ describe("POST /api/jobs", () => {
       expect(data.error).toContain("description");
     });
 
-    it("invalid organizationId UUID returns 400", async () => {
-      const request = makePostRequest({
-        title: "Test",
-        slug: "test",
-        organizationId: "not-a-uuid",
-        description: "desc",
-      });
-      const response = await POST(request);
-      const data = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(data.error).toContain("organizationId");
-    });
-
     it("invalid optional FK UUID returns 400", async () => {
       const request = makePostRequest({
         title: "Test",
         slug: "test",
-        organizationId: "550e8400-e29b-41d4-a716-446655440000",
         categoryId: "not-a-uuid",
         description: "desc",
       });
@@ -1869,7 +1919,6 @@ describe("POST /api/jobs", () => {
       const request = makePostRequest({
         title: "Test",
         slug: "INVALID SLUG!",
-        organizationId: "550e8400-e29b-41d4-a716-446655440000",
         description: "desc",
       });
       const response = await POST(request);
@@ -1883,7 +1932,6 @@ describe("POST /api/jobs", () => {
       const request = makePostRequest({
         title: "Test",
         slug: "test",
-        organizationId: "550e8400-e29b-41d4-a716-446655440000",
         description: "desc",
         salaryMin: 50000,
         salaryMax: 30000,
@@ -1899,7 +1947,6 @@ describe("POST /api/jobs", () => {
       const request = makePostRequest({
         title: "Test",
         slug: "test",
-        organizationId: "550e8400-e29b-41d4-a716-446655440000",
         description: "desc",
         experienceMin: 5,
         experienceMax: 2,
@@ -1932,7 +1979,6 @@ describe("POST /api/jobs", () => {
       const request = makePostRequest({
         title: "Senior Software Engineer",
         slug: "senior-software-engineer",
-        organizationId: "550e8400-e29b-41d4-a716-446655440000",
         categoryId: "110e8400-e29b-41d4-a716-446655440010",
         professionId: "110e8400-e29b-41d4-a716-446655440011",
         locationId: "110e8400-e29b-41d4-a716-446655440012",
@@ -1994,7 +2040,7 @@ describe("POST /api/jobs", () => {
       expect(data.item.verificationStatus).toBe("PENDING");
     });
 
-    it("correct organizationId is inserted", async () => {
+    it("job is attributed to the server-configured INGESTION_ORGANIZATION_ID", async () => {
       mockInsertSuccess(CREATED_JOB);
 
       const request = makePostRequest(VALID_POST_BODY);
@@ -2002,6 +2048,20 @@ describe("POST /api/jobs", () => {
       const data = await response.json();
 
       expect(data.item.organizationId).toBe("550e8400-e29b-41d4-a716-446655440000");
+    });
+
+    it("does not honor a client-supplied organizationId", async () => {
+      mockInsertSuccess(CREATED_JOB);
+
+      const request = makePostRequest({
+        ...VALID_POST_BODY,
+        organizationId: "999e8400-e29b-41d4-a716-446655449999",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("organizationId");
     });
 
     it("optional FK fields are null when omitted", async () => {

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   mockInsert: vi.fn(),
+  mockGetRequestId: vi.fn(),
 }));
 
 const capturedValues: Record<string, unknown>[] = [];
@@ -14,9 +15,15 @@ vi.mock("@/db", () => {
   };
 });
 
+vi.mock("@/lib/observability/requestId", () => ({
+  getRequestId: mocks.mockGetRequestId,
+}));
+
 const mockInsert = mocks.mockInsert;
+const mockGetRequestId = mocks.mockGetRequestId;
 
 import { writeAuditLog, sanitizeMetadata } from "../audit";
+import { fingerprintApiKey } from "../apiKey";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -27,6 +34,7 @@ beforeEach(() => {
       return [];
     },
   }));
+  mockGetRequestId.mockResolvedValue(undefined);
 });
 
 describe("audit log", () => {
@@ -101,5 +109,100 @@ describe("audit log", () => {
     expect(sanitizeMetadata({})).toEqual({});
     expect(sanitizeMetadata(null)).toBeNull();
     expect(sanitizeMetadata(undefined)).toBeNull();
+  });
+});
+
+describe("audit attribution for api-key mutations", () => {
+  it("adds a non-secret credentialId to api_key-sourced events", async () => {
+    vi.stubEnv("INGESTION_API_KEY", "configured-shared-key");
+
+    await writeAuditLog({
+      action: "JOB_CREATED",
+      targetType: "job",
+      metadata: { source: "api_key" },
+    });
+
+    const row = capturedValues[0];
+    const metadata = row.metadata as Record<string, unknown>;
+    expect(metadata.credentialId).toBeTypeOf("string");
+    expect(metadata.credentialId).toMatch(/^apikey_/);
+    expect(metadata.credentialId).not.toContain("configured-shared-key");
+    expect(JSON.stringify(row)).not.toContain("configured-shared-key");
+  });
+
+  it("derives a stable fingerprint across events for the single shared key", async () => {
+    vi.stubEnv("INGESTION_API_KEY", "configured-shared-key");
+
+    await writeAuditLog({
+      action: "JOB_CREATED",
+      metadata: { source: "api_key" },
+    });
+    const first = (
+      capturedValues[0].metadata as Record<string, unknown>
+    ).credentialId;
+
+    await writeAuditLog({
+      action: "JOB_DELETED",
+      metadata: { source: "api_key" },
+    });
+    const second = (
+      capturedValues[1].metadata as Record<string, unknown>
+    ).credentialId;
+
+    expect(second).toBe(first);
+  });
+
+  it("never writes the raw API key, even for api_key-sourced events", async () => {
+    vi.stubEnv("INGESTION_API_KEY", "raw-super-secret");
+
+    await writeAuditLog({
+      action: "SOURCE_CREATED",
+      metadata: { source: "api_key", name: "test-source" },
+    });
+
+    const metadata = capturedValues[0].metadata as Record<string, unknown>;
+    expect(JSON.stringify(capturedValues)).not.toContain("raw-super-secret");
+    expect(metadata.credentialId).toBe(fingerprintApiKey("raw-super-secret"));
+  });
+
+  it("does not add a credentialId for non-api_key events", async () => {
+    await writeAuditLog({
+      actorUserId: "user-1",
+      action: "LOGIN_SUCCESS",
+      metadata: { method: "password" },
+    });
+    const metadata = capturedValues[0].metadata as Record<string, unknown>;
+    expect(metadata.credentialId).toBeUndefined();
+    expect(capturedValues[0].actorUserId).toBe("user-1");
+  });
+
+  it("preserves the actorUserId for user-driven api_key events", async () => {
+    vi.stubEnv("INGESTION_API_KEY", "configured-shared-key");
+
+    await writeAuditLog({
+      actorUserId: "user-9",
+      action: "ORG_UPDATED",
+      metadata: { source: "api_key" },
+    });
+
+    expect(capturedValues[0].actorUserId).toBe("user-9");
+  });
+
+  it("records the requestId when the active request has one", async () => {
+    mockGetRequestId.mockResolvedValue("req-123");
+
+    await writeAuditLog({ action: "SOME_EVENT", metadata: { source: "api_key" } });
+
+    const metadata = capturedValues[0].metadata as Record<string, unknown>;
+    expect(metadata.requestId).toBe("req-123");
+  });
+
+  it("omits requestId when no request context exists", async () => {
+    mockGetRequestId.mockResolvedValue(undefined);
+
+    await writeAuditLog({ action: "SOME_EVENT", metadata: { source: "api_key" } });
+
+    const metadata = capturedValues[0].metadata as Record<string, unknown>;
+    expect(metadata.requestId).toBeUndefined();
   });
 });

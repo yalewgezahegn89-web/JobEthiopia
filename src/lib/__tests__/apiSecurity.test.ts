@@ -167,6 +167,7 @@ const API_KEY = "test-api-key";
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("INGESTION_API_KEY", API_KEY);
+  vi.stubEnv("INGESTION_ORGANIZATION_ID", VALID_ID);
   vi.stubEnv("APP_BASE_URL", "http://localhost:3000");
   mocks.mockCheckApiKey.mockReturnValue({ ok: true });
   mocks.mockAssertTrustedCsrf.mockResolvedValue(true);

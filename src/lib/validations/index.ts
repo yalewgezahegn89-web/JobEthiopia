@@ -84,7 +84,6 @@ export const createJobSchema = z
   .object({
     title: z.string().min(1, "Title is required"),
     slug: z.string().regex(slugRegex, "Slug must be lowercase alphanumeric with hyphens"),
-    organizationId: z.string().uuid("Organization ID must be a valid UUID"),
     categoryId: z.string().uuid().nullable().optional(),
     professionId: z.string().uuid().nullable().optional(),
     locationId: z.string().uuid().nullable().optional(),
@@ -103,9 +102,8 @@ export const createJobSchema = z
     postedAt: z.string().datetime().nullable().optional(),
     deadline: z.string().datetime().nullable().optional(),
     applicationUrl: z.string().url().nullable().optional(),
-    status: JobStatus.optional().default("DRAFT"),
-    verificationStatus: VerificationStatus.optional().default("PENDING"),
   })
+  .strict()
   .refine(
     (data) =>
       data.salaryMin == null || data.salaryMax == null || data.salaryMax >= data.salaryMin,
@@ -117,15 +115,16 @@ export const createJobSchema = z
     { message: "experienceMax must be greater than or equal to experienceMin", path: ["experienceMax"] },
   );
 
-export const createCareerArticleSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  slug: z.string().regex(slugRegex, "Slug must be lowercase alphanumeric with hyphens"),
-  excerpt: z.string().nullable().optional(),
-  content: z.string().min(1, "Content is required"),
-  category: z.string().nullable().optional(),
-  status: ArticleStatus.optional().default("DRAFT"),
-  publishedAt: z.string().datetime().nullable().optional(),
-});
+export const createCareerArticleSchema = z
+  .object({
+    title: z.string().min(1, "Title is required"),
+    slug: z.string().regex(slugRegex, "Slug must be lowercase alphanumeric with hyphens"),
+    excerpt: z.string().nullable().optional(),
+    content: z.string().min(1, "Content is required"),
+    category: z.string().nullable().optional(),
+    status: ArticleStatus.optional().default("DRAFT"),
+  })
+  .strict();
 
 export const createJobSourceSchema = z.object({
   jobId: z.string().uuid("Job ID must be a valid UUID"),
@@ -154,9 +153,9 @@ export type UpdateSourceInput = z.infer<typeof updateSourceSchema>;
 export const updateJobSchema = z
   .object({
     status: JobStatus,
-    verificationStatus: VerificationStatus,
   })
-  .partial();
+  .partial()
+  .strict();
 
 export type UpdateJobInput = z.infer<typeof updateJobSchema>;
 export type CreateJobInput = z.infer<typeof createJobSchema>;

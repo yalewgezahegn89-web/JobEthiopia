@@ -41,12 +41,10 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { publishedAt: publishedAtRaw, ...rest } = parsed.data;
     const insertData = {
-      ...rest,
-      ...(publishedAtRaw !== undefined && {
-        publishedAt: publishedAtRaw ? new Date(publishedAtRaw) : null,
-      }),
+      ...parsed.data,
+      publishedAt:
+        parsed.data.status === "PUBLISHED" ? new Date() : null,
     };
 
     const [created] = await db
@@ -100,14 +98,11 @@ export async function GET(request: Request) {
     return jsonError(`${path}${issue.message}`, 400);
   }
 
-  const { page, limit, status, category } = parsed.data;
+  const { page, limit, category } = parsed.data;
   const offset = (page - 1) * limit;
 
   try {
-    const conditions = [];
-    if (status) {
-      conditions.push(eq(careerArticles.status, status));
-    }
+    const conditions = [eq(careerArticles.status, "PUBLISHED")];
     if (category) {
       conditions.push(eq(careerArticles.category, category));
     }

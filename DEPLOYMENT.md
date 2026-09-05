@@ -13,6 +13,7 @@
 | `DATABASE_URL` | PostgreSQL connection string (e.g. `postgresql://user:pass@host:5432/dbname`) | Yes | Yes |
 | `APP_BASE_URL` | Public origin for CSRF, sitemap, robots, and password-reset links (e.g. `https://jobs.example.com`) | Yes | No |
 | `INGESTION_API_KEY` | API key required for job ingestion endpoints | Yes | Yes |
+| `INGESTION_ORGANIZATION_ID` | Organization that API-key direct `POST /api/jobs` creation is attributed to. Trusted server-side context — callers can never set `organizationId` themselves. Direct job creation returns 500 if unset. | Yes | No |
 | `MAINTENANCE_API_KEY` | API key required for the maintenance run endpoint | Yes | Yes |
 
 ### Optional

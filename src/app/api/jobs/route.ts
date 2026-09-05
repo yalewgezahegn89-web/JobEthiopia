@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { desc, eq, and, or, ilike, inArray, sql } from "drizzle-orm";
+import { desc, eq, and, or, ilike, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { organizations } from "@/db/schema/organizations";
@@ -49,8 +49,13 @@ export async function POST(request: Request) {
     return jsonError(`${path}${issue.message}`, 400);
   }
 
+  const organizationId = process.env.INGESTION_ORGANIZATION_ID;
+  if (!organizationId) {
+    return jsonError("Server configuration error", 500);
+  }
+
   try {
-    const created = await createJobDirect(parsed.data);
+    const created = await createJobDirect(parsed.data, { organizationId });
 
     await writeAuditLog({
       action: "JOB_CREATED",
@@ -95,7 +100,6 @@ export async function GET(request: Request) {
   const {
     page,
     limit,
-    status,
     employmentType,
     organizationId,
     categoryId,
@@ -118,10 +122,7 @@ export async function GET(request: Request) {
       organizationNameIds = matches.map((match) => match.id);
     }
 
-    const conditions = [];
-    if (status) {
-      conditions.push(eq(jobs.status, status));
-    }
+    const conditions: (SQL | undefined)[] = [eq(jobs.status, "PUBLISHED")];
     if (employmentType) {
       conditions.push(eq(jobs.employmentType, employmentType));
     }

@@ -6,7 +6,6 @@ const MAX_SLUG_RETRIES = 10;
 export interface CreateJobDirectInput {
   title: string;
   slug: string;
-  organizationId: string;
   categoryId?: string | null;
   professionId?: string | null;
   locationId?: string | null;
@@ -25,8 +24,14 @@ export interface CreateJobDirectInput {
   postedAt?: string | null;
   deadline?: string | null;
   applicationUrl?: string | null;
-  status?: string;
-  verificationStatus?: string;
+}
+
+/**
+ * Server-resolved, trusted context for direct job creation.
+ * Callers can never supply these from the request body.
+ */
+export interface CreateJobDirectServerContext {
+  organizationId: string;
 }
 
 export interface CreateJobDirectResult {
@@ -74,6 +79,7 @@ export interface CreateJobDirectResult {
  */
 export async function createJobDirect(
   input: CreateJobDirectInput,
+  serverContext: CreateJobDirectServerContext,
 ): Promise<CreateJobDirectResult> {
   const baseSlug = input.slug;
 
@@ -86,7 +92,7 @@ export async function createJobDirect(
       .values({
         title: input.title,
         slug: candidateSlug,
-        organizationId: input.organizationId,
+        organizationId: serverContext.organizationId,
         categoryId: input.categoryId ?? null,
         professionId: input.professionId ?? null,
         locationId: input.locationId ?? null,
@@ -105,9 +111,8 @@ export async function createJobDirect(
         postedAt: input.postedAt ? new Date(input.postedAt) : null,
         deadline: input.deadline ? new Date(input.deadline) : null,
         applicationUrl: input.applicationUrl ?? null,
-        status: (input.status as never) ?? "DRAFT",
-        verificationStatus:
-          (input.verificationStatus as never) ?? "PENDING",
+        status: "DRAFT" as never,
+        verificationStatus: "PENDING" as never,
       })
       .returning();
 

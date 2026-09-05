@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { careerArticles } from "@/db/schema/careerArticles";
 import { careerArticleIdParamSchema } from "@/lib/validations/careerArticleQuery";
@@ -26,7 +26,10 @@ export async function GET(
 
   try {
     const article = await db.query.careerArticles.findFirst({
-      where: eq(careerArticles.id, parsed.data.id),
+      where: and(
+        eq(careerArticles.id, parsed.data.id),
+        eq(careerArticles.status, "PUBLISHED"),
+      ),
     });
 
     if (!article) {
@@ -79,20 +82,18 @@ export async function PUT(
   try {
     const existing = await db.query.careerArticles.findFirst({
       where: eq(careerArticles.id, parsedId.data.id),
-      columns: { id: true },
+      columns: { id: true, status: true },
     });
 
     if (!existing) {
       return jsonError("Career article not found", 404);
     }
 
-    const { publishedAt: publishedAtRaw, ...rest } = parsed.data;
-    const updateData = {
-      ...rest,
-      ...(publishedAtRaw !== undefined && {
-        publishedAt: publishedAtRaw ? new Date(publishedAtRaw) : null,
-      }),
-    };
+    const updateData =
+      parsed.data.status === "PUBLISHED" &&
+      existing.status !== "PUBLISHED"
+        ? { ...parsed.data, publishedAt: new Date() }
+        : parsed.data;
 
     const [updated] = await db
       .update(careerArticles)

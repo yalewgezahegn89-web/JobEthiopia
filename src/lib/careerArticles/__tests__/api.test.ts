@@ -73,13 +73,37 @@ const SAMPLE_ARTICLE = {
   updatedAt: new Date("2026-01-15"),
 };
 
+const lastFindManyWhere = () =>
+  lastFindManyConfig()?.where;
+
+const mockSelectWhere = vi.fn();
+
 function mockDbSuccess(count: number, items: unknown[]) {
+  mockSelectWhere.mockResolvedValue([{ count }]);
   mockDbSelect.mockReturnValue({
     from: vi.fn().mockReturnValue({
-      where: vi.fn().mockResolvedValue([{ count }]),
+      where: (...args: unknown[]) => mockSelectWhere(...args),
     }),
   });
   mockDbFindMany.mockResolvedValue(items);
+}
+
+function lastFindManyConfig() {
+  return mockDbFindMany.mock.calls.at(-1)?.[0] as
+    | { where?: unknown }
+    | undefined;
+}
+
+function sqlContains(node: unknown, needle: string): boolean {
+  if (node === null || node === undefined) return false;
+  if (typeof node === "string") return node.includes(needle);
+  if (Array.isArray(node)) return node.some((c) => sqlContains(c, needle));
+  if (typeof node === "object") {
+    return Object.values(node as Record<string, unknown>).some((v) =>
+      sqlContains(v, needle),
+    );
+  }
+  return false;
 }
 
 function makeGetListRequest(searchParams?: Record<string, string>): Request {
@@ -150,6 +174,22 @@ function mockInsertSuccess(article: Record<string, unknown>) {
   });
 }
 
+function mockInsertCapture() {
+  const valuesCalls: unknown[] = [];
+  mockDbInsert.mockImplementation(() => ({
+    values: (v: unknown) => {
+      valuesCalls.push(v);
+      return { returning: vi.fn().mockResolvedValue([SAMPLE_ARTICLE]) };
+    },
+  }) as never);
+  return () =>
+    valuesCalls.find((v) =>
+      typeof v === "object" &&
+      v !== null &&
+      "title" in (v as Record<string, unknown>),
+    );
+}
+
 function mockUpdateSuccess(updated: Record<string, unknown>) {
   mockDbUpdate.mockReturnValue({
     set: vi.fn().mockReturnValue({
@@ -158,6 +198,24 @@ function mockUpdateSuccess(updated: Record<string, unknown>) {
       }),
     }),
   });
+}
+
+function mockUpdateCapture(updated: Record<string, unknown>) {
+  const setCalls: unknown[] = [];
+  mockDbUpdate.mockImplementation(
+    () =>
+      ({
+        set: (s: unknown) => {
+          setCalls.push(s);
+          return {
+            where: vi.fn().mockReturnValue({
+              returning: vi.fn().mockResolvedValue([updated]),
+            }),
+          };
+        },
+      }) as never,
+  );
+  return () => setCalls[0];
 }
 
 function mockUpdateError(errorMessage: string) {
@@ -275,6 +333,38 @@ describe("GET /api/career-articles", () => {
     });
   });
 
+  describe("publication status", () => {
+    it("listing always filters to PUBLISHED even without a status param", async () => {
+      const request = makeGetListRequest();
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(sqlContains(lastFindManyWhere(), "PUBLISHED")).toBe(true);
+      expect(mockSelectWhere).toHaveBeenCalled();
+      expect(sqlContains(mockSelectWhere.mock.calls[0][0], "PUBLISHED")).toBe(
+        true,
+      );
+    });
+
+    it("status=DRAFT cannot leak drafts into the public listing", async () => {
+      const request = makeGetListRequest({ status: "DRAFT" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(sqlContains(lastFindManyWhere(), "PUBLISHED")).toBe(true);
+      expect(sqlContains(lastFindManyWhere(), "DRAFT")).toBe(false);
+    });
+
+    it("status=ARCHIVED cannot leak archived articles into the public listing", async () => {
+      const request = makeGetListRequest({ status: "ARCHIVED" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(sqlContains(lastFindManyWhere(), "PUBLISHED")).toBe(true);
+      expect(sqlContains(lastFindManyWhere(), "ARCHIVED")).toBe(false);
+    });
+  });
+
   describe("validation", () => {
     it("invalid status returns 400", async () => {
       const request = makeGetListRequest({ status: "INVALID_STATUS" });
@@ -377,6 +467,18 @@ describe("POST /api/career-articles", () => {
       expect(data.error).toContain("status");
     });
 
+    it("caller-supplied publishedAt is rejected with 400", async () => {
+      const request = makePostRequest({
+        ...VALID_POST_BODY,
+        publishedAt: "2026-01-20T00:00:00.000Z",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("publishedAt");
+    });
+
     it("malformed JSON returns 400", async () => {
       const request = new Request("http://localhost/api/career-articles", {
         method: "POST",
@@ -433,7 +535,6 @@ describe("POST /api/career-articles", () => {
         excerpt: "A guide",
         category: "Career Tips",
         status: "PUBLISHED",
-        publishedAt: "2026-01-20T00:00:00.000Z",
       });
       const response = await POST(request);
       const data = await response.json();
@@ -442,6 +543,41 @@ describe("POST /api/career-articles", () => {
       expect(data.item.excerpt).toBe("A guide");
       expect(data.item.category).toBe("Career Tips");
       expect(data.item.status).toBe("PUBLISHED");
+    });
+
+    it("server assigns publishedAt on create as PUBLISHED", async () => {
+      const insertValues = mockInsertCapture();
+
+      const request = makePostRequest({
+        ...VALID_POST_BODY,
+        status: "PUBLISHED",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(insertValues()).toMatchObject({
+        status: "PUBLISHED",
+      });
+      expect(insertValues()).toHaveProperty("publishedAt", expect.any(Date));
+      expect(data.item).toBeDefined();
+    });
+
+    it("server sets publishedAt to null on create as DRAFT", async () => {
+      const insertValues = mockInsertCapture();
+
+      const request = makePostRequest({
+        ...VALID_POST_BODY,
+        status: "DRAFT",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(insertValues()).toMatchObject({
+        status: "DRAFT",
+        publishedAt: null,
+      });
     });
   });
 
@@ -558,6 +694,32 @@ describe("GET /api/career-articles/[id]", () => {
 
       expect(response.status).toBe(404);
       expect(data.error).toBe("Career article not found");
+    });
+  });
+
+  describe("publication status", () => {
+    it("queries only PUBLISHED articles", async () => {
+      const request = makeGetDetailRequest(VALID_ID);
+      await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(mockFindFirst).toHaveBeenCalled();
+      const where = mockFindFirst.mock.calls[0][0].where;
+      expect(sqlContains(where, "PUBLISHED")).toBe(true);
+      expect(sqlContains(where, "DRAFT")).toBe(false);
+    });
+
+    it("queries exclude ARCHIVED articles", async () => {
+      const request = makeGetDetailRequest(VALID_ID);
+      await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(mockFindFirst).toHaveBeenCalled();
+      const where = mockFindFirst.mock.calls[0][0].where;
+      expect(sqlContains(where, "PUBLISHED")).toBe(true);
+      expect(sqlContains(where, "ARCHIVED")).toBe(false);
     });
   });
 
@@ -686,6 +848,20 @@ describe("PUT /api/career-articles/[id]", () => {
       expect(response.status).toBe(400);
       expect(data.error).toContain("slug");
     });
+
+    it("caller-supplied publishedAt is rejected with 400", async () => {
+      const request = makePutRequest(VALID_ID, {
+        title: "Test",
+        publishedAt: "2026-01-20T00:00:00.000Z",
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("publishedAt");
+    });
   });
 
   describe("not found", () => {
@@ -740,6 +916,60 @@ describe("PUT /api/career-articles/[id]", () => {
       const data = await response.json();
 
       expect(Object.keys(data)).toEqual(["item"]);
+    });
+
+    it("server assigns publishedAt on DRAFT to PUBLISHED transition", async () => {
+      mockFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+      const updateSet = mockUpdateCapture({
+        ...SAMPLE_ARTICLE,
+        status: "PUBLISHED",
+        publishedAt: new Date("2026-01-20"),
+      });
+
+      const request = makePutRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(updateSet()).toMatchObject({ status: "PUBLISHED" });
+      expect(updateSet()).toHaveProperty("publishedAt", expect.any(Date));
+      expect(data.item.status).toBe("PUBLISHED");
+    });
+
+    it("does not set publishedAt on non-publish update", async () => {
+      mockFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+      const updateSet = mockUpdateCapture({ ...SAMPLE_ARTICLE, title: "Renamed" });
+
+      const request = makePutRequest(VALID_ID, { title: "Renamed" });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(updateSet()).not.toHaveProperty("publishedAt");
+      expect(data.item.title).toBe("Renamed");
+    });
+
+    it("does not overwrite publishedAt when already PUBLISHED", async () => {
+      mockFindFirst.mockResolvedValue({ id: VALID_ID, status: "PUBLISHED" });
+      const updateSet = mockUpdateCapture({
+        ...SAMPLE_ARTICLE,
+        status: "PUBLISHED",
+        publishedAt: new Date("2026-01-20"),
+      });
+
+      const request = makePutRequest(VALID_ID, { title: "Renamed" });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(updateSet()).not.toHaveProperty("publishedAt");
+      expect(data.item.publishedAt).toBe("2026-01-20T00:00:00.000Z");
     });
   });
 

@@ -27,6 +27,20 @@ export async function GET(
   try {
     const organization = await db.query.organizations.findFirst({
       where: eq(organizations.id, parsed.data.id),
+      columns: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        industry: true,
+        websiteUrl: true,
+        logoUrl: true,
+        locationId: true,
+        isVerified: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     if (!organization) {

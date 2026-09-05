@@ -122,6 +122,20 @@ export async function GET(request: Request) {
         orderBy: [desc(organizations.createdAt)],
         limit,
         offset,
+        columns: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+          industry: true,
+          websiteUrl: true,
+          logoUrl: true,
+          locationId: true,
+          isVerified: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+        },
       }),
     ]);
 
