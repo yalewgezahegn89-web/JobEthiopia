@@ -272,6 +272,59 @@ Headers: x-maintenance-key: <MAINTENANCE_API_KEY>
   confirm the run completes in the logs.
 - Requires `MAINTENANCE_API_KEY` at **deploy/runtime** time (not just build).
 
+### Automated scheduling (GitHub Actions)
+
+Production maintenance is automated via
+[`.github/workflows/maintenance.yml`](./.github/workflows/maintenance.yml).
+
+**Repository configuration** (Settings → Secrets and variables → Actions):
+
+- **Secret** — `MAINTENANCE_API_KEY`: the maintenance API key. It must match
+  the `MAINTENANCE_API_KEY` configured in the production environment. Never set
+  in code.
+- **Variable** — `MAINTENANCE_TARGET_URL`: the production HTTPS origin only
+  (e.g. `https://jobs.example.com`), without the maintenance path. The workflow
+  appends `/api/internal/maintenance/run` to it.
+
+**Schedule:** `03:00 UTC` daily.
+
+**Important:** GitHub scheduled workflows run from the repository's **default
+branch**. The workflow must therefore be merged into `main` before scheduled
+execution becomes active. Until then, it can still be run on demand (below).
+
+**Manual execution:** the workflow is also triggerable on demand via
+`workflow_dispatch` (Actions → "Run workflow", or `gh workflow run
+Maintenance`).
+
+**Expected successful response:**
+
+```json
+{
+  "expiredJobs": 0,
+  "sourcesChecked": 0,
+  "sourcesSucceeded": 0,
+  "sourcesFailed": 0,
+  "sourcesSkipped": 0
+}
+```
+
+**Failure behavior:**
+
+- Wrong or missing API key → `401`, workflow fails.
+- Bad target URL → workflow fails.
+- Server `5xx` → the workflow retries (`--retry-on-http-error` for
+  `429,500,502,503,504`), then fails if still unsuccessful.
+- Public users remain protected by Phase 5A even if maintenance fails:
+  past-deadline and stale jobs are already hidden in real time by the public
+  API.
+
+**Concurrency:** only one production maintenance run at a time
+(`concurrency: group maintenance-production`, `cancel-in-progress: false`).
+
+**Operational smoke test:** run the workflow manually (via `workflow_dispatch`)
+after every production deployment to confirm the endpoint answers with the JSON
+summary.
+
 ## Vercel Readiness
 
 Vercel is a plausible deployment target because this is a Next.js application using the Node runtime.

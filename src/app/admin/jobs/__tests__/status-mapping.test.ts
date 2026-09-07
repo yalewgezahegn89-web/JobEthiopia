@@ -9,7 +9,7 @@ vi.mock("next/link", () => ({
 
 import JobsList from "../jobs-list";
 
-function row(status: string, verificationStatus: string, title = "Job") {
+function row(status: string, verificationStatus: string, title = "Job", lastVerifiedAt: string | null = null) {
   return {
     id: "11111111-1111-4111-8111-111111111111",
     title,
@@ -18,7 +18,7 @@ function row(status: string, verificationStatus: string, title = "Job") {
     verificationStatus,
     postedAt: "2026-01-01T00:00:00.000Z",
     deadline: null,
-    lastVerifiedAt: null,
+    lastVerifiedAt,
     organizationName: "Org",
     categoryName: null,
     professionName: null,
@@ -83,5 +83,87 @@ describe("Admin jobs moderation status mappings (preserved)", () => {
     expect(html).toContain("Status");
     expect(html).toContain("Verification");
     expect(html).toContain("selected");
+  });
+});
+
+describe("Admin jobs list — Last verified column", () => {
+  it("renders Last verified column header", () => {
+    const html = renderToStaticMarkup(
+      createElement(JobsList, {
+        result: resultFor(row("PUBLISHED", "VERIFIED", "Live")),
+        currentStatus: undefined,
+        currentVerification: undefined,
+      }),
+    );
+    expect(html).toContain("Last verified");
+  });
+
+  it("renders recent verification timestamp for a fresh job", () => {
+    const freshIso = new Date(Date.now() - 1000 * 60 * 60).toISOString();
+    const expectedLabel = new Date(freshIso).toLocaleDateString();
+    const html = renderToStaticMarkup(
+      createElement(JobsList, {
+        result: resultFor(
+          row("PUBLISHED", "VERIFIED", "Fresh", freshIso),
+        ),
+        currentStatus: undefined,
+        currentVerification: undefined,
+      }),
+    );
+    expect(html).toContain(expectedLabel);
+  });
+
+  it("renders Never for null lastVerifiedAt", () => {
+    const html = renderToStaticMarkup(
+      createElement(JobsList, {
+        result: resultFor(
+          row("PUBLISHED", "VERIFIED", "Never verified", null),
+        ),
+        currentStatus: undefined,
+        currentVerification: undefined,
+      }),
+    );
+    expect(html).toContain("Never");
+  });
+
+  it("shows Stale badge for PUBLISHED job with old lastVerifiedAt", () => {
+    const html = renderToStaticMarkup(
+      createElement(JobsList, {
+        result: resultFor(
+          row("PUBLISHED", "VERIFIED", "Stale job", "2025-01-01T00:00:00.000Z"),
+        ),
+        currentStatus: undefined,
+        currentVerification: undefined,
+      }),
+    );
+    expect(html).toContain("Stale");
+    expect(html).toContain("bg-warning-light");
+  });
+
+  it("does NOT show Stale badge for PUBLISHED job with recent lastVerifiedAt", () => {
+    const freshIso = new Date(Date.now() - 1000 * 60 * 60).toISOString();
+    const html = renderToStaticMarkup(
+      createElement(JobsList, {
+        result: resultFor(
+          row("PUBLISHED", "VERIFIED", "Fresh job", freshIso),
+        ),
+        currentStatus: undefined,
+        currentVerification: undefined,
+      }),
+    );
+    expect(html).not.toMatch(/Fresh job[\s\S]*?Stale/);
+  });
+
+  it("does NOT show Stale badge for non-PUBLISHED job even if old lastVerifiedAt", () => {
+    const html = renderToStaticMarkup(
+      createElement(JobsList, {
+        result: resultFor(
+          row("DRAFT", "PENDING", "Draft old", "2025-01-01T00:00:00.000Z"),
+        ),
+        currentStatus: undefined,
+        currentVerification: undefined,
+      }),
+    );
+    expect(html).not.toMatch(/Draft old[\s\S]*?Stale/);
   });
 });

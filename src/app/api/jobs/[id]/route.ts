@@ -12,7 +12,8 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
-import { isJobStale } from "@/lib/jobs/public";
+import { isJobStale, DEFAULT_STALE_MAX_AGE_DAYS } from "@/lib/jobs/public";
+import { validateJobForPublish } from "@/lib/admin/jobs";
 
 type JobStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "EXPIRED" | "REMOVED";
 
@@ -52,6 +53,22 @@ export async function GET(
 
     if (isJobStale(job.lastVerifiedAt as string | null)) {
       return jsonError("Job not found", 404);
+    }
+
+    const now = new Date();
+    const deadline = job.deadline ? new Date(job.deadline) : null;
+    if (deadline && !Number.isNaN(deadline.getTime()) && deadline < now) {
+      return jsonError("Job not found", 404);
+    }
+
+    if (job.organizationId) {
+      const org = await db.query.organizations.findFirst({
+        columns: { status: true },
+        where: eq(organizations.id, job.organizationId),
+      });
+      if (!org || org.status !== "ACTIVE") {
+        return jsonError("Job not found", 404);
+      }
     }
 
     const organizationId = job.organizationId;
@@ -193,7 +210,6 @@ export async function PATCH(
   try {
     const existing = await db.query.jobs.findFirst({
       where: eq(jobs.id, parsedId.data.id),
-      columns: { id: true, status: true },
     });
 
     if (!existing) {
@@ -211,6 +227,13 @@ export async function PATCH(
             `Invalid status transition from ${currentStatus} to ${requestedStatus}`,
             409,
           );
+        }
+      }
+
+      if (requestedStatus === "PUBLISHED" && currentStatus !== "PUBLISHED") {
+        const validation = await validateJobForPublish(existing);
+        if (!validation.ok) {
+          return jsonError(validation.message, 422);
         }
       }
     }

@@ -1,11 +1,16 @@
 import Link from "next/link";
 import type { ModerationJobPaginated } from "@/lib/admin/jobs";
+import { isJobStale } from "@/lib/jobs/public";
 
 const STATUSES = ["PENDING_REVIEW", "PUBLISHED", "DRAFT", "EXPIRED", "REMOVED"];
 const VERIFICATION = ["PENDING", "VERIFIED", "NEEDS_REVIEW", "INVALID"];
 
 const FOCUS_RING =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+
+function staleBadge() {
+  return "bg-warning-light text-warning";
+}
 
 function statusBadge(status: string) {
   if (status === "PUBLISHED" || status === "VERIFIED") {
@@ -75,13 +80,15 @@ export default function JobsList({
       ) : (
         <div className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] border-collapse text-sm">
+            <table className="w-full min-w-[960px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-border bg-surface-raised text-left">
                   <th className="px-4 py-3 font-semibold text-foreground">Job</th>
                   <th className="px-4 py-3 font-semibold text-foreground">Status</th>
                   <th className="px-4 py-3 font-semibold text-foreground">Verification</th>
                   <th className="px-4 py-3 font-semibold text-foreground">Posted</th>
+                  <th className="px-4 py-3 font-semibold text-foreground">Last verified</th>
+                  <th className="px-4 py-3 font-semibold text-foreground">Source</th>
                 </tr>
               </thead>
               <tbody>
@@ -119,6 +126,36 @@ export default function JobsList({
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-xs text-subtle">
                       {job.postedAt ? new Date(job.postedAt).toLocaleDateString() : "n/a"}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-subtle">
+                      <span>
+                        {job.lastVerifiedAt
+                          ? new Date(job.lastVerifiedAt).toLocaleDateString()
+                          : "Never"}
+                      </span>
+                      {job.status === "PUBLISHED" && isJobStale(job.lastVerifiedAt) ? (
+                        <span
+                          className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${staleBadge()}`}
+                        >
+                          Stale
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      {job.sourceName ? (
+                        <>
+                          <span className="font-medium text-foreground">
+                            {job.sourceName}
+                          </span>
+                          {job.sourceType ? (
+                            <div className="mt-0.5 text-xs text-muted">
+                              {job.sourceType}
+                            </div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span className="text-muted">N/A</span>
+                      )}
                     </td>
                   </tr>
                 ))}

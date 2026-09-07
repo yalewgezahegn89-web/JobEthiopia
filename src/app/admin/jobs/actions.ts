@@ -31,6 +31,7 @@ const ACTION_ENUM: readonly ModerationAction[] = [
   "REJECT",
   "MARK_INVALID",
   "REQUEST_REVIEW",
+  "REVERIFY",
 ];
 
 const GENERIC_ERROR = "Unable to update this job. Please try again.";

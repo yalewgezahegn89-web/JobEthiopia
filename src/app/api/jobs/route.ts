@@ -126,10 +126,22 @@ export async function GET(request: Request) {
     const now = new Date();
     const staleCutoff = new Date(now.getTime() - DEFAULT_STALE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
 
+    const activeOrgRows = await db.query.organizations.findMany({
+      columns: { id: true },
+      where: eq(organizations.status, "ACTIVE"),
+    });
+    const activeOrgIds = activeOrgRows.map((r) => r.id);
+
     const conditions: (SQL | undefined)[] = [
       eq(jobs.status, "PUBLISHED"),
-      sql`(${jobs.lastVerifiedAt} IS NULL OR ${jobs.lastVerifiedAt} >= ${staleCutoff.toISOString()})`,
+      sql`${jobs.lastVerifiedAt} IS NOT NULL AND ${jobs.lastVerifiedAt} >= ${staleCutoff.toISOString()}`,
+      sql`(${jobs.deadline} IS NULL OR ${jobs.deadline} >= ${now.toISOString()})`,
     ];
+    if (activeOrgIds.length > 0) {
+      conditions.push(inArray(jobs.organizationId, activeOrgIds));
+    } else {
+      conditions.push(sql`1 = 0`);
+    }
     if (employmentType) {
       conditions.push(eq(jobs.employmentType, employmentType));
     }

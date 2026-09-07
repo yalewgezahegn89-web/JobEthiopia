@@ -84,17 +84,28 @@ vi.mock("../../../db/schema/jobs", () => ({
     title: "jobs.title",
     slug: "jobs.slug",
     organizationId: "jobs.organizationId",
+    categoryId: "jobs.categoryId",
+    professionId: "jobs.professionId",
+    locationId: "jobs.locationId",
+    description: "jobs.description",
     status: "jobs.status",
     verificationStatus: "jobs.verificationStatus",
     employmentType: "jobs.employmentType",
+    deadline: "jobs.deadline",
     createdAt: "jobs.createdAt",
     updatedAt: "jobs.updatedAt",
     lastVerifiedAt: "jobs.lastVerifiedAt",
   },
 }));
 
+const mockValidateJobForPublish = vi.fn();
+vi.mock("../../../lib/admin/jobs", () => ({
+  validateJobForPublish: (...args: unknown[]) => mockValidateJobForPublish(...args),
+}));
+
 import { GET } from "../../../app/api/jobs/route";
 import { GET as GET_BY_ID, PATCH, DELETE } from "../../../app/api/jobs/[id]/route";
+import { isJobStale } from "../public";
 
 const SAMPLE_JOB = {
   id: "550e8400-e29b-41d4-a716-446655440000",
@@ -140,12 +151,12 @@ function makeJobListRequest(
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 
   mockJobsFindMany.mockResolvedValue([SAMPLE_JOB]);
   mockJobsFindFirst.mockResolvedValue(SAMPLE_JOB);
 
-  mockOrganizationsFindMany.mockResolvedValue([]);
+  mockOrganizationsFindMany.mockResolvedValue([{ id: "org-1", name: "Active Org", slug: "active-org" }]);
   mockOrganizationsFindFirst.mockResolvedValue(undefined);
   mockCategoriesFindMany.mockResolvedValue([]);
   mockCategoriesFindFirst.mockResolvedValue(undefined);
@@ -466,6 +477,99 @@ describe("GET /api/jobs", () => {
     });
   });
 
+  describe("public listing visibility", () => {
+    it("excludes jobs with NULL lastVerifiedAt", async () => {
+      mockJobsFindMany.mockResolvedValue([]);
+      mockDbCount.mockResolvedValue([{ count: 0 }]);
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, "IS NOT NULL")).toBe(true);
+      expect(sqlContains(findManyWhere, "lastVerifiedAt")).toBe(true);
+    });
+
+    it("excludes jobs with stale lastVerifiedAt (older than 30 days)", async () => {
+      mockJobsFindMany.mockResolvedValue([]);
+      mockDbCount.mockResolvedValue([{ count: 0 }]);
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, ">=")).toBe(true);
+    });
+
+    it("includes jobs with fresh lastVerifiedAt (within 30 days)", async () => {
+      mockJobsFindMany.mockResolvedValue([SAMPLE_JOB]);
+      mockDbCount.mockResolvedValue([{ count: 1 }]);
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(1);
+    });
+
+    it("excludes jobs with past deadline", async () => {
+      mockJobsFindMany.mockResolvedValue([]);
+      mockDbCount.mockResolvedValue([{ count: 0 }]);
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, "deadline")).toBe(true);
+    });
+
+    it("allows jobs with NULL deadline", async () => {
+      mockJobsFindMany.mockResolvedValue([{ ...SAMPLE_JOB, deadline: null }]);
+      mockDbCount.mockResolvedValue([{ count: 1 }]);
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(1);
+    });
+
+    it("filters to active organizations only", async () => {
+      mockOrganizationsFindMany.mockResolvedValue([{ id: "org-1" }]);
+      mockJobsFindMany.mockResolvedValue([{ ...SAMPLE_JOB, organizationId: "org-1" }]);
+      mockDbCount.mockResolvedValue([{ count: 1 }]);
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, "org-1")).toBe(true);
+    });
+
+    it("returns empty when no active organizations exist", async () => {
+      mockOrganizationsFindMany.mockResolvedValue([]);
+      mockJobsFindMany.mockResolvedValue([]);
+      mockDbCount.mockResolvedValue([{ count: 0 }]);
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(0);
+    });
+  });
+
   describe("keyword search", () => {
     it("q triggers organization name search", async () => {
       const organizationId = "123e4567-e89b-12d3-a456-426614174000";
@@ -620,7 +724,8 @@ describe("GET /api/jobs", () => {
     });
 
     it("missing entity relationships resolve to null", async () => {
-      mockJobsFindMany.mockResolvedValue([SAMPLE_JOB]);
+      mockJobsFindMany.mockResolvedValue([{ ...SAMPLE_JOB, organizationId: null }]);
+      mockDbCount.mockResolvedValue([{ count: 1 }]);
 
       const request = makeJobListRequest();
       const response = await GET(request);
@@ -685,6 +790,9 @@ describe("GET /api/jobs/[id]", () => {
         ...SAMPLE_JOB,
         status: "PUBLISHED",
       });
+      mockOrganizationsFindFirst
+        .mockResolvedValueOnce({ status: "ACTIVE" })
+        .mockResolvedValueOnce({ id: "org-1", name: "Active Org", slug: "active-org" });
 
       const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
       const response = await GET_BY_ID(request, {
@@ -714,11 +822,13 @@ describe("GET /api/jobs/[id]", () => {
         professionId: PROFESSION_ID,
         locationId: LOCATION_ID,
       });
-      mockOrganizationsFindFirst.mockResolvedValue({
-        id: ORGANIZATION_ID,
-        name: "Black Lion Hospital",
-        slug: "black-lion-hospital",
-      });
+      mockOrganizationsFindFirst
+        .mockResolvedValueOnce({ status: "ACTIVE" })
+        .mockResolvedValueOnce({
+          id: ORGANIZATION_ID,
+          name: "Black Lion Hospital",
+          slug: "black-lion-hospital",
+        });
       mockCategoriesFindFirst.mockResolvedValue({
         id: CATEGORY_ID,
         name: "Healthcare",
@@ -769,6 +879,9 @@ describe("GET /api/jobs/[id]", () => {
         ...SAMPLE_JOB,
         status: "PUBLISHED",
       });
+      mockOrganizationsFindFirst
+        .mockResolvedValueOnce({ status: "ACTIVE" })
+        .mockResolvedValueOnce(undefined);
 
       const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
       const response = await GET_BY_ID(request, {
@@ -937,6 +1050,9 @@ describe("GET /api/jobs/[id]", () => {
         status: "PUBLISHED",
         lastVerifiedAt: new Date("2026-08-20"),
       });
+      mockOrganizationsFindFirst
+        .mockResolvedValueOnce({ status: "ACTIVE" })
+        .mockResolvedValueOnce({ id: "org-1", name: "Active Org", slug: "active-org" });
 
       const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
       const response = await GET_BY_ID(request, {
@@ -947,6 +1063,254 @@ describe("GET /api/jobs/[id]", () => {
       expect(response.status).toBe(200);
       expect(data.item).toBeDefined();
       expect(data.item.id).toBe(VALID_ID);
+    });
+  });
+
+  describe("public detail visibility", () => {
+    it("returns 404 when lastVerifiedAt is null (never verified)", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: null,
+      });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it("returns 404 when lastVerifiedAt is stale (older than 30 days)", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: new Date("2026-04-01"),
+      });
+      mockOrganizationsFindFirst.mockResolvedValueOnce({ status: "ACTIVE" });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it("returns 200 when lastVerifiedAt is fresh", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: new Date("2026-08-20"),
+      });
+      mockOrganizationsFindFirst
+        .mockResolvedValueOnce({ status: "ACTIVE" })
+        .mockResolvedValueOnce({ id: "org-1", name: "Active Org", slug: "active-org" });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item).toBeDefined();
+    });
+
+    it("returns 404 when deadline is in the past", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: new Date("2026-08-20"),
+        deadline: new Date("2026-01-01"),
+      });
+      mockOrganizationsFindFirst.mockResolvedValueOnce({ status: "ACTIVE" });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it("returns 200 when deadline is in the future", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: new Date("2026-08-20"),
+        deadline: new Date("2027-01-01"),
+      });
+      mockOrganizationsFindFirst
+        .mockResolvedValueOnce({ status: "ACTIVE" })
+        .mockResolvedValueOnce({ id: "org-1", name: "Active Org", slug: "active-org" });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item).toBeDefined();
+    });
+
+    it("returns 200 when deadline is null", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: new Date("2026-08-20"),
+        deadline: null,
+      });
+      mockOrganizationsFindFirst
+        .mockResolvedValueOnce({ status: "ACTIVE" })
+        .mockResolvedValueOnce({ id: "org-1", name: "Active Org", slug: "active-org" });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item).toBeDefined();
+    });
+
+    it("returns 404 when organization is INACTIVE", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: new Date("2026-08-20"),
+      });
+      mockOrganizationsFindFirst.mockResolvedValueOnce({ status: "INACTIVE" });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it("returns 404 when organization does not exist", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: new Date("2026-08-20"),
+      });
+      mockOrganizationsFindFirst.mockResolvedValueOnce(undefined);
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it("returns 200 when organization is ACTIVE", async () => {
+      mockJobsFindFirst.mockResolvedValue({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: new Date("2026-08-20"),
+      });
+      mockOrganizationsFindFirst
+        .mockResolvedValueOnce({ status: "ACTIVE" })
+        .mockResolvedValueOnce({ id: "org-1", name: "Active Org", slug: "active-org" });
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item).toBeDefined();
+    });
+
+    it("returns 404 for non-published statuses (DRAFT)", async () => {
+      mockJobsFindFirst.mockResolvedValue(null);
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it("returns 404 for non-published statuses (PENDING_REVIEW)", async () => {
+      mockJobsFindFirst.mockResolvedValue(null);
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it("returns 404 for non-published statuses (REMOVED)", async () => {
+      mockJobsFindFirst.mockResolvedValue(null);
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(404);
+    });
+
+    it("returns 404 for non-published statuses (EXPIRED)", async () => {
+      mockJobsFindFirst.mockResolvedValue(null);
+
+      const request = makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(404);
+    });
+  });
+
+  describe("integration: stale -> REVERIFY -> fresh public visibility", () => {
+    it("hides a stale job, refreshes staleness on re-verify, and shows it again", async () => {
+      const staleDate = new Date("2026-04-01T00:00:00.000Z");
+      expect(isJobStale(staleDate.toISOString())).toBe(true);
+
+      mockJobsFindFirst.mockResolvedValueOnce({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: staleDate,
+      });
+
+      let response = await GET_BY_ID(
+        makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`),
+        { params: Promise.resolve({ id: VALID_ID }) },
+      );
+      expect(response.status).toBe(404);
+
+      const refreshedDate = new Date();
+      expect(isJobStale(refreshedDate.toISOString())).toBe(false);
+
+      mockJobsFindFirst.mockResolvedValueOnce({
+        ...SAMPLE_JOB,
+        status: "PUBLISHED",
+        lastVerifiedAt: refreshedDate,
+      });
+      mockOrganizationsFindFirst
+        .mockResolvedValueOnce({ status: "ACTIVE" })
+        .mockResolvedValueOnce({ id: "org-1", name: "Active Org", slug: "active-org" });
+
+      response = await GET_BY_ID(
+        makeGetRequest(`http://localhost/api/jobs/${VALID_ID}`),
+        { params: Promise.resolve({ id: VALID_ID }) },
+      );
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item).toBeDefined();
     });
   });
 });
@@ -1007,7 +1371,18 @@ describe("PATCH /api/jobs/[id]", () => {
     mockJobsFindFirst.mockResolvedValue({
       id: "550e8400-e29b-41d4-a716-446655440000",
       status: "DRAFT",
+      title: "Staff Nurse",
+      description: "A detailed job description that meets minimum length requirements for validation.",
+      organizationId: "org-1",
+      categoryId: "cat-1",
+      locationId: "loc-1",
+      employmentType: "FULL_TIME",
+      deadline: new Date(Date.now() + 86400000),
     });
+    mockOrganizationsFindFirst.mockResolvedValue({ id: "org-1", status: "ACTIVE" });
+    mockCategoriesFindFirst.mockResolvedValue({ id: "cat-1", isActive: true });
+    mockLocationsFindFirst.mockResolvedValue({ id: "loc-1", isActive: true });
+    mockValidateJobForPublish.mockResolvedValue({ ok: true });
   });
 
   describe("authentication", () => {
@@ -1543,6 +1918,109 @@ describe("PATCH /api/jobs/[id]", () => {
     });
   });
 });
+
+    describe("publish validation", () => {
+      it("allows DRAFT → PUBLISHED when validation passes", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+        mockValidateJobForPublish.mockResolvedValue({ ok: true });
+        mockUpdateSuccess(UPDATED_JOB);
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(200);
+        expect(data.item.status).toBe("PUBLISHED");
+        expect(mockValidateJobForPublish).toHaveBeenCalled();
+      });
+
+      it("returns 422 when validation fails", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+        mockValidateJobForPublish.mockResolvedValue({
+          ok: false,
+          code: "INCOMPLETE_DATA",
+          missingFields: ["title"],
+          message: "Job is not ready for publication: missing or invalid title",
+        });
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(422);
+        expect(data.error).toContain("not ready for publication");
+        expect(mockDbUpdate).not.toHaveBeenCalled();
+      });
+
+      it("does not call validation when status is not changing to PUBLISHED", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+        mockUpdateSuccess({ ...UPDATED_JOB, status: "DRAFT", verificationStatus: undefined as never });
+
+        const request = makePatchRequest(VALID_ID, { status: "DRAFT" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(mockValidateJobForPublish).not.toHaveBeenCalled();
+      });
+
+      it("does not call validation when status is not changing (same status)", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PUBLISHED" });
+        mockUpdateSuccess(UPDATED_JOB);
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(mockValidateJobForPublish).not.toHaveBeenCalled();
+      });
+
+      it("returns 422 with multiple missing fields", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+        mockValidateJobForPublish.mockResolvedValue({
+          ok: false,
+          code: "INCOMPLETE_DATA",
+          missingFields: ["title", "description", "employmentType"],
+          message: "Job is not ready for publication: missing or invalid title, description, employmentType",
+        });
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(422);
+        expect(data.error).toContain("not ready for publication");
+      });
+
+      it("blocks PENDING_REVIEW → PUBLISHED when validation fails", async () => {
+        mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PENDING_REVIEW" });
+        mockValidateJobForPublish.mockResolvedValue({
+          ok: false,
+          code: "INCOMPLETE_DATA",
+          missingFields: ["deadline"],
+          message: "Job is not ready for publication: missing or invalid deadline",
+        });
+
+        const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+        const response = await PATCH(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        const data = await response.json();
+
+        expect(response.status).toBe(422);
+        expect(data.error).toContain("not ready for publication");
+        expect(mockDbUpdate).not.toHaveBeenCalled();
+      });
+    });
 
 function makeDeleteRequest(
   id: string,

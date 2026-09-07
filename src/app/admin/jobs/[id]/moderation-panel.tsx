@@ -85,6 +85,21 @@ export default function ModerationPanel({
         </button>
       </form>
 
+      {status === "PUBLISHED" && (
+        <form action={formAction} className="mt-2">
+          <input type="hidden" name="jobId" value={jobId} />
+          <input type="hidden" name="action" value="REVERIFY" />
+          <button
+            type="submit"
+            disabled={isPending}
+            aria-label="Re-verify job"
+            className={`rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground shadow-sm hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-50 ${focusRing}`}
+          >
+            Re-verify
+          </button>
+        </form>
+      )}
+
       {!state.ok && state.error ? (
         <p role="alert" className="mt-3 text-sm text-destructive">
           {state.error}

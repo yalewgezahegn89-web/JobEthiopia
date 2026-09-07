@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import type { ReactNode } from "react";
 import { requireStaffAdmin } from "@/lib/auth/context";
 import { getModerationJob, getJobAuditHistory } from "@/lib/admin/jobs";
+import { isJobStale } from "@/lib/jobs/public";
 import AdminNav from "../../nav";
 import ModerationPanel from "./moderation-panel";
 
@@ -102,11 +104,28 @@ export default async function AdminJobDetailPage({
             <div><dt className="text-sm text-muted">Salary</dt><dd className="text-sm font-medium text-foreground">{formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency)}</dd></div>
             <div><dt className="text-sm text-muted">Posted</dt><dd className="text-sm font-medium text-foreground">{job.postedAt ? new Date(job.postedAt).toLocaleString() : "n/a"}</dd></div>
             <div><dt className="text-sm text-muted">Deadline</dt><dd className="text-sm font-medium text-foreground">{job.deadline ? new Date(job.deadline).toLocaleString() : "n/a"}</dd></div>
-            <div><dt className="text-sm text-muted">Last verified</dt><dd className="text-sm font-medium text-foreground">{job.lastVerifiedAt ? new Date(job.lastVerifiedAt).toLocaleString() : "n/a"}</dd></div>
+            <div><dt className="text-sm text-muted">Last verified</dt><dd className="text-sm font-medium text-foreground">{job.lastVerifiedAt ? new Date(job.lastVerifiedAt).toLocaleString() : "Never"}{job.status === "PUBLISHED" && isJobStale(job.lastVerifiedAt ? job.lastVerifiedAt.toISOString() : null) ? (<span className="ml-2 inline-flex items-center rounded-full bg-warning-light px-2 py-0.5 text-xs font-semibold text-warning">Stale</span>) : null}</dd></div>
             {job.applicationUrl && (
               <div><dt className="text-sm text-muted">Application URL</dt><dd className="text-sm font-medium text-foreground"><a href={job.applicationUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">{job.applicationUrl}</a></dd></div>
             )}
           </dl>
+        </section>
+
+        <section className="mt-6 rounded-xl border border-border bg-surface p-6 text-sm shadow-sm">
+          <h2 className="text-lg font-semibold text-foreground">Source</h2>
+          {job.provenance ? (
+            <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+              <div><dt className="text-sm text-muted">Source</dt><dd className="text-sm font-medium text-foreground">{job.provenance.sourceName}</dd></div>
+              <div><dt className="text-sm text-muted">Source type</dt><dd className="text-sm font-medium text-foreground">{job.provenance.sourceType}</dd></div>
+              <div><dt className="text-sm text-muted">Source URL</dt><dd className="text-sm font-medium text-foreground">{renderSourceUrl(job.provenance.sourceUrl)}</dd></div>
+              <div><dt className="text-sm text-muted">External ID</dt><dd className="text-sm font-medium text-foreground">{job.provenance.externalId ?? "n/a"}</dd></div>
+              <div><dt className="text-sm text-muted">First seen</dt><dd className="text-sm font-medium text-foreground">{new Date(job.provenance.firstSeenAt).toLocaleString()}</dd></div>
+              <div><dt className="text-sm text-muted">Last seen</dt><dd className="text-sm font-medium text-foreground">{job.provenance.lastSeenAt ? new Date(job.provenance.lastSeenAt).toLocaleString() : "n/a"}</dd></div>
+              <div><dt className="text-sm text-muted">Trust level</dt><dd className="text-sm font-medium text-foreground">{job.provenance.trustLevel}</dd></div>
+            </dl>
+          ) : (
+            <p className="mt-3 text-foreground">No source recorded.</p>
+          )}
         </section>
 
         <section className="mt-6">
@@ -161,4 +180,29 @@ function formatSalary(
   if (max != null) parts.push(String(max));
   const value = parts.length === 2 ? `${parts[0]} - ${parts[1]}` : parts[0];
   return currency ? `${value} ${currency}` : value;
+}
+
+function isSafeExternalUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function renderSourceUrl(url: string): ReactNode {
+  if (isSafeExternalUrl(url)) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="break-all text-primary underline"
+      >
+        {url}
+      </a>
+    );
+  }
+  return <span className="break-all text-foreground">{url}</span>;
 }

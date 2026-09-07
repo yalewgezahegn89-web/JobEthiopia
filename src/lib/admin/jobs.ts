@@ -5,11 +5,134 @@
  * All functions assume the caller has already performed session authentication
  * and role authorization. Identity is never taken from client input.
  */
-import { and, desc, eq, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
+import { jobSources } from "@/db/schema/jobSources";
+import { sources } from "@/db/schema/sources";
 import { auditLog } from "@/db/schema/auditLog";
 import { users } from "@/db/schema/users";
+import { organizations } from "@/db/schema/organizations";
+import { categories } from "@/db/schema/categories";
+import { locations } from "@/db/schema/locations";
+
+// ---------------------------------------------------------------------------
+// Publish validation gate (Phase 5B)
+// ---------------------------------------------------------------------------
+
+export type PublishValidationResult =
+  | { ok: true }
+  | {
+      ok: false;
+      code: "INCOMPLETE_DATA";
+      missingFields: string[];
+      message: string;
+    };
+
+type JobRow = typeof jobs.$inferSelect;
+
+/**
+ * Validates that a job meets all publication requirements.
+ *
+ * Checks:
+ *  - title is non-empty after trim
+ *  - description is non-empty after trim and >= 50 characters
+ *  - organizationId exists, organization exists and is ACTIVE
+ *  - categoryId exists, category exists and isActive
+ *  - locationId exists, location exists and isActive
+ *  - employmentType is non-null
+ *  - if deadline is non-null, it must be >= now
+ *
+ * Does NOT check status transitions — callers must verify that separately.
+ */
+export async function validateJobForPublish(
+  job: JobRow,
+): Promise<PublishValidationResult> {
+  const missingFields: string[] = [];
+
+  // --- title ---
+  const title = (job.title ?? "").trim();
+  if (title.length === 0) {
+    missingFields.push("title");
+  }
+
+  // --- description ---
+  const description = (job.description ?? "").trim();
+  if (description.length === 0) {
+    missingFields.push("description");
+  } else if (description.length < 50) {
+    missingFields.push("description");
+  }
+
+  // --- organization ---
+  if (!job.organizationId) {
+    missingFields.push("organizationId");
+  } else {
+    const org = await db.query.organizations.findFirst({
+      columns: { id: true, status: true },
+      where: eq(organizations.id, job.organizationId),
+    });
+    if (!org) {
+      missingFields.push("organizationId");
+    } else if (org.status !== "ACTIVE") {
+      missingFields.push("organizationId");
+    }
+  }
+
+  // --- category ---
+  if (!job.categoryId) {
+    missingFields.push("categoryId");
+  } else {
+    const cat = await db.query.categories.findFirst({
+      columns: { id: true, isActive: true },
+      where: eq(categories.id, job.categoryId),
+    });
+    if (!cat) {
+      missingFields.push("categoryId");
+    } else if (!cat.isActive) {
+      missingFields.push("categoryId");
+    }
+  }
+
+  // --- location ---
+  if (!job.locationId) {
+    missingFields.push("locationId");
+  } else {
+    const loc = await db.query.locations.findFirst({
+      columns: { id: true, isActive: true },
+      where: eq(locations.id, job.locationId),
+    });
+    if (!loc) {
+      missingFields.push("locationId");
+    } else if (!loc.isActive) {
+      missingFields.push("locationId");
+    }
+  }
+
+  // --- employmentType ---
+  if (!job.employmentType) {
+    missingFields.push("employmentType");
+  }
+
+  // --- deadline ---
+  if (job.deadline) {
+    const now = new Date();
+    if (job.deadline < now) {
+      missingFields.push("deadline");
+    }
+  }
+
+  if (missingFields.length > 0) {
+    return {
+      ok: false,
+      code: "INCOMPLETE_DATA",
+      missingFields,
+      message: `Job is not ready for publication: missing or invalid ${missingFields.join(", ")}`,
+    };
+  }
+
+  return { ok: true };
+}
 
 /** The single authoritative lifecycle transition table (mirrors the existing job route). */
 export const VALID_STATUS_TRANSITIONS: Record<
@@ -27,13 +150,32 @@ export type ModerationAction =
   | "PUBLISH"
   | "REJECT"
   | "MARK_INVALID"
-  | "REQUEST_REVIEW";
+  | "REQUEST_REVIEW"
+  | "REVERIFY";
 
 export type ModerationState = {
   fromStatus: string;
   toStatus: string;
   fromVerificationStatus: string;
   toVerificationStatus: string;
+};
+
+/**
+ * Provenance of a job listing as recorded on job_sources.
+ *
+ * rawHash is deliberately NOT exposed here: it is a dedup artifact only.
+ * A null/absent value means the job has no recorded source (e.g. it was
+ * created directly by API key or by the employer CLI/portal).
+ */
+export type JobProvenance = {
+  sourceId: string;
+  sourceName: string;
+  sourceType: string;
+  sourceUrl: string;
+  externalId: string | null;
+  firstSeenAt: string;
+  lastSeenAt: string | null;
+  trustLevel: string;
 };
 
 export type ModerationJobSummary = {
@@ -50,6 +192,16 @@ export type ModerationJobSummary = {
   professionName: string | null;
   locationName: string | null;
   sourceName: string | null;
+  sourceType: string | null;
+  sourceUrl: string | null;
+  externalId: string | null;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  trustLevel: string | null;
+};
+
+export type ModerationJobDetail = JobRow & {
+  provenance: JobProvenance | null;
 };
 
 export type ModerationJobPaginated = {
@@ -78,6 +230,74 @@ async function entityNames(
   const table = (db.query as unknown as Record<string, { findMany: (a: object) => Promise<{ id: string; name: string }[]> }>)[type];
   const rows = await table.findMany({ columns: { ...ENTITY_COLUMNS } });
   return new Map(rows.map((r) => [r.id, r.name]));
+}
+
+/**
+ * Fetches provenance for a set of job ids in two indexed lookups (no N+1).
+ *
+ * When a job has multiple job_sources rows (it was observed from several
+ * sources), the representative provenance is deterministically the
+ * EARLIEST-created row: the ingestion flow creates the primary job_source
+ * with the job itself (upsertJob) and add-only createJobSource edges link
+ * additional sources afterwards. Ties are broken by id for stability.
+ */
+async function resolveJobProvenance(
+  jobIds: string[],
+): Promise<Map<string, JobProvenance>> {
+  if (jobIds.length === 0) return new Map();
+
+  const sourceRows = await db.query.jobSources.findMany({
+    where: inArray(jobSources.jobId, jobIds),
+    columns: {
+      id: true,
+      jobId: true,
+      sourceId: true,
+      sourceUrl: true,
+      externalId: true,
+      firstSeenAt: true,
+      lastSeenAt: true,
+      createdAt: true,
+    },
+  });
+  if (sourceRows.length === 0) return new Map();
+
+  const sourceIds = Array.from(new Set(sourceRows.map((r) => r.sourceId)));
+  let sourceLookup = new Map<
+    string,
+    { name: string; sourceType: string; trustLevel: string }
+  >();
+  if (sourceIds.length > 0) {
+    const found = await db.query.sources.findMany({
+      where: inArray(sources.id, sourceIds),
+      columns: { id: true, name: true, sourceType: true, trustLevel: true },
+    });
+    sourceLookup = new Map(found.map((s) => [s.id, s]));
+  }
+
+  const ordered = [...sourceRows].sort(
+    (a, b) =>
+      a.createdAt.getTime() - b.createdAt.getTime() ||
+      a.id.localeCompare(b.id),
+  );
+
+  const byJob = new Map<string, JobProvenance>();
+  for (const row of ordered) {
+    if (byJob.has(row.jobId)) continue;
+    const source = sourceLookup.get(row.sourceId);
+    if (!source) continue;
+    byJob.set(row.jobId, {
+      sourceId: row.sourceId,
+      sourceName: source.name,
+      sourceType: source.sourceType,
+      sourceUrl: row.sourceUrl,
+      externalId: row.externalId,
+      firstSeenAt: row.firstSeenAt.toISOString(),
+      lastSeenAt: row.lastSeenAt ? row.lastSeenAt.toISOString() : null,
+      trustLevel: source.trustLevel,
+    });
+  }
+
+  return byJob;
 }
 
 /**
@@ -140,21 +360,32 @@ export async function listModerationJobs(input: {
     entityNames("locations"),
   ]);
 
-  const items: ModerationJobSummary[] = rows.map((r) => ({
-    id: r.id,
-    title: r.title,
-    slug: r.slug,
-    status: r.status,
-    verificationStatus: r.verificationStatus,
-    postedAt: r.postedAt ? r.postedAt.toISOString() : null,
-    deadline: r.deadline ? r.deadline.toISOString() : null,
-    lastVerifiedAt: r.lastVerifiedAt ? r.lastVerifiedAt.toISOString() : null,
-    organizationName: r.organizationId ? (organizations.get(r.organizationId) ?? null) : null,
-    categoryName: r.categoryId ? (categories.get(r.categoryId) ?? null) : null,
-    professionName: r.professionId ? (professions.get(r.professionId) ?? null) : null,
-    locationName: r.locationId ? (locations.get(r.locationId) ?? null) : null,
-    sourceName: null,
-  }));
+  const provenanceById = await resolveJobProvenance(rows.map((r) => r.id));
+
+  const items: ModerationJobSummary[] = rows.map((r) => {
+    const provenance = provenanceById.get(r.id);
+    return {
+      id: r.id,
+      title: r.title,
+      slug: r.slug,
+      status: r.status,
+      verificationStatus: r.verificationStatus,
+      postedAt: r.postedAt ? r.postedAt.toISOString() : null,
+      deadline: r.deadline ? r.deadline.toISOString() : null,
+      lastVerifiedAt: r.lastVerifiedAt ? r.lastVerifiedAt.toISOString() : null,
+      organizationName: r.organizationId ? (organizations.get(r.organizationId) ?? null) : null,
+      categoryName: r.categoryId ? (categories.get(r.categoryId) ?? null) : null,
+      professionName: r.professionId ? (professions.get(r.professionId) ?? null) : null,
+      locationName: r.locationId ? (locations.get(r.locationId) ?? null) : null,
+      sourceName: provenance?.sourceName ?? null,
+      sourceType: provenance?.sourceType ?? null,
+      sourceUrl: provenance?.sourceUrl ?? null,
+      externalId: provenance?.externalId ?? null,
+      firstSeenAt: provenance?.firstSeenAt ?? null,
+      lastSeenAt: provenance?.lastSeenAt ?? null,
+      trustLevel: provenance?.trustLevel ?? null,
+    };
+  });
 
   const total = totalRows[0]?.count ?? 0;
   return {
@@ -166,13 +397,15 @@ export async function listModerationJobs(input: {
   };
 }
 
-/** Loads a single job's full moderation record, or null when not found. */
-export async function getModerationJob(id: string): Promise<(typeof jobs.$inferSelect) | null> {
+/** Loads a single job's full moderation record (with provenance), or null when not found. */
+export async function getModerationJob(id: string): Promise<ModerationJobDetail | null> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
     return null;
   }
   const job = await db.query.jobs.findFirst({ where: eq(jobs.id, id) });
-  return job ?? null;
+  if (!job) return null;
+  const provenance = await resolveJobProvenance([job.id]);
+  return { ...job, provenance: provenance.get(job.id) ?? null };
 }
 
 /**
@@ -181,7 +414,7 @@ export async function getModerationJob(id: string): Promise<(typeof jobs.$inferS
  * Returns:
  *   { ok: true, state }  on success (audit row written, job updated)
  *   { ok: false, code }  on a controllable failure (job missing, invalid action,
- *                        forbidden transition, already final)
+ *                        forbidden transition, already final, incomplete data)
  *   throws               on an unexpected DB error (caller maps to generic error)
  *
  * The job update and the audit insert happen atomically in a single transaction.
@@ -191,7 +424,7 @@ export async function moderateJob(
   action: ModerationAction,
   actorUserId: string,
 ): Promise<
-  { ok: true; state: ModerationState } | { ok: false; code: "NOT_FOUND" | "INVALID_ACTION" | "FORBIDDEN" }
+  { ok: true; state: ModerationState } | { ok: false; code: "NOT_FOUND" | "INVALID_ACTION" | "FORBIDDEN" | "INCOMPLETE_DATA" }
 > {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
     return { ok: false, code: "NOT_FOUND" };
@@ -203,6 +436,13 @@ export async function moderateJob(
   const plan = planAction(job.status, job.verificationStatus, action);
   if (!plan) {
     return { ok: false, code: "FORBIDDEN" };
+  }
+
+  if (action === "PUBLISH") {
+    const validation = await validateJobForPublish(job);
+    if (!validation.ok) {
+      return { ok: false, code: validation.code };
+    }
   }
 
   try {
@@ -218,17 +458,24 @@ export async function moderateJob(
         })
         .where(eq(jobs.id, jobId));
 
+      const auditMetadata: Record<string, unknown> = {
+        fromStatus: plan.fromStatus,
+        toStatus: plan.toStatus,
+        fromVerificationStatus: plan.fromVerificationStatus,
+        toVerificationStatus: plan.toVerificationStatus,
+      };
+
+      if (plan.event === "JOB_REVERIFIED") {
+        auditMetadata.fromLastVerifiedAt = job.lastVerifiedAt?.toISOString() ?? null;
+        auditMetadata.toLastVerifiedAt = now.toISOString();
+      }
+
       await tx.insert(auditLog).values({
         actorUserId,
         action: plan.event,
         targetType: "job",
         targetId: jobId,
-        metadata: {
-          fromStatus: plan.fromStatus,
-          toStatus: plan.toStatus,
-          fromVerificationStatus: plan.fromVerificationStatus,
-          toVerificationStatus: plan.toVerificationStatus,
-        },
+        metadata: auditMetadata,
       });
     });
   } catch {
@@ -297,6 +544,16 @@ function planAction(
         toVerificationStatus: "NEEDS_REVIEW",
         event: "JOB_REVIEW_REQUESTED",
         verified: false,
+      };
+    case "REVERIFY":
+      if (fromStatus !== "PUBLISHED") return null;
+      return {
+        fromStatus,
+        toStatus: "PUBLISHED",
+        fromVerificationStatus,
+        toVerificationStatus: "VERIFIED",
+        event: "JOB_REVERIFIED",
+        verified: true,
       };
     default:
       return null;
