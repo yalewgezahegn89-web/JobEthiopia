@@ -12,6 +12,8 @@ export const EMPLOYER_SOURCE_NAME = "Employer Portal";
 
 export const API_KEY_SOURCE_NAME = "API Key";
 
+export const MANUAL_SOURCE_NAME = "Manual Entry";
+
 /** Internal, non-external provenance URL for created jobs with no external id. */
 export function internalProvenanceUrl(sourceId: string): string {
   return `jobethiopia://source/${sourceId}/external/none`;

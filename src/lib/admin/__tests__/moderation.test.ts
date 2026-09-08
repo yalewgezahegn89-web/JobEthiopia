@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   mockJobsFindFirst: vi.fn(),
   mockJobsFindMany: vi.fn(),
   mockJobSourcesFindMany: vi.fn(),
+  mockJobSourcesFindFirst: vi.fn(),
   mockSourcesFindMany: vi.fn(),
   mockAuditFindMany: vi.fn(),
   mockUsersSelect: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("@/db", () => {
         },
         jobSources: {
           findMany: (...args: unknown[]) => mocks.mockJobSourcesFindMany(...args),
+          findFirst: (...args: unknown[]) => mocks.mockJobSourcesFindFirst(...args),
         },
         sources: {
           findMany: (...args: unknown[]) => mocks.mockSourcesFindMany(...args),
@@ -175,6 +177,9 @@ beforeEach(() => {
   mocks.mockLocationsFindFirst.mockResolvedValue(null);
   mocks.mockJobSourcesFindMany.mockResolvedValue([]);
   mocks.mockSourcesFindMany.mockResolvedValue([]);
+  // A job_sources record exists by default so the Phase 6 provenance gate
+  // passes unless a specific test removes it.
+  mocks.mockJobSourcesFindFirst.mockResolvedValue({ id: "provenance-1" });
 });
 
 describe("VALID_STATUS_TRANSITIONS (Batch 51 authoritative)", () => {
@@ -718,6 +723,94 @@ describe("PUBLISH validation gate", () => {
     const result = await moderateJob(JOB.id, "REJECT", "admin-user-1");
     expect(result.ok).toBe(true);
     expect(capturedSets[0].status).toBe("REMOVED");
+  });
+});
+
+describe("PUBLISH provenance gate (Phase 6 Batch 3)", () => {
+  it("rejects publish when the job has no job_sources record", async () => {
+    mocks.mockJobSourcesFindFirst.mockResolvedValue(undefined);
+    mocks.mockJobsFindFirst.mockResolvedValue(makeJobWithFields());
+    setupValidJobMocks();
+
+    const result = await moderateJob(JOB.id, "PUBLISH", "admin-user-1");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("NO_PROVENANCE");
+    }
+  });
+
+  it("allows publish when a job_sources record exists", async () => {
+    mocks.mockJobsFindFirst.mockResolvedValue(makeJobWithFields());
+    setupValidJobMocks();
+    const { capturedSets, capturedAudits } = makeTxMocks();
+
+    const result = await moderateJob(JOB.id, "PUBLISH", "admin-user-1");
+    expect(result.ok).toBe(true);
+    expect(capturedSets[0].status).toBe("PUBLISHED");
+    expect(capturedAudits[0].action).toBe("JOB_PUBLISHED");
+  });
+
+  it.each([
+    ["employer", "src-employer"],
+    ["api", "src-api"],
+    ["manual", "src-manual"],
+    ["website/feed", "src-website"],
+  ])("allows publish with %s provenance (no source-type restriction)", async (_label, sourceId) => {
+    mocks.mockJobSourcesFindFirst.mockResolvedValue({
+      id: "prov-row",
+      jobId: JOB.id,
+      sourceId,
+    });
+    mocks.mockJobsFindFirst.mockResolvedValue(makeJobWithFields());
+    setupValidJobMocks();
+    const { capturedSets } = makeTxMocks();
+
+    const result = await moderateJob(JOB.id, "PUBLISH", "admin-user-1");
+    expect(result.ok).toBe(true);
+    expect(capturedSets[0].status).toBe("PUBLISHED");
+  });
+
+  it("still rejects invalid fields (INCOMPLETE_DATA) even when provenance exists", async () => {
+    mocks.mockJobsFindFirst.mockResolvedValue(makeJobWithFields({ locationId: null }));
+    mocks.mockOrganizationsFindFirst.mockResolvedValue({ id: "org-1", status: "ACTIVE" });
+    mocks.mockCategoriesFindFirst.mockResolvedValue({ id: "cat-1", isActive: true });
+    mocks.mockLocationsFindFirst.mockResolvedValue({ id: "loc-1", isActive: false });
+
+    const result = await moderateJob(JOB.id, "PUBLISH", "admin-user-1");
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.code).toBe("INCOMPLETE_DATA");
+    }
+  });
+
+  it("still stamps VERIFIED and lastVerifiedAt using server time on publish", async () => {
+    mocks.mockJobsFindFirst.mockResolvedValue(makeJobWithFields());
+    setupValidJobMocks();
+    const before = Date.now();
+    const { capturedSets } = makeTxMocks();
+
+    const result = await moderateJob(JOB.id, "PUBLISH", "admin-user-1");
+    expect(result.ok).toBe(true);
+    const set = capturedSets[0];
+    expect(set.verificationStatus).toBe("VERIFIED");
+    expect(set.lastVerifiedAt).toBeInstanceOf(Date);
+    expect((set.lastVerifiedAt as Date).getTime()).toBeGreaterThanOrEqual(before);
+    expect((set.lastVerifiedAt as Date).getTime()).toBeLessThanOrEqual(Date.now() + 5000);
+    expect(set.updatedAt).toBe(set.lastVerifiedAt);
+  });
+
+  it("does not auto-create provenance during publish", async () => {
+    mocks.mockJobsFindFirst.mockResolvedValue(makeJobWithFields());
+    setupValidJobMocks();
+    const { capturedAudits } = makeTxMocks();
+
+    const result = await moderateJob(JOB.id, "PUBLISH", "admin-user-1");
+    expect(result.ok).toBe(true);
+    // Only the audit row is written; no job_sources insert is attempted.
+    expect(capturedAudits).toHaveLength(1);
+    expect(capturedAudits[0].action).toBe("JOB_PUBLISHED");
+    expect(capturedAudits[0]).not.toHaveProperty("sourceId");
+    expect(capturedAudits[0]).not.toHaveProperty("jobId");
   });
 });
 

@@ -27,6 +27,11 @@ export type PublishValidationResult =
       code: "INCOMPLETE_DATA";
       missingFields: string[];
       message: string;
+    }
+  | {
+      ok: false;
+      code: "NO_PROVENANCE";
+      message: string;
     };
 
 type JobRow = typeof jobs.$inferSelect;
@@ -42,6 +47,8 @@ type JobRow = typeof jobs.$inferSelect;
  *  - locationId exists, location exists and isActive
  *  - employmentType is non-null
  *  - if deadline is non-null, it must be >= now
+ *  - the job has at least one job_sources provenance record (Batch 3); this
+ *    applies equally to every source type (employer/api/manual/feed/etc.)
  *
  * Does NOT check status transitions — callers must verify that separately.
  */
@@ -128,6 +135,19 @@ export async function validateJobForPublish(
       code: "INCOMPLETE_DATA",
       missingFields,
       message: `Job is not ready for publication: missing or invalid ${missingFields.join(", ")}`,
+    };
+  }
+
+  const provenance = await db.query.jobSources.findFirst({
+    columns: { id: true },
+    where: eq(jobSources.jobId, job.id),
+  });
+  if (!provenance) {
+    return {
+      ok: false,
+      code: "NO_PROVENANCE",
+      message:
+        "Job cannot be published without a source record.",
     };
   }
 
@@ -222,7 +242,7 @@ export type JobAuditEntry = {
   actorEmail: string | null;
 };
 
-const ENTITY_COLUMNS = ["id", "name"] as const;
+const ENTITY_COLUMNS = { id: true, name: true } as const;
 
 async function entityNames(
   type: "organizations" | "categories" | "professions" | "locations",
@@ -424,7 +444,7 @@ export async function moderateJob(
   action: ModerationAction,
   actorUserId: string,
 ): Promise<
-  { ok: true; state: ModerationState } | { ok: false; code: "NOT_FOUND" | "INVALID_ACTION" | "FORBIDDEN" | "INCOMPLETE_DATA" }
+  { ok: true; state: ModerationState } | { ok: false; code: "NOT_FOUND" | "INVALID_ACTION" | "FORBIDDEN" | "INCOMPLETE_DATA" | "NO_PROVENANCE" }
 > {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(jobId)) {
     return { ok: false, code: "NOT_FOUND" };
