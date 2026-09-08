@@ -50,10 +50,20 @@ export function CreateJobForm({
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [warning, setWarning] = useState<{
+    code: string;
+    message: string;
+    matchedJobId: string;
+    matchedJobTitle: string | null;
+    matchedStatus: string;
+  } | null>(null);
+  const [createdJobId, setCreatedJobId] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setWarning(null);
+    setCreatedJobId(null);
     setLoading(true);
 
     const form = new FormData(e.currentTarget);
@@ -108,7 +118,13 @@ export function CreateJobForm({
       }
 
       const result = await res.json();
-      router.push(`/organization/jobs/${result.item.id}`);
+      if (result.warning) {
+        setWarning(result.warning);
+        setCreatedJobId(result.item.id);
+        setLoading(false);
+      } else {
+        router.push(`/organization/jobs/${result.item.id}`);
+      }
     } catch {
       setError("Failed to create job");
       setLoading(false);
@@ -417,6 +433,42 @@ export function CreateJobForm({
             />
           </div>
         </div>
+
+        {warning && (
+          <div
+            role="alert"
+            className="rounded-lg bg-accent-light px-4 py-3 text-sm text-warning"
+          >
+            <p className="font-medium">{warning.message}</p>
+            <p className="mt-1">
+              A similar job already exists for your organization
+              {warning.matchedJobTitle ? (
+                <>
+                  {" "}
+                  (
+                  <Link
+                    href={`/organization/jobs/${warning.matchedJobId}`}
+                    className="font-medium underline"
+                  >
+                    {warning.matchedJobTitle}
+                  </Link>
+                  )
+                </>
+              ) : null}
+              . The new draft was created successfully.
+            </p>
+            {createdJobId && (
+              <p className="mt-2">
+                <Link
+                  href={`/organization/jobs/${createdJobId}`}
+                  className="font-semibold underline"
+                >
+                  View draft
+                </Link>
+              </p>
+            )}
+          </div>
+        )}
 
         {error && (
           <p

@@ -161,6 +161,14 @@ describe("POST /api/employer/jobs", () => {
     updatedAt: new Date("2026-01-01"),
   };
 
+  const WARNING = {
+    code: "POSSIBLE_DUPLICATE",
+    message: "Possible duplicate — review existing jobs before publishing.",
+    matchedJobId: "44444444-4444-4444-8444-444444444445",
+    matchedJobTitle: "Software Engineer",
+    matchedStatus: "DRAFT",
+  };
+
   it("returns 401 when unauthenticated", async () => {
     mocks.mockCookieGet.mockReturnValue(undefined);
     const res = await POST(makePostRequest(VALID_BODY));
@@ -368,5 +376,80 @@ describe("POST /api/employer/jobs", () => {
     const callArgs = mocks.mockCreateEmployerJob.mock.calls[0][1];
     expect(callArgs).not.toHaveProperty("status");
     expect(callArgs).not.toHaveProperty("verificationStatus");
+  });
+
+  it("returns 201 without a warning when no duplicate is found", async () => {
+    mocks.mockCreateEmployerJob.mockResolvedValue({
+      ok: true,
+      item: CREATED_ITEM,
+    });
+    const res = await POST(makePostRequest(VALID_BODY));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.warning).toBeUndefined();
+  });
+
+  it("returns 201 with a POSSIBLE_DUPLICATE warning when a duplicate is found", async () => {
+    mocks.mockCreateEmployerJob.mockResolvedValue({
+      ok: true,
+      item: CREATED_ITEM,
+      warning: WARNING,
+    });
+    const res = await POST(makePostRequest(VALID_BODY));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.item.id).toBe(CREATED_ITEM.id);
+    expect(body.warning).toBeDefined();
+    expect(body.warning.code).toBe("POSSIBLE_DUPLICATE");
+  });
+
+  it("warning contains matched job id, title, and status", async () => {
+    mocks.mockCreateEmployerJob.mockResolvedValue({
+      ok: true,
+      item: CREATED_ITEM,
+      warning: WARNING,
+    });
+    const res = await POST(makePostRequest(VALID_BODY));
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.warning.matchedJobId).toBe(WARNING.matchedJobId);
+    expect(body.warning.matchedJobTitle).toBe(WARNING.matchedJobTitle);
+    expect(body.warning.matchedStatus).toBe(WARNING.matchedStatus);
+  });
+
+  it("returns 201 with warning for an authenticated employer", async () => {
+    mocks.mockCreateEmployerJob.mockResolvedValue({
+      ok: true,
+      item: CREATED_ITEM,
+      warning: WARNING,
+    });
+    const res = await POST(makePostRequest(VALID_BODY));
+    expect(res.status).toBe(201);
+    expect(res.headers.get("content-type")).toContain("application/json");
+  });
+
+  it("rejects client-supplied warning in the request body", async () => {
+    const res = await POST(
+      makePostRequest({
+        ...VALID_BODY,
+        warning: {
+          code: "POSSIBLE_DUPLICATE",
+          matchedJobId: "job-x",
+        },
+      }),
+    );
+    expect(res.status).toBe(422);
+    expect(mocks.mockCreateEmployerJob).not.toHaveBeenCalled();
+  });
+
+  it("rejects client-supplied matchedJobId in the request body", async () => {
+    const res = await POST(
+      makePostRequest({
+        ...VALID_BODY,
+        matchedJobId: "job-x",
+      }),
+    );
+    expect(res.status).toBe(422);
+    expect(mocks.mockCreateEmployerJob).not.toHaveBeenCalled();
   });
 });

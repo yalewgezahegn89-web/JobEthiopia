@@ -213,7 +213,13 @@ export async function POST(request: Request) {
       durationMs,
     });
 
-    return NextResponse.json({ item: result.item }, { status: 201 });
+    return NextResponse.json(
+      {
+        item: result.item,
+        ...(result.warning ? { warning: result.warning } : {}),
+      },
+      { status: 201 },
+    );
   } catch {
     const durationMs = Math.round(performance.now() - start);
     logError("employer_job_created_failed", {

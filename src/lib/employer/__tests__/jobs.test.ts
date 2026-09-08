@@ -38,6 +38,7 @@ const JOB_ID = "44444444-4444-4444-8444-444444444444";
 const JOB_ID_2 = "44444444-4444-4444-8444-444444444445";
 const ORG_ID = "22222222-2222-4222-8222-222222222222";
 const APP_ID = "33333333-3333-4333-8333-333333333333";
+const EMPLOYER_SOURCE_ID = "55555555-5555-4555-8555-555555555555";
 
 function buildChain(result: unknown) {
   const resolved = Array.isArray(result) ? result : [result];
@@ -349,6 +350,7 @@ function buildTxSelectChain(result: unknown[]) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   chain.from = vi.fn().mockReturnValue(chain);
   chain.where = vi.fn().mockReturnValue(chain);
+  chain.orderBy = vi.fn().mockReturnValue(chain);
   chain.limit = vi.fn().mockResolvedValue(result);
   return chain;
 }
@@ -360,6 +362,26 @@ function buildTxInsertChain(result: unknown) {
     Array.isArray(result) ? result : [result],
   );
   return chain;
+}
+
+function collectSqlParams(chunk: unknown): unknown[] {
+  const params: unknown[] = [];
+  const visit = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+    } else if (value && typeof value === "object") {
+      if ("value" in value && "encoder" in value) {
+        params.push((value as { value: unknown }).value);
+      }
+      if ("queryChunks" in value) {
+        visit((value as { queryChunks: unknown[] }).queryChunks);
+      }
+    } else if (typeof value === "string") {
+      params.push(value);
+    }
+  };
+  visit(chunk);
+  return params;
 }
 
 function buildSuccessTxChain(createdJob: Record<string, unknown>) {
@@ -375,10 +397,17 @@ function buildSuccessTxChain(createdJob: Record<string, unknown>) {
         buildTxSelectChain([{ id: "m1" }]),
       )
       .mockReturnValueOnce(
+        buildTxSelectChain([]),
+      )
+      .mockReturnValueOnce(
+        buildTxSelectChain([{ id: EMPLOYER_SOURCE_ID }]),
+      )
+      .mockReturnValueOnce(
         buildTxSelectChain([{ name: "Acme Corp" }]),
       ),
     insert: vi.fn()
       .mockReturnValueOnce(buildTxInsertChain(createdJob))
+      .mockReturnValueOnce(buildTxInsertChain(undefined))
       .mockReturnValueOnce(buildTxInsertChain(undefined)),
   };
   return tx;
@@ -578,7 +607,7 @@ describe("createEmployerJob", () => {
 
     await createEmployerJob(USER_ID, INPUT);
 
-    const auditInsert = tx.insert.mock.results[1].value;
+    const auditInsert = tx.insert.mock.results[2].value;
     expect(auditInsert.values).toHaveBeenCalledTimes(1);
     const auditData = auditInsert.values.mock.calls[0][0];
     expect(auditData).toEqual({
@@ -588,6 +617,157 @@ describe("createEmployerJob", () => {
       targetId: JOB_ID,
       metadata: { source: "employer", organizationId: ORG_ID },
     });
+  });
+
+  it("writes exactly one job_sources row with the EMPLOYER source", async () => {
+    const tx = buildSuccessTxChain(CREATED_JOB);
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await createEmployerJob(USER_ID, INPUT);
+
+    const jobInsert = tx.insert.mock.results[0].value;
+    expect(jobInsert.values).toHaveBeenCalledTimes(1);
+
+    const sourceInsert = tx.insert.mock.results[1].value;
+    expect(sourceInsert.values).toHaveBeenCalledTimes(1);
+    const sourceData = sourceInsert.values.mock.calls[0][0];
+    expect(sourceData).toEqual({
+      jobId: JOB_ID,
+      sourceId: EMPLOYER_SOURCE_ID,
+      sourceUrl: `jobethiopia://source/${EMPLOYER_SOURCE_ID}/external/none`,
+      externalId: null,
+      rawHash: null,
+      lastSeenAt: null,
+    });
+  });
+
+  it("resolves sourceId from the server-owned EMPLOYER source, not client input", async () => {
+    const tx = buildSuccessTxChain(CREATED_JOB);
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await createEmployerJob(USER_ID, INPUT);
+
+    const sourceInsert = tx.insert.mock.results[1].value;
+    const sourceData = sourceInsert.values.mock.calls[0][0];
+    expect(sourceData.sourceId).toBe(EMPLOYER_SOURCE_ID);
+    expect(sourceData).not.toHaveProperty("sourceType");
+    expect(INPUT).not.toHaveProperty("sourceId");
+    expect(INPUT).not.toHaveProperty("sourceType");
+  });
+
+  it("stores a server-controlled internal provenance URL", async () => {
+    const tx = buildSuccessTxChain(CREATED_JOB);
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await createEmployerJob(USER_ID, INPUT);
+
+    const sourceInsert = tx.insert.mock.results[1].value;
+    const sourceData = sourceInsert.values.mock.calls[0][0];
+    expect(sourceData.sourceUrl).toBe(`jobethiopia://source/${EMPLOYER_SOURCE_ID}/external/none`);
+    expect(sourceData.sourceUrl).not.toMatch(/^https?:\/\//);
+  });
+
+  it("leaves externalId and rawHash null and defaults firstSeenAt/timestamps", async () => {
+    const tx = buildSuccessTxChain(CREATED_JOB);
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await createEmployerJob(USER_ID, INPUT);
+
+    const sourceInsert = tx.insert.mock.results[1].value;
+    const sourceData = sourceInsert.values.mock.calls[0][0];
+    expect(sourceData.externalId).toBeNull();
+    expect(sourceData.rawHash).toBeNull();
+    expect(sourceData.lastSeenAt).toBeNull();
+    expect(sourceData).not.toHaveProperty("firstSeenAt");
+    expect(sourceData).not.toHaveProperty("createdAt");
+    expect(sourceData).not.toHaveProperty("updatedAt");
+  });
+
+  it("rolls back job creation when provenance insertion fails", async () => {
+    const provenanceError = new Error("insert or update on table job_sources");
+    const provenanceChain = {
+      values: vi.fn().mockRejectedValue(provenanceError),
+    };
+
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: true }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: ORG_ID, status: "ACTIVE" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: "m1" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: EMPLOYER_SOURCE_ID }]),
+        ),
+      insert: vi.fn()
+        .mockReturnValueOnce(buildTxInsertChain(CREATED_JOB))
+        .mockReturnValueOnce(provenanceChain),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await expect(createEmployerJob(USER_ID, INPUT)).rejects.toThrow(
+      "insert or update on table job_sources",
+    );
+  });
+
+  it("rolls back job creation when the EMPLOYER source record is missing", async () => {
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: true }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: ORG_ID, status: "ACTIVE" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: "m1" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([]),
+        )
+        .mockReturnValueOnce(buildTxSelectChain([])),
+      insert: vi.fn().mockReturnValue(buildTxInsertChain(CREATED_JOB)),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    await expect(createEmployerJob(USER_ID, INPUT)).rejects.toThrow(
+      "Employer source record not configured",
+    );
+  });
+
+  it("does not write provenance when authorization is denied", async () => {
+    const tx = {
+      select: vi.fn().mockReturnValue(
+        buildTxSelectChain([{ role: "CANDIDATE", isActive: true }]),
+      ),
+      insert: vi.fn(),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result).toEqual({ ok: false, code: "USER_INACTIVE" });
+    expect(tx.insert).not.toHaveBeenCalled();
   });
 
   it("forces status to DRAFT even if client attempts to override", async () => {
@@ -622,6 +802,9 @@ describe("createEmployerJob", () => {
         )
         .mockReturnValueOnce(
           buildTxSelectChain([{ id: "m1" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([]),
         ),
       insert: vi.fn().mockReturnValue(slugErrorChain),
     };
@@ -655,11 +838,18 @@ describe("createEmployerJob", () => {
           buildTxSelectChain([{ id: "m1" }]),
         )
         .mockReturnValueOnce(
+          buildTxSelectChain([]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: EMPLOYER_SOURCE_ID }]),
+        )
+        .mockReturnValueOnce(
           buildTxSelectChain([{ name: "Acme Corp" }]),
         ),
       insert: vi.fn()
         .mockReturnValueOnce(slugErrorChain)
         .mockReturnValueOnce(successChain)
+        .mockReturnValueOnce(buildTxInsertChain(undefined))
         .mockReturnValueOnce(buildTxInsertChain(undefined)),
     };
     mocks.mockDbTransaction.mockImplementation(
@@ -691,6 +881,9 @@ describe("createEmployerJob", () => {
         )
         .mockReturnValueOnce(
           buildTxSelectChain([{ id: "m1" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([]),
         ),
       insert: vi.fn().mockReturnValue(dbErrorChain),
     };
@@ -701,6 +894,291 @@ describe("createEmployerJob", () => {
     await expect(createEmployerJob(USER_ID, INPUT)).rejects.toThrow(
       "connection refused",
     );
+  });
+
+  function buildWarningTxChain(
+    duplicateChain: Record<string, ReturnType<typeof vi.fn>>,
+  ) {
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: true }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: ORG_ID, status: "ACTIVE" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: "m1" }]),
+        )
+        .mockReturnValueOnce(duplicateChain)
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: EMPLOYER_SOURCE_ID }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ name: "Acme Corp" }]),
+        ),
+      insert: vi.fn()
+        .mockReturnValueOnce(buildTxInsertChain(CREATED_JOB))
+        .mockReturnValueOnce(buildTxInsertChain(undefined))
+        .mockReturnValueOnce(buildTxInsertChain(undefined)),
+    };
+    return tx;
+  }
+
+  function duplicateMatch(
+    status: string,
+    overrides: Record<string, unknown> = {},
+  ) {
+    return { id: JOB_ID_2, title: "Software Engineer", status, ...overrides };
+  }
+
+  function runWith(tx: Record<string, unknown>) {
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+    return createEmployerJob(USER_ID, INPUT);
+  }
+
+  it("succeeds without a warning when no matching job exists", async () => {
+    const result = await runWith(buildSuccessTxChain(CREATED_JOB));
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warning).toBeUndefined();
+    }
+  });
+
+  it.each(["DRAFT", "PENDING_REVIEW", "PUBLISHED"] as const)(
+    "returns a warning when a %s job matches",
+    async (status) => {
+      const tx = buildWarningTxChain(
+        buildTxSelectChain([duplicateMatch(status)]),
+      );
+      const result = await runWith(tx);
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.warning).toBeDefined();
+        expect(result.warning?.code).toBe("POSSIBLE_DUPLICATE");
+        expect(result.warning?.matchedJobId).toBe(JOB_ID_2);
+        expect(result.warning?.matchedStatus).toBe(status);
+      }
+    },
+  );
+
+  it("does not warn when the only match is EXPIRED", async () => {
+    const tx = buildWarningTxChain(
+      buildTxSelectChain([duplicateMatch("EXPIRED")]),
+    );
+    const result = await runWith(tx);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warning).toBeUndefined();
+    }
+  });
+
+  it("does not warn when the only match is REMOVED", async () => {
+    const tx = buildWarningTxChain(
+      buildTxSelectChain([duplicateMatch("REMOVED")]),
+    );
+    const result = await runWith(tx);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warning).toBeUndefined();
+    }
+  });
+
+  it("scopes the duplicate lookup to the verified organization", async () => {
+    const duplicateChain = buildTxSelectChain([]);
+    const tx = buildWarningTxChain(duplicateChain);
+    const result = await runWith(tx);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warning).toBeUndefined();
+    }
+    const params = collectSqlParams(duplicateChain.where.mock.calls[0][0]);
+    expect(params).toContain(ORG_ID);
+  });
+
+  it("does not warn when the existing job is in a different location", async () => {
+    const LOCATION_A = "aaaa1111-1111-4111-8111-111111111111";
+    const LOCATION_B = "bbbb1111-1111-4111-8111-111111111111";
+    const duplicateChain = buildTxSelectChain([]);
+    const tx = buildWarningTxChain(duplicateChain);
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+    const result = await createEmployerJob(USER_ID, {
+      ...INPUT,
+      locationId: LOCATION_A,
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warning).toBeUndefined();
+    }
+    const params = collectSqlParams(duplicateChain.where.mock.calls[0][0]);
+    expect(params).toContain(LOCATION_A);
+    expect(params).not.toContain(LOCATION_B);
+  });
+
+  it("does not warn when the existing job has a different title", async () => {
+    const duplicateChain = buildTxSelectChain([]);
+    const tx = buildWarningTxChain(duplicateChain);
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+    const result = await createEmployerJob(USER_ID, {
+      ...INPUT,
+      title: "Senior Software Engineer",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warning).toBeUndefined();
+    }
+    const params = collectSqlParams(duplicateChain.where.mock.calls[0][0]);
+    expect(params).toContain("Senior Software Engineer");
+  });
+
+  it("warns when both jobs have a null location", async () => {
+    const duplicateChain = buildTxSelectChain([
+      duplicateMatch("DRAFT"),
+    ]);
+    const tx = buildWarningTxChain(duplicateChain);
+    const result = await runWith(tx);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warning?.matchedJobId).toBe(JOB_ID_2);
+    }
+    const params = collectSqlParams(duplicateChain.where.mock.calls[0][0]);
+    expect(params).toContain("Software Engineer");
+    expect(params).toContain(ORG_ID);
+  });
+
+  it("does not warn when the new job has a null location and the match has one", async () => {
+    const duplicateChain = buildTxSelectChain([]);
+    const tx = buildWarningTxChain(duplicateChain);
+    const result = await runWith(tx);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warning).toBeUndefined();
+    }
+    expect(duplicateChain.where).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses ORDER BY updatedAt/createdAt DESC with LIMIT 1 for multiple matches", async () => {
+    const duplicateChain = buildTxSelectChain([
+      duplicateMatch("PUBLISHED", { id: JOB_ID }),
+    ]);
+    const tx = buildWarningTxChain(duplicateChain);
+    const result = await runWith(tx);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warning?.matchedJobId).toBe(JOB_ID);
+    }
+    expect(duplicateChain.orderBy).toHaveBeenCalledTimes(1);
+    expect(duplicateChain.orderBy.mock.calls[0]).toHaveLength(2);
+    expect(duplicateChain.limit).toHaveBeenCalledWith(1);
+  });
+
+  it("still creates and returns the job when a warning is present", async () => {
+    const tx = buildWarningTxChain(
+      buildTxSelectChain([duplicateMatch("PUBLISHED")]),
+    );
+    const result = await runWith(tx);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item.id).toBe(JOB_ID);
+      expect(result.warning?.matchedJobId).toBe(JOB_ID_2);
+    }
+  });
+
+  it("warning contains matchedJobId, matchedJobTitle, and matchedStatus", async () => {
+    const tx = buildWarningTxChain(
+      buildTxSelectChain([duplicateMatch("DRAFT", { title: "Nurse" })]),
+    );
+    const result = await runWith(tx);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warning).toEqual({
+        code: "POSSIBLE_DUPLICATE",
+        message: "Possible duplicate — review existing jobs before publishing.",
+        matchedJobId: JOB_ID_2,
+        matchedJobTitle: "Nurse",
+        matchedStatus: "DRAFT",
+      });
+    }
+  });
+
+  it("derives the warning entirely from server data", async () => {
+    const tx = buildWarningTxChain(
+      buildTxSelectChain([duplicateMatch("DRAFT")]),
+    );
+    const result = await runWith(tx);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.warning).toBeDefined();
+    }
+    expect(INPUT).not.toHaveProperty("warning");
+    expect(INPUT).not.toHaveProperty("matchedJobId");
+    expect(INPUT).not.toHaveProperty("matchedStatus");
+  });
+
+  it("does not run the duplicate lookup when authorization fails", async () => {
+    const tx = {
+      select: vi.fn().mockReturnValue(
+        buildTxSelectChain([{ role: "CANDIDATE", isActive: true }]),
+      ),
+      insert: vi.fn(),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result).toEqual({ ok: false, code: "USER_INACTIVE" });
+    expect(tx.select).toHaveBeenCalledTimes(1);
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
+  it("still creates the EMPLOYER provenance row when a warning is present", async () => {
+    const tx = buildWarningTxChain(
+      buildTxSelectChain([duplicateMatch("PUBLISHED")]),
+    );
+    await runWith(tx);
+    const sourceInsert = tx.insert.mock.results[1].value;
+    expect(sourceInsert.values).toHaveBeenCalledTimes(1);
+    const data = sourceInsert.values.mock.calls[0][0];
+    expect(data.jobId).toBe(JOB_ID);
+    expect(data.sourceId).toBe(EMPLOYER_SOURCE_ID);
+  });
+
+  it("does not alter job status when a warning is present", async () => {
+    const tx = buildWarningTxChain(
+      buildTxSelectChain([duplicateMatch("PUBLISHED")]),
+    );
+    const result = await runWith(tx);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item.status).toBe("DRAFT");
+    }
+  });
+
+  it("does not alter verificationStatus when a warning is present", async () => {
+    const tx = buildWarningTxChain(
+      buildTxSelectChain([duplicateMatch("PUBLISHED")]),
+    );
+    const result = await runWith(tx);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item.verificationStatus).toBe("PENDING");
+    }
+  });
+
+  it("runs the duplicate lookup before inserting the job", async () => {
+    const tx = buildWarningTxChain(
+      buildTxSelectChain([duplicateMatch("DRAFT")]),
+    );
+    await runWith(tx);
+    const selectOrder = tx.select.mock.invocationCallOrder;
+    const insertOrder = tx.insert.mock.invocationCallOrder;
+    expect(selectOrder[3]).toBeLessThan(insertOrder[0]);
   });
 });
 

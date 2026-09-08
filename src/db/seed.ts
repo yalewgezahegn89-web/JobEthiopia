@@ -10,6 +10,10 @@ import {
   jobs,
   careerArticles,
 } from "./schema";
+import {
+  EMPLOYER_SOURCE_NAME,
+  API_KEY_SOURCE_NAME,
+} from "../lib/sources/provenance";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -158,6 +162,46 @@ async function seed() {
   }
 
   console.log("Sources seeded.");
+
+  // Employer Portal source (provides provenance for employer-created jobs)
+  const [employerSource] = await db
+    .insert(sources)
+    .values({
+      name: EMPLOYER_SOURCE_NAME,
+      sourceType: "EMPLOYER",
+      trustLevel: "HIGH",
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let employerSourceId = employerSource?.id;
+  if (!employerSourceId) {
+    const existing = await db.query.sources.findFirst({
+      where: (srcs, { eq }) => eq(srcs.name, EMPLOYER_SOURCE_NAME),
+    });
+    employerSourceId = existing!.id;
+  }
+
+  // API Key source (provides provenance for API-key created jobs)
+  const [apiKeySource] = await db
+    .insert(sources)
+    .values({
+      name: API_KEY_SOURCE_NAME,
+      sourceType: "API",
+      trustLevel: "HIGH",
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let apiKeySourceId = apiKeySource?.id;
+  if (!apiKeySourceId) {
+    const existing = await db.query.sources.findFirst({
+      where: (srcs, { eq }) => eq(srcs.name, API_KEY_SOURCE_NAME),
+    });
+    apiKeySourceId = existing!.id;
+  }
+
+  console.log("Provisioned sources seeded.");
 
   // Jobs
   await db

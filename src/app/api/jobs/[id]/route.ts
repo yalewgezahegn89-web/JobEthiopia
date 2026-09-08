@@ -238,9 +238,20 @@ export async function PATCH(
       }
     }
 
+    const verifiedAt = new Date();
+
+    const updateData =
+      parsed.data.status === "PUBLISHED"
+        ? {
+            ...parsed.data,
+            verificationStatus: "VERIFIED" as const,
+            lastVerifiedAt: verifiedAt,
+          }
+        : parsed.data;
+
     const [updated] = await db
       .update(jobs)
-      .set(parsed.data)
+      .set(updateData)
       .where(eq(jobs.id, parsedId.data.id))
       .returning({
         id: jobs.id,

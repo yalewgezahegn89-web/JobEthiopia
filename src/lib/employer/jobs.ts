@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { applications } from "@/db/schema/applications";
@@ -9,8 +9,16 @@ import { locations } from "@/db/schema/locations";
 import { users } from "@/db/schema/users";
 import { organizationMembers } from "@/db/schema/organizationMembers";
 import { auditLog } from "@/db/schema/auditLog";
+import { jobSources } from "@/db/schema/jobSources";
+import { sources } from "@/db/schema/sources";
 import { getUserOrganizationIds } from "@/lib/auth/organizationMembership";
 import { generateSlug } from "@/lib/ingestion/slug";
+import { normalizeTitle } from "@/lib/normalization";
+import { escapeLikePattern } from "@/lib/apiUtils";
+import {
+  EMPLOYER_SOURCE_NAME,
+  internalProvenanceUrl,
+} from "@/lib/sources/provenance";
 
 type JobStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "EXPIRED" | "REMOVED";
 
@@ -26,6 +34,28 @@ const EDITABLE_STATUSES = ["DRAFT", "PENDING_REVIEW"] as const;
 const REMOVABLE_STATUSES = ["DRAFT", "PENDING_REVIEW"] as const;
 
 const MAX_SLUG_RETRIES = 10;
+
+const DUPLICATE_WARNING_STATUSES: JobStatus[] = [
+  "DRAFT",
+  "PENDING_REVIEW",
+  "PUBLISHED",
+];
+
+const DUPLICATE_WARNING_MESSAGE =
+  "Possible duplicate — review existing jobs before publishing.";
+
+/**
+ * Non-blocking, server-generated warning returned when a newly created
+ * employer job matches an existing job in the same organization on
+ * normalized title + location (L4-exact style). Never blocks creation.
+ */
+export type EmployerDuplicateWarning = {
+  code: "POSSIBLE_DUPLICATE";
+  message: string;
+  matchedJobId: string;
+  matchedJobTitle: string | null;
+  matchedStatus: string;
+};
 
 export type EmployerJobListItem = {
   id: string;
@@ -82,7 +112,11 @@ export type EmployerJobDetail = {
 };
 
 export type CreateEmployerJobResult =
-  | { ok: true; item: EmployerJobDetail }
+  | {
+      ok: true;
+      item: EmployerJobDetail;
+      warning?: EmployerDuplicateWarning;
+    }
   | { ok: false; code: "FORBIDDEN" | "ORG_INACTIVE" | "USER_INACTIVE" | "SLUG_COLLISION" };
 
 export type UpdateEmployerJobResult =
@@ -417,6 +451,46 @@ export async function createEmployerJob(
       return { ok: false, code: "FORBIDDEN" as const };
     }
 
+    // Non-blocking near-duplicate warning (L4-exact style, status-scoped).
+    // Runs BEFORE the job insert so the new job can never match itself.
+    // Scoped to the membership-verified organizationId only.
+    const normalizedTitle = normalizeTitle(input.title).trim();
+    let duplicateWarning: EmployerDuplicateWarning | undefined;
+    if (normalizedTitle) {
+      const locationCondition = input.locationId
+        ? eq(jobs.locationId, input.locationId)
+        : isNull(jobs.locationId);
+
+      const match = await tx
+        .select({ id: jobs.id, title: jobs.title, status: jobs.status })
+        .from(jobs)
+        .where(
+          and(
+            eq(jobs.organizationId, input.organizationId),
+            ilike(jobs.title, escapeLikePattern(normalizedTitle)),
+            locationCondition,
+            inArray(jobs.status, DUPLICATE_WARNING_STATUSES),
+          ),
+        )
+        .orderBy(desc(jobs.updatedAt), desc(jobs.createdAt))
+        .limit(1);
+
+      if (
+        match.length > 0 &&
+        DUPLICATE_WARNING_STATUSES.includes(
+          match[0].status as JobStatus,
+        )
+      ) {
+        duplicateWarning = {
+          code: "POSSIBLE_DUPLICATE",
+          message: DUPLICATE_WARNING_MESSAGE,
+          matchedJobId: match[0].id,
+          matchedJobTitle: match[0].title,
+          matchedStatus: match[0].status,
+        };
+      }
+    }
+
     const baseSlug = generateSlug(input.title);
     let createdJob: (typeof jobs.$inferSelect) | null = null;
 
@@ -471,6 +545,25 @@ export async function createEmployerJob(
       return { ok: false, code: "SLUG_COLLISION" as const };
     }
 
+    const sourceRow = await tx
+      .select({ id: sources.id })
+      .from(sources)
+      .where(eq(sources.name, EMPLOYER_SOURCE_NAME))
+      .limit(1);
+
+    if (sourceRow.length === 0) {
+      throw new Error("Employer source record not configured");
+    }
+
+    await tx.insert(jobSources).values({
+      jobId: createdJob.id,
+      sourceId: sourceRow[0].id,
+      sourceUrl: internalProvenanceUrl(sourceRow[0].id),
+      externalId: null,
+      rawHash: null,
+      lastSeenAt: null,
+    });
+
     await tx.insert(auditLog).values({
       actorUserId: userId,
       action: "JOB_CREATED",
@@ -519,6 +612,7 @@ export async function createEmployerJob(
         createdAt: createdJob.createdAt,
         updatedAt: createdJob.updatedAt,
       },
+      warning: duplicateWarning,
     };
   });
 }

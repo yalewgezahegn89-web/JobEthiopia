@@ -22,6 +22,27 @@ const { mockAssertTrustedCsrfFromRequest } = vi.hoisted(() => ({
   mockAssertTrustedCsrfFromRequest: vi.fn(),
 }));
 
+/** Server-owned source row resolved by createJobDirect for API-key jobs. */
+const DIRECT_API_SOURCE_ID = "550e8400-e29b-41d4-a716-446655440001";
+
+function buildSelectChain() {
+  return {
+    from: (...fromArgs: unknown[]) => {
+      mockDbFrom(...fromArgs);
+      return {
+        where: (...whereArgs: unknown[]) => {
+          mockDbWhere(...whereArgs);
+          const resultPromise = mockDbCount(...whereArgs);
+          return {
+            limit: vi.fn().mockResolvedValue([{ id: DIRECT_API_SOURCE_ID }]),
+            then: resultPromise.then.bind(resultPromise),
+          };
+        },
+      };
+    },
+  };
+}
+
 vi.mock("@/lib/auth/csrf", () => ({
   assertTrustedCsrfFromRequest: mockAssertTrustedCsrfFromRequest,
   CsrfError: class CsrfError extends Error {
@@ -59,21 +80,21 @@ vi.mock("../../../db", () => {
       },
       select: (...args: unknown[]) => {
         mockDbSelect(...args);
-        return {
-          from: (...fromArgs: unknown[]) => {
-            mockDbFrom(...fromArgs);
-            return {
-              where: (...whereArgs: unknown[]) => {
-                mockDbWhere(...whereArgs);
-                return mockDbCount(...whereArgs);
-              },
-            };
-          },
-        };
+        return buildSelectChain();
       },
       insert: (...args: unknown[]) => mockInsert(...args),
       update: (...args: unknown[]) => mockDbUpdate(...args),
       delete: (...args: unknown[]) => mockDbDelete(...args),
+      transaction: (
+        cb: (tx: Record<string, unknown>) => Promise<unknown>,
+      ) =>
+        cb({
+          select: (...args: unknown[]) => {
+            mockDbSelect(...args);
+            return buildSelectChain();
+          },
+          insert: (...args: unknown[]) => mockInsert(...args),
+        }),
     },
   };
 });
@@ -1915,9 +1936,180 @@ describe("PATCH /api/jobs/[id]", () => {
         expect(response.status).toBe(409);
         expect(data).toEqual({
           error: "Invalid status transition from EXPIRED to PENDING_REVIEW",
+        });
+      });
     });
   });
 });
+
+  describe("PUBLISH verification stamp", () => {
+    function captureSet() {
+      const chain = {
+        set: vi.fn().mockReturnValue({
+          where: vi.fn().mockReturnValue({
+            returning: vi.fn().mockResolvedValue([UPDATED_JOB]),
+          }),
+        }),
+      };
+      mockDbUpdate.mockReturnValue(chain);
+      return chain;
+    }
+
+    it("DRAFT → PUBLISHED stamps verificationStatus=VERIFIED", async () => {
+      mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+      mockValidateJobForPublish.mockResolvedValue({ ok: true });
+      captureSet();
+
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(200);
+      const setData = mockDbUpdate.mock.results[0].value.set.mock.calls[0][0];
+      expect(setData.verificationStatus).toBe("VERIFIED");
+    });
+
+    it("DRAFT → PUBLISHED stamps lastVerifiedAt", async () => {
+      mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+      mockValidateJobForPublish.mockResolvedValue({ ok: true });
+      captureSet();
+
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(200);
+      const setData = mockDbUpdate.mock.results[0].value.set.mock.calls[0][0];
+      expect(setData.lastVerifiedAt).toBeInstanceOf(Date);
+    });
+
+    it("PENDING_REVIEW → PUBLISHED stamps verificationStatus=VERIFIED", async () => {
+      mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PENDING_REVIEW" });
+      mockValidateJobForPublish.mockResolvedValue({ ok: true });
+      captureSet();
+
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(200);
+      const setData = mockDbUpdate.mock.results[0].value.set.mock.calls[0][0];
+      expect(setData.verificationStatus).toBe("VERIFIED");
+    });
+
+    it("PENDING_REVIEW → PUBLISHED stamps lastVerifiedAt", async () => {
+      mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "PENDING_REVIEW" });
+      mockValidateJobForPublish.mockResolvedValue({ ok: true });
+      captureSet();
+
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(200);
+      const setData = mockDbUpdate.mock.results[0].value.set.mock.calls[0][0];
+      expect(setData.lastVerifiedAt).toBeInstanceOf(Date);
+    });
+
+    it("lastVerifiedAt is server-generated, not client-controlled", async () => {
+      const request = makePatchRequest(VALID_ID, {
+        status: "PUBLISHED",
+        lastVerifiedAt: "2020-01-01T00:00:00.000Z",
+      });
+
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(mockDbUpdate).not.toHaveBeenCalled();
+    });
+
+    it("client-supplied verificationStatus is rejected alongside PUBLISHED", async () => {
+      const request = makePatchRequest(VALID_ID, {
+        status: "PUBLISHED",
+        verificationStatus: "VERIFIED",
+      });
+
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(mockDbUpdate).not.toHaveBeenCalled();
+    });
+
+    it("client-supplied lastVerifiedAt is rejected alongside PUBLISHED", async () => {
+      const request = makePatchRequest(VALID_ID, {
+        status: "PUBLISHED",
+        lastVerifiedAt: new Date().toISOString(),
+      });
+
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(mockDbUpdate).not.toHaveBeenCalled();
+    });
+
+    it("non-PUBLISH transition does not stamp verification fields", async () => {
+      mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+      mockValidateJobForPublish.mockResolvedValue({ ok: true });
+      captureSet();
+
+      const request = makePatchRequest(VALID_ID, { status: "PENDING_REVIEW" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(200);
+      const setData = mockDbUpdate.mock.results[0].value.set.mock.calls[0][0];
+      expect(setData).toEqual({ status: "PENDING_REVIEW" });
+      expect(setData).not.toHaveProperty("verificationStatus");
+      expect(setData).not.toHaveProperty("lastVerifiedAt");
+    });
+
+    it("publish validation still blocks incomplete jobs", async () => {
+      mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+      mockValidateJobForPublish.mockResolvedValue({
+        ok: false,
+        code: "INCOMPLETE_DATA",
+        missingFields: ["description"],
+        message: "Job is not ready for publication: missing or invalid description",
+      });
+
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(422);
+      expect(mockDbUpdate).not.toHaveBeenCalled();
+    });
+
+    it("successful API-key PUBLISH produces a publicly eligible state", async () => {
+      mockJobsFindFirst.mockResolvedValue({ id: VALID_ID, status: "DRAFT" });
+      mockValidateJobForPublish.mockResolvedValue({ ok: true });
+      captureSet();
+
+      const request = makePatchRequest(VALID_ID, { status: "PUBLISHED" });
+      const response = await PATCH(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(200);
+      const setData = mockDbUpdate.mock.results[0].value.set.mock.calls[0][0];
+      expect(setData.status).toBe("PUBLISHED");
+      expect(setData.verificationStatus).toBe("VERIFIED");
+      expect(setData.lastVerifiedAt).toBeInstanceOf(Date);
+      expect(isJobStale(setData.lastVerifiedAt.toISOString())).toBe(false);
+    });
+  });
 
     describe("publish validation", () => {
       it("allows DRAFT → PUBLISHED when validation passes", async () => {
@@ -2182,8 +2374,6 @@ describe("DELETE /api/jobs/[id]", () => {
       expect(body).not.toContain("SECRET_DB_PASSWORD");
       expect(body).not.toContain("xyz");
     });
-  });
-});
   });
 });
 
