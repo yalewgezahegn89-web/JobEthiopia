@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { httpUrlSchema } from "./employerJob";
 
 const OrganizationStatus = z.enum(["ACTIVE", "INACTIVE"]);
 const LocationType = z.enum(["COUNTRY", "REGION", "CITY", "DISTRICT", "OTHER"]);
@@ -100,7 +101,7 @@ export const createJobSchema = z
     salaryPeriod: SalaryPeriod.nullable().optional(),
     postedAt: z.string().datetime().nullable().optional(),
     deadline: z.string().datetime().nullable().optional(),
-    applicationUrl: z.string().url().nullable().optional(),
+    applicationUrl: httpUrlSchema.nullable().optional(),
   })
   .strict()
   .refine(

@@ -25,7 +25,7 @@ import {
   type CuratedJobDuplicateWarning,
   type CuratedJobResult,
 } from "@/lib/admin/curatedJobs";
-import { employerCreateJobSchema } from "@/lib/validations/employerJob";
+import { curatedCreateJobSchema } from "@/lib/validations/curatedJob";
 
 export type ModerationActionResult = {
   ok: boolean;
@@ -123,16 +123,19 @@ function readNumber(formData: FormData, key: string): number | undefined {
  *   1. Authenticate the session
  *   2. Authorize the role (staff only, same set as createCuratedJob)
  *   3. Validate the CSRF / trusted origin
- *   4. Validate input with the authoritative employerCreateJobSchema
+ *   4. Validate input with the authoritative curatedCreateJobSchema (the
+ *      employer contract plus the optional verified original-source block)
  *   5. Delegate to createCuratedJob() (which re-validates and enforces the
  *      Manual source resolution server-side)
  *   6. Navigate to the created job detail page (never auto-publishes)
  *
  * The action only ever reads the whitelisted form fields below. A
  * client-supplied sourceId, status, or verificationStatus is never read, so
- * it can never influence provenance or the initial DRAFT/PENDING state. On
- * success the app redirects to the admin job detail page where the existing
- * moderation workflow takes over.
+ * it can never influence provenance or the initial DRAFT/PENDING state. The
+ * optional original source (site name, official URL, employer reference) is
+ * passed through to the service, which resolves-or-creates the WEBSITE source
+ * server-side by its stable name. On success the app redirects to the admin
+ * job detail page where the existing moderation workflow takes over.
  */
 export async function createCuratedJobAction(
   _prevState: CreateCuratedJobActionResult,
@@ -189,7 +192,19 @@ export async function createCuratedJobAction(
   const applicationUrl = readText(formData, "applicationUrl");
   if (applicationUrl) input.applicationUrl = applicationUrl;
 
-  const parsed = employerCreateJobSchema.safeParse(input);
+  const originalSourceName = readText(formData, "originalSourceName");
+  if (originalSourceName) {
+    const originalSource: Record<string, string> = {
+      sourceName: originalSourceName,
+    };
+    const originalSourceUrl = readText(formData, "originalSourceUrl");
+    if (originalSourceUrl) originalSource.sourceUrl = originalSourceUrl;
+    const originalExternalId = readText(formData, "originalExternalId");
+    if (originalExternalId) originalSource.externalId = originalExternalId;
+    input.originalSource = originalSource;
+  }
+
+  const parsed = curatedCreateJobSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, fieldErrors: parsed.error.flatten().fieldErrors };
   }

@@ -134,7 +134,10 @@ export async function GET(request: Request) {
 
     const conditions: (SQL | undefined)[] = [
       eq(jobs.status, "PUBLISHED"),
-      sql`${jobs.lastVerifiedAt} IS NOT NULL AND ${jobs.lastVerifiedAt} >= ${staleCutoff.toISOString()}`,
+      // Freshness: a job verified exactly DEFAULT_STALE_MAX_AGE_DAYS ago is
+      // stale (isJobStale treats elapsed >= 30d as stale), so the list must
+      // require `>` on the cutoff to hide it there too.
+      sql`${jobs.lastVerifiedAt} IS NOT NULL AND ${jobs.lastVerifiedAt} > ${staleCutoff.toISOString()}`,
       sql`(${jobs.deadline} IS NULL OR ${jobs.deadline} >= ${now.toISOString()})`,
     ];
     if (activeOrgIds.length > 0) {

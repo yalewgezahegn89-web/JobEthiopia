@@ -8,6 +8,7 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
+import { isPgUniqueViolation, isPgForeignKeyViolation } from "@/lib/pgErrors";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -123,10 +124,7 @@ export async function PUT(
 
     return NextResponse.json({ item: updated });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      err.message.includes("sources_name_unique")
-    ) {
+    if (isPgUniqueViolation(err, "sources_name_unique")) {
       return jsonError("Source name already exists", 409);
     }
     return jsonError("Internal server error", 500);
@@ -176,10 +174,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      err.message.includes("foreign key constraint")
-    ) {
+    if (isPgForeignKeyViolation(err)) {
       return jsonError("Source cannot be deleted because it is referenced by other records", 409);
     }
     return jsonError("Internal server error", 500);

@@ -8,6 +8,7 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
@@ -64,10 +65,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ item: created }, { status: 201 });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      err.message.includes("professions_slug_unique")
-    ) {
+    if (isPgUniqueViolation(err, "professions_slug_unique")) {
       return jsonError("Profession slug already exists", 409);
     }
     return jsonError("Internal server error", 500);

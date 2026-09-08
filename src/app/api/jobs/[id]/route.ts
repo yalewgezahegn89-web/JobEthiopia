@@ -12,6 +12,7 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 import { isJobStale, DEFAULT_STALE_MAX_AGE_DAYS } from "@/lib/jobs/public";
 import { validateJobForPublish } from "@/lib/admin/jobs";
 
@@ -272,10 +273,7 @@ export async function PATCH(
 
     return NextResponse.json({ item: updated });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      err.message.includes("jobs_slug_unique")
-    ) {
+    if (isPgUniqueViolation(err, "jobs_slug_unique")) {
       return jsonError("Job slug already exists", 409);
     }
     return jsonError("Internal server error", 500);

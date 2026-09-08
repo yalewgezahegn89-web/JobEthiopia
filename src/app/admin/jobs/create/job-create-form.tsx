@@ -102,6 +102,16 @@ export default function JobCreateForm({
     };
   };
 
+  const originalSourceError = (): string | undefined => {
+    if (state.ok) return undefined;
+    for (const [key, messages] of Object.entries(state.fieldErrors ?? {})) {
+      if (key.startsWith("originalSource") && messages && messages.length > 0) {
+        return messages[0];
+      }
+    }
+    return undefined;
+  };
+
   return (
     <form
       action={formAction}
@@ -372,6 +382,68 @@ export default function JobCreateForm({
 
         <div className="space-y-6 border-t border-border-subtle pt-6">
           <SectionHeading
+            title="Original vacancy source"
+            description="Optional — for real vacancies already verified on an official employer site (e.g. UNICEF or UNFPA careers pages)."
+          />
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="originalSourceName" className={labelClass}>
+                Source site name<OptionalLabel />
+              </label>
+              <input
+                id="originalSourceName"
+                name="originalSourceName"
+                className={inputClass}
+                placeholder="e.g. UNICEF Careers Website"
+                {...errorProps("originalSourceName")}
+              />
+              <FieldError id="originalSourceName-error" message={fieldError("originalSourceName")} />
+            </div>
+            <div>
+              <label htmlFor="originalSourceUrl" className={labelClass}>
+                Official vacancy URL<OptionalLabel />
+              </label>
+              <input
+                id="originalSourceUrl"
+                name="originalSourceUrl"
+                type="url"
+                className={inputClass}
+                placeholder="https://..."
+                {...errorProps("originalSourceUrl")}
+              />
+              <FieldError id="originalSourceUrl-error" message={fieldError("originalSourceUrl")} />
+            </div>
+            <div>
+              <label htmlFor="originalExternalId" className={labelClass}>
+                Employer vacancy reference<OptionalLabel />
+              </label>
+              <input
+                id="originalExternalId"
+                name="originalExternalId"
+                className={inputClass}
+                placeholder="e.g. 595227"
+                {...errorProps("originalExternalId")}
+              />
+              <FieldError id="originalExternalId-error" message={fieldError("originalExternalId")} />
+            </div>
+          </div>
+          {originalSourceError() ? (
+            <p role="alert" className="text-sm text-destructive">
+              {originalSourceError()}
+            </p>
+          ) : null}
+          <p className="text-xs text-muted">
+            When the site name and official URL are provided, the vacancy is
+            recorded with both the internal data-entry method and the original
+            external source: the publisher, vacancy URL and reference become the
+            representative provenance so the original source stays visible in
+            moderation.
+          </p>
+        </div>
+
+        <div className="space-y-6 border-t border-border-subtle pt-6">
+          <SectionHeading
             title="Additional details"
             description="Optional content to help candidates apply."
           />
@@ -435,9 +507,11 @@ export default function JobCreateForm({
           role="note"
         >
           This creates a <strong>DRAFT</strong> job with{" "}
-          <strong>PENDING</strong> verification and Manual provenance. After
-          creating, you will be taken to the job detail page where the existing
-          moderation workflow handles review and publishing.
+          <strong>PENDING</strong> verification and Manual provenance. If the
+          original vacancy source is provided, the official site, URL and
+          reference are preserved alongside as the representative provenance.
+          After creating, you will be taken to the job detail page where the
+          existing moderation workflow handles review and publishing.
         </div>
 
         {state.error && (

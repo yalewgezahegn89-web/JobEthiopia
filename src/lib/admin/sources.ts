@@ -11,6 +11,7 @@ import { db } from "@/db";
 import { sources } from "@/db/schema/sources";
 import { auditLog } from "@/db/schema/auditLog";
 import { users } from "@/db/schema/users";
+import { isPgForeignKeyViolation, isPgUniqueViolation } from "@/lib/pgErrors";
 import { createSourceSchema, updateSourceSchema } from "@/lib/validations";
 
 export type SourceAdminSummary = {
@@ -173,10 +174,7 @@ export async function createSource(
 
     return { ok: true, id: sourceId };
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      err.message.includes("sources_name_unique")
-    ) {
+    if (isPgUniqueViolation(err, "sources_name_unique")) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;
@@ -245,10 +243,7 @@ export async function updateSource(
 
     return { ok: true };
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      err.message.includes("sources_name_unique")
-    ) {
+    if (isPgUniqueViolation(err, "sources_name_unique")) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;
@@ -296,10 +291,7 @@ export async function deleteSource(
 
     return { ok: true };
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      (err.message.includes("foreign key") || err.message.includes("job_sources"))
-    ) {
+    if (isPgForeignKeyViolation(err) || (err instanceof Error && err.message.includes("job_sources"))) {
       return { ok: false, code: "FK_VIOLATION" };
     }
     throw err;

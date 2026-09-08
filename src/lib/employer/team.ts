@@ -16,6 +16,7 @@ import { users } from "@/db/schema/users";
 import { organizations } from "@/db/schema/organizations";
 import { organizationMembers } from "@/db/schema/organizationMembers";
 import { auditLog } from "@/db/schema/auditLog";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 import { getUserOrganizationIds } from "@/lib/auth/organizationMembership";
 
 const ORGANIZATION_ADMIN = "ORGANIZATION_ADMIN";
@@ -64,11 +65,7 @@ export type RemoveEmployerTeamMemberResult =
     };
 
 function isUniqueViolation(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  return (
-    err.message.includes("organization_members_org_user_unique") ||
-    (err as { code?: unknown }).code === "23505"
-  );
+  return isPgUniqueViolation(err);
 }
 
 /**

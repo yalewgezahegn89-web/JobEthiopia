@@ -16,6 +16,7 @@ vi.mock("@/lib/auth/roles", () => ({
 }));
 
 import { createCuratedJob } from "@/lib/admin/curatedJobs";
+import { jobs } from "@/db/schema/jobs";
 import type { AuthUser } from "@/lib/auth/roles";
 import type { EmployerCreateJobInput } from "@/lib/validations/employerJob";
 
@@ -69,6 +70,7 @@ function collectSqlParams(chunk: unknown): unknown[] {
 function insertChain(result: unknown) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   chain.values = vi.fn().mockReturnValue(chain);
+  chain.onConflictDoNothing = vi.fn().mockReturnValue(chain);
   chain.returning = vi.fn().mockResolvedValue(Array.isArray(result) ? result : [result]);
   return chain;
 }
@@ -449,6 +451,37 @@ describe("createCuratedJob — slug handling", () => {
       expect(result.warning?.code).toBe("POSSIBLE_DUPLICATE");
     }
   });
+
+  it("uses ON CONFLICT DO NOTHING so a slug collision retries without aborting the tx", async () => {
+    const retryJob = createdJobRow("senior-accountant-1");
+    const tx = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(selectChain([duplicateMatch("PUBLISHED")]))
+        .mockReturnValueOnce(selectChain([{ id: SOURCE_ID }])),
+      insert: vi
+        .fn()
+        .mockReturnValueOnce(insertChain([]))
+        .mockReturnValueOnce(insertChain(retryJob))
+        .mockReturnValueOnce(insertChain(undefined))
+        .mockReturnValueOnce(insertChain(undefined)),
+    };
+    runWithTx(tx);
+    const result = await createCuratedJob(staffActor("ADMIN"), validInput());
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item.slug).toBe("senior-accountant-1");
+      expect(result.warning?.code).toBe("POSSIBLE_DUPLICATE");
+    }
+    // lock the PostgreSQL-safe mechanism in place: every attempt asks the db
+    // to skip conflicts on the slug so a 23505 can never abort the tx
+    for (const attempt of tx.insert.mock.results.slice(0, 2)) {
+      expect(attempt.value.onConflictDoNothing).toHaveBeenCalled();
+      expect(attempt.value.onConflictDoNothing.mock.calls[0][0]).toEqual({
+        target: jobs.slug,
+      });
+    }
+  });
 });
 
 describe("createCuratedJob — duplicate warning (L4 org + normalized title + location)", () => {
@@ -644,5 +677,225 @@ describe("createCuratedJob — duplicate warning (L4 org + normalized title + lo
     expect(tx.insert).toHaveBeenCalledTimes(3); // job + job_source + audit
     expect(jobSource.sourceId).toBe(SOURCE_ID);
     expect(audit.action).toBe("JOB_CREATED");
+  });
+});
+
+describe("createCuratedJob — optional original source provenance (Phase 6 Step 7)", () => {
+  const ORIG_SOURCE_ID = "88888888-8888-4888-8888-888888888888";
+  const OFFICIAL_URL = "https://jobs.unicef.org/cw/en-us/job/595227";
+
+  function originalInput(overrides: Record<string, unknown> = {}) {
+    return validInput({
+      originalSource: {
+        sourceName: "UNICEF Careers Website",
+        sourceUrl: OFFICIAL_URL,
+        externalId: "595227",
+      },
+      ...overrides,
+    });
+  }
+
+  /** Selects: duplicate lookup, Manual source, then existing original source. */
+  function buildExternalSourceTx() {
+    return {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(selectChain([]))
+        .mockReturnValueOnce(selectChain([{ id: SOURCE_ID }]))
+        .mockReturnValueOnce(selectChain([{ id: ORIG_SOURCE_ID }])),
+      insert: vi
+        .fn()
+        .mockReturnValueOnce(insertChain(createdJobRow()))
+        .mockReturnValueOnce(insertChain(undefined))
+        .mockReturnValueOnce(insertChain(undefined))
+        .mockReturnValueOnce(insertChain(undefined)),
+    };
+  }
+
+  /** External source row must be created: select returns no match. */
+  function buildMissingSourceTx() {
+    return {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(selectChain([]))
+        .mockReturnValueOnce(selectChain([{ id: SOURCE_ID }]))
+        .mockReturnValueOnce(selectChain([])),
+      insert: vi
+        .fn()
+        .mockReturnValueOnce(insertChain({ id: ORIG_SOURCE_ID }))
+        .mockReturnValueOnce(insertChain(createdJobRow()))
+        .mockReturnValueOnce(insertChain(undefined))
+        .mockReturnValueOnce(insertChain(undefined))
+        .mockReturnValueOnce(insertChain(undefined)),
+    };
+  }
+
+  function capturedJobSources(tx: { insert: ReturnType<typeof vi.fn> }) {
+    // Insert order when a source is created: [source, job, extEdge, manualEdge, audit]
+    // Insert order when the source exists:      [job, extEdge, manualEdge, audit]
+    const queue = tx.insert.mock.results.map((r) => r.value.values.mock.calls[0][0]);
+    const isJobRow = (q: unknown) => !!q && "jobId" in (q as object) === false && !(q as { sourceType?: string }).sourceType;
+    const jobIndex = queue.findIndex(isJobRow);
+    const external = queue[jobIndex + 1];
+    const manual = queue[jobIndex + 2];
+    const audit = queue[queue.length - 1];
+    return { external, manual, audit };
+  }
+
+  it("writes the external edge BEFORE the Manual edge (original publisher stays representative)", async () => {
+    const tx = buildExternalSourceTx();
+    runWithTx(tx);
+
+    const result = await createCuratedJob(staffActor("ADMIN"), originalInput());
+    expect(result.ok).toBe(true);
+    expect(tx.insert).toHaveBeenCalledTimes(4); // job + ext edge + manual edge + audit
+
+    const { external, manual } = capturedJobSources(tx);
+    expect(external).toMatchObject({
+      jobId: createdJobRow().id,
+      sourceId: ORIG_SOURCE_ID,
+      sourceUrl: OFFICIAL_URL,
+      externalId: "595227",
+      rawHash: null,
+      lastSeenAt: null,
+    });
+    expect(manual).toMatchObject({
+      jobId: createdJobRow().id,
+      sourceId: SOURCE_ID,
+      sourceUrl: `jobethiopia://source/${SOURCE_ID}/external/none`,
+      externalId: null,
+    });
+  });
+
+  it("pins the external edge one millisecond earlier than the transaction manual edge", async () => {
+    const tx = buildExternalSourceTx();
+    runWithTx(tx);
+    await createCuratedJob(staffActor("ADMIN"), originalInput());
+
+    const { external, manual } = capturedJobSources(tx);
+    expect(external.createdAt).toBeInstanceOf(Date);
+    expect(manual.createdAt).toBeUndefined(); // DB default now() = tx timestamp
+    const externalMs = (external.createdAt as Date).getTime();
+    expect(externalMs).toBeLessThanOrEqual(Date.now());
+    expect(Date.now() - externalMs).toBeLessThan(60_000);
+    // The external edge is the earlier row, so resolveJobProvenance picks it.
+  });
+
+  it("resolves the original source by its stable name, never by a client id", async () => {
+    const tx = buildExternalSourceTx();
+    runWithTx(tx);
+    await createCuratedJob(staffActor("ADMIN"), originalInput());
+
+    const params = collectSqlParams(
+      tx.select.mock.results[2].value.where.mock.calls[0][0],
+    );
+    expect(params).toContain("UNICEF Careers Website");
+    expect(originalInput()).not.toHaveProperty("originalSource.sourceId");
+  });
+
+  it("re-uses an existing source row by name (idempotent — no duplicate source insert)", async () => {
+    const tx = buildExternalSourceTx();
+    runWithTx(tx);
+    const result = await createCuratedJob(staffActor("ADMIN"), originalInput());
+    expect(result.ok).toBe(true);
+    const { external } = capturedJobSources(tx);
+    expect(external.sourceId).toBe(ORIG_SOURCE_ID);
+  });
+
+  it("creates the WEBSITE source row (trustLevel HIGH, baseUrl origin) when it does not exist", async () => {
+    const tx = buildMissingSourceTx();
+    runWithTx(tx);
+
+    const result = await createCuratedJob(staffActor("ADMIN"), originalInput());
+    expect(result.ok).toBe(true);
+    expect(tx.insert).toHaveBeenCalledTimes(5); // source + job + ext edge + manual edge + audit
+
+    const sourceRow = tx.insert.mock.results[0].value.values.mock.calls[0][0];
+    expect(sourceRow).toMatchObject({
+      name: "UNICEF Careers Website",
+      sourceType: "WEBSITE",
+      baseUrl: "https://jobs.unicef.org",
+      trustLevel: "HIGH",
+    });
+    const { external } = capturedJobSources(tx);
+    expect(external.sourceId).toBe(ORIG_SOURCE_ID);
+  });
+
+  it("still writes the Manual Entry edge when an original source is provided", async () => {
+    const tx = buildExternalSourceTx();
+    runWithTx(tx);
+    await createCuratedJob(staffActor("ADMIN"), originalInput());
+    const { manual } = capturedJobSources(tx);
+    expect(manual.sourceUrl).toMatch(/^jobethiopia:\/\//);
+    expect(manual.externalId).toBeNull();
+  });
+
+  it("never blocks creation when the external provenance edge already exists on another job", async () => {
+    // A duplicate re-entry of the same official vacancy would otherwise abort
+    // the tx on job_sources_source_external_id_unique. The external edge insert
+    // must be conflict-tolerant and the create must still succeed with the
+    // Manual Entry edge intact (warn-only duplicate contract).
+    const tx = buildExternalSourceTx();
+    runWithTx(tx);
+    const result = await createCuratedJob(staffActor("ADMIN"), originalInput());
+    expect(result.ok).toBe(true);
+
+    const insertResults = tx.insert.mock.results as Array<{
+      value: {
+        values: ReturnType<typeof vi.fn>;
+        onConflictDoNothing?: ReturnType<typeof vi.fn>;
+      };
+    }>;
+    const jobIndex = insertResults.findIndex((r) => {
+      const row = r.value.values.mock.calls[0]?.[0];
+      return (
+        Boolean(row) &&
+        typeof row === "object" &&
+        !("jobId" in (row as object)) &&
+        !("sourceType" in (row as object))
+      );
+    });
+    const externalEdge = insertResults[jobIndex + 1];
+    expect(externalEdge.value.onConflictDoNothing).toHaveBeenCalled();
+    const { manual } = capturedJobSources(tx);
+    expect(manual).toMatchObject({ jobId: createdJobRow().id, externalId: null });
+  });
+
+  it("records the original source in the JOB_CREATED audit metadata", async () => {
+    const tx = buildExternalSourceTx();
+    runWithTx(tx);
+    await createCuratedJob(staffActor("ADMIN"), originalInput());
+    const { audit } = capturedJobSources(tx);
+    expect(audit.action).toBe("JOB_CREATED");
+    expect(audit.metadata).toMatchObject({
+      source: "manual",
+      sourceId: SOURCE_ID,
+      organizationId: ORG_ID,
+      originalSourceId: ORIG_SOURCE_ID,
+      originalSource: {
+        sourceName: "UNICEF Careers Website",
+        sourceUrl: OFFICIAL_URL,
+        externalId: "595227",
+      },
+    });
+  });
+
+  it("does not resolve or write an original source when omitted (backward compatible)", async () => {
+    const tx = {
+      select: vi
+        .fn()
+        .mockReturnValueOnce(selectChain([]))
+        .mockReturnValueOnce(selectChain([{ id: SOURCE_ID }])),
+      insert: vi
+        .fn()
+        .mockReturnValueOnce(insertChain(createdJobRow()))
+        .mockReturnValueOnce(insertChain(undefined))
+        .mockReturnValueOnce(insertChain(undefined)),
+    };
+    runWithTx(tx);
+    const result = await createCuratedJob(staffActor("ADMIN"), validInput());
+    expect(result.ok).toBe(true);
+    expect(tx.select).toHaveBeenCalledTimes(2); // duplicate + Manual only
+    expect(tx.insert).toHaveBeenCalledTimes(3); // job + single Manual edge + audit
   });
 });

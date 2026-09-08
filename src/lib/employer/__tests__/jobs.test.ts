@@ -358,6 +358,7 @@ function buildTxSelectChain(result: unknown[]) {
 function buildTxInsertChain(result: unknown) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   chain.values = vi.fn().mockReturnValue(chain);
+  chain.onConflictDoNothing = vi.fn().mockReturnValue(chain);
   chain.returning = vi.fn().mockResolvedValue(
     Array.isArray(result) ? result : [result],
   );
@@ -789,6 +790,7 @@ describe("createEmployerJob", () => {
 
     const slugErrorChain = {
       values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockReturnThis(),
       returning: vi.fn().mockRejectedValue(slugError),
     };
 
@@ -822,7 +824,60 @@ describe("createEmployerJob", () => {
 
     const slugErrorChain = {
       values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockReturnThis(),
       returning: vi.fn().mockRejectedValue(slugError),
+    };
+    const successChain = buildTxInsertChain(retryJob);
+
+    const tx = {
+      select: vi.fn()
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ role: "ORGANIZATION_ADMIN", isActive: true }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: ORG_ID, status: "ACTIVE" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: "m1" }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ id: EMPLOYER_SOURCE_ID }]),
+        )
+        .mockReturnValueOnce(
+          buildTxSelectChain([{ name: "Acme Corp" }]),
+        ),
+      insert: vi.fn()
+        .mockReturnValueOnce(slugErrorChain)
+        .mockReturnValueOnce(successChain)
+        .mockReturnValueOnce(buildTxInsertChain(undefined))
+        .mockReturnValueOnce(buildTxInsertChain(undefined)),
+    };
+    mocks.mockDbTransaction.mockImplementation(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(tx),
+    );
+
+    const result = await createEmployerJob(USER_ID, INPUT);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.item.slug).toBe("software-engineer-1");
+    }
+  });
+
+  it("retries on a PG-wrapped unique violation carried on the cause chain", async () => {
+    const cause = Object.assign(
+      new Error('duplicate key value violates unique constraint "jobs_slug_unique"'),
+      { code: "23505", constraint: "jobs_slug_unique" },
+    );
+    const wrappedSlugError = new Error("job INSERT failed", { cause });
+    const retryJob = { ...CREATED_JOB, slug: "software-engineer-1" };
+
+    const slugErrorChain = {
+      values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockReturnThis(),
+      returning: vi.fn().mockRejectedValue(wrappedSlugError),
     };
     const successChain = buildTxInsertChain(retryJob);
 
@@ -868,6 +923,7 @@ describe("createEmployerJob", () => {
 
     const dbErrorChain = {
       values: vi.fn().mockReturnThis(),
+      onConflictDoNothing: vi.fn().mockReturnThis(),
       returning: vi.fn().mockRejectedValue(dbError),
     };
 

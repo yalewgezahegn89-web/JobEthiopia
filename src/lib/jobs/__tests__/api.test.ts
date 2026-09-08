@@ -159,6 +159,16 @@ function sqlContains(node: unknown, needle: string): boolean {
   return false;
 }
 
+function sqlRendered(node: unknown): string {
+  if (node === null || node === undefined) return "";
+  if (typeof node === "string") return node;
+  if (Array.isArray(node)) return node.map(sqlRendered).join("");
+  if (typeof node === "object") {
+    return Object.values(node as Record<string, unknown>).map(sqlRendered).join("");
+  }
+  return "";
+}
+
 function makeJobListRequest(
   searchParams?: Record<string, string>,
 ): Request {
@@ -523,7 +533,24 @@ describe("GET /api/jobs", () => {
 
       expect(response.status).toBe(200);
       const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
-      expect(sqlContains(findManyWhere, ">=")).toBe(true);
+      expect(sqlContains(findManyWhere, "lastVerifiedAt")).toBe(true);
+      expect(sqlContains(findManyWhere, "IS NOT NULL")).toBe(true);
+    });
+
+    it("uses a strict freshness cutoff (> cutoff) aligned with isJobStale, which treats the exact 30-day boundary as stale", async () => {
+      mockJobsFindMany.mockResolvedValue([]);
+      mockDbCount.mockResolvedValue([{ count: 0 }]);
+
+      const request = makeJobListRequest();
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const rendered = sqlRendered(mockJobsFindMany.mock.calls[0][0].where);
+      expect(rendered).toContain("lastVerifiedAt >");
+      expect(rendered).not.toContain("lastVerifiedAt >=");
+
+      // The deadline guard may still legitimately use >=.
+      expect(rendered).toContain("deadline >=");
     });
 
     it("includes jobs with fresh lastVerifiedAt (within 30 days)", async () => {
@@ -2442,6 +2469,7 @@ const CREATED_JOB_ALL_FIELDS = {
 function mockInsertSuccess(job: Record<string, unknown>) {
   mockInsert.mockReturnValue({
     values: vi.fn().mockReturnValue({
+      onConflictDoNothing: vi.fn().mockReturnThis(),
       returning: vi.fn().mockResolvedValue([job]),
     }),
   });
@@ -2451,6 +2479,7 @@ function mockInsertSlugConflict(job: Record<string, unknown>) {
   let callCount = 0;
   mockInsert.mockImplementation(() => ({
     values: vi.fn().mockReturnValue({
+      onConflictDoNothing: vi.fn().mockReturnThis(),
       returning: vi.fn().mockImplementation(() => {
         callCount++;
         if (callCount === 1) {
@@ -2465,6 +2494,7 @@ function mockInsertSlugConflict(job: Record<string, unknown>) {
 function mockInsertAllFail() {
   mockInsert.mockReturnValue({
     values: vi.fn().mockReturnValue({
+      onConflictDoNothing: vi.fn().mockReturnThis(),
       returning: vi.fn().mockResolvedValue([]),
     }),
   });
@@ -2473,6 +2503,7 @@ function mockInsertAllFail() {
 function mockInsertDbError(errorMessage: string) {
   mockInsert.mockReturnValue({
     values: vi.fn().mockReturnValue({
+      onConflictDoNothing: vi.fn().mockReturnThis(),
       returning: vi.fn().mockRejectedValue(new Error(errorMessage)),
     }),
   });

@@ -17,6 +17,7 @@ import { db } from "@/db";
 import { phoneVerifications } from "@/db/schema/phoneVerifications";
 import { authAccounts } from "@/db/schema/authAccounts";
 import { users } from "@/db/schema/users";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 import { normalizeEthiopianPhone, type EthiopianPhone } from "./phone";
 import {
   generateOtpCode,
@@ -368,11 +369,7 @@ export async function linkVerifiedPhone(
 
     return { ok: true, linked: !exists };
   } catch (err) {
-    if (
-      err instanceof Error &&
-      (err.message.includes("auth_accounts_provider_provider_account_id_unique") ||
-        (err as { code?: unknown }).code === "23505")
-    ) {
+    if (isPgUniqueViolation(err)) {
       return { ok: false, reason: "duplicate" };
     }
     return { ok: false, reason: "error" };

@@ -64,6 +64,7 @@ function buildTxSelectChain(result: unknown[]) {
 function buildTxInsertChain(result: unknown) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   chain.values = vi.fn().mockReturnValue(chain);
+  chain.onConflictDoNothing = vi.fn().mockReturnValue(chain);
   chain.returning = vi.fn().mockResolvedValue(
     Array.isArray(result) ? result : [result],
   );
@@ -220,13 +221,14 @@ describe("createJobDirect", () => {
 
   it("retries a fresh slug when the first insert returns no row", async () => {
     const retryJob = { ...CREATED_JOB, slug: "staff-nurse-1" };
+    const collisionChain = buildTxInsertChain([]);
 
     const tx = {
       select: vi.fn().mockReturnValueOnce(
         buildTxSelectChain([{ id: API_SOURCE_ID }]),
       ),
       insert: vi.fn()
-        .mockReturnValueOnce(buildTxInsertChain([]))
+        .mockReturnValueOnce(collisionChain)
         .mockReturnValueOnce(buildTxInsertChain(retryJob))
         .mockReturnValueOnce(buildTxInsertChain(undefined)),
     };
@@ -235,6 +237,8 @@ describe("createJobDirect", () => {
     const result = await createJobDirect(INPUT, { organizationId: TRUSTED_ORG_ID });
 
     expect(result.slug).toBe("staff-nurse-1");
+    expect(collisionChain.onConflictDoNothing).toHaveBeenCalledTimes(1);
+    expect(collisionChain.onConflictDoNothing.mock.calls[0][0]).toMatchObject({});
 
     const sourceInsert = tx.insert.mock.results[2].value;
     const sourceData = sourceInsert.values.mock.calls[0][0];

@@ -19,6 +19,7 @@ import {
   EMPLOYER_SOURCE_NAME,
   internalProvenanceUrl,
 } from "@/lib/sources/provenance";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 
 type JobStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "EXPIRED" | "REMOVED";
 
@@ -526,6 +527,7 @@ export async function createEmployerJob(
             status: "DRAFT",
             verificationStatus: "PENDING",
           })
+          .onConflictDoNothing({ target: jobs.slug })
           .returning();
 
         if (created) {
@@ -533,8 +535,10 @@ export async function createEmployerJob(
           break;
         }
       } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : "";
-        if (msg.includes("jobs_slug_unique")) {
+        // Defensive: collisions are normally absorbed by onConflictDoNothing
+        // (insert returns zero rows), but a genuinely wrapped unique violation
+        // still retries rather than aborting the transaction.
+        if (isPgUniqueViolation(e, "jobs_slug_unique")) {
           continue;
         }
         throw e;

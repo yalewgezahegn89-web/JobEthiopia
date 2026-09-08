@@ -141,6 +141,7 @@ function selectChain(result: unknown[]) {
 function insertChain(result: unknown) {
   const chain: Record<string, ReturnType<typeof vi.fn>> = {};
   chain.values = vi.fn().mockReturnValue(chain);
+  chain.onConflictDoNothing = vi.fn().mockReturnValue(chain);
   chain.returning = vi
     .fn()
     .mockResolvedValue(Array.isArray(result) ? result : [result]);

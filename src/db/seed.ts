@@ -73,6 +73,28 @@ async function seed() {
     .onConflictDoNothing()
     .returning();
 
+  await db
+    .insert(locations)
+    .values({
+      name: "Semera",
+      slug: "semera",
+      type: "CITY",
+      parentId: ethiopiaId,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  await db
+    .insert(locations)
+    .values({
+      name: "Konso",
+      slug: "konso",
+      type: "CITY",
+      parentId: ethiopiaId,
+    })
+    .onConflictDoNothing()
+    .returning();
+
   console.log("Locations seeded.");
 
   // Categories
@@ -95,6 +117,60 @@ async function seed() {
     healthcareId = existing!.id;
   }
 
+  const [operationsAdministration] = await db
+    .insert(categories)
+    .values({
+      name: "Operations & Administration",
+      slug: "operations-administration",
+      description: "Operations, administration, and general support roles",
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let operationsAdministrationId = operationsAdministration?.id;
+  if (!operationsAdministrationId) {
+    const existing = await db.query.categories.findFirst({
+      where: (cats, { eq }) => eq(cats.slug, "operations-administration"),
+    });
+    operationsAdministrationId = existing!.id;
+  }
+
+  const [financeEconomics] = await db
+    .insert(categories)
+    .values({
+      name: "Finance & Economics",
+      slug: "finance-economics",
+      description: "Finance, accounting, and economic policy roles",
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let financeEconomicsId = financeEconomics?.id;
+  if (!financeEconomicsId) {
+    const existing = await db.query.categories.findFirst({
+      where: (cats, { eq }) => eq(cats.slug, "finance-economics"),
+    });
+    financeEconomicsId = existing!.id;
+  }
+
+  const [transportLogistics] = await db
+    .insert(categories)
+    .values({
+      name: "Transport & Logistics",
+      slug: "transport-logistics",
+      description: "Transport, logistics, and fleet roles",
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let transportLogisticsId = transportLogistics?.id;
+  if (!transportLogisticsId) {
+    const existing = await db.query.categories.findFirst({
+      where: (cats, { eq }) => eq(cats.slug, "transport-logistics"),
+    });
+    transportLogisticsId = existing!.id;
+  }
+
   console.log("Categories seeded.");
 
   // Professions
@@ -115,6 +191,82 @@ async function seed() {
       where: (profs, { eq }) => eq(profs.slug, "nursing"),
     });
     nursingId = existing!.id;
+  }
+
+  const [nutrition] = await db
+    .insert(professions)
+    .values({
+      name: "Nutrition",
+      slug: "nutrition",
+      description: "Nutrition assessment, counseling, and community support",
+      categoryId: healthcareId,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let nutritionId = nutrition?.id;
+  if (!nutritionId) {
+    const existing = await db.query.professions.findFirst({
+      where: (profs, { eq }) => eq(profs.slug, "nutrition"),
+    });
+    nutritionId = existing!.id;
+  }
+
+  const [operations] = await db
+    .insert(professions)
+    .values({
+      name: "Operations",
+      slug: "operations",
+      description: "Operations coordination and administrative support",
+      categoryId: operationsAdministrationId,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let operationsId = operations?.id;
+  if (!operationsId) {
+    const existing = await db.query.professions.findFirst({
+      where: (profs, { eq }) => eq(profs.slug, "operations"),
+    });
+    operationsId = existing!.id;
+  }
+
+  const [publicFinanceEconomicPolicy] = await db
+    .insert(professions)
+    .values({
+      name: "Public Finance / Economic Policy",
+      slug: "public-finance-economic-policy",
+      description: "Public finance management and economic policy analysis",
+      categoryId: financeEconomicsId,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let publicFinanceEconomicPolicyId = publicFinanceEconomicPolicy?.id;
+  if (!publicFinanceEconomicPolicyId) {
+    const existing = await db.query.professions.findFirst({
+      where: (profs, { eq }) => eq(profs.slug, "public-finance-economic-policy"),
+    });
+    publicFinanceEconomicPolicyId = existing!.id;
+  }
+
+  const [driver] = await db
+    .insert(professions)
+    .values({
+      name: "Driver",
+      slug: "driver",
+      description: "Professional driving and fleet operations",
+      categoryId: transportLogisticsId,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let driverId = driver?.id;
+  if (!driverId) {
+    const existing = await db.query.professions.findFirst({
+      where: (profs, { eq }) => eq(profs.slug, "driver"),
+    });
+    driverId = existing!.id;
   }
 
   console.log("Professions seeded.");

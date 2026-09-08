@@ -274,6 +274,40 @@ describe("employerCreateJobSchema", () => {
     );
     expect(res.success).toBe(true);
   });
+
+  describe("applicationUrl scheme restriction", () => {
+    it.each(["https://example.com/apply", "http://example.com/apply"])(
+      "accepts %s",
+      (applicationUrl) => {
+        const res = employerCreateJobSchema.safeParse(
+          baseCreateInput({ applicationUrl }),
+        );
+        expect(res.success).toBe(true);
+      },
+    );
+
+    it.each([
+      "javascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "ftp://example.com",
+      "mailto:admin@example.com",
+      "not a url",
+    ])("rejects %s", (applicationUrl) => {
+      const res = employerCreateJobSchema.safeParse(
+        baseCreateInput({ applicationUrl }),
+      );
+      expect(res.success).toBe(false);
+    });
+
+    it("lets empty and null applicationUrl pass through unchanged", () => {
+      expect(employerCreateJobSchema.safeParse(baseCreateInput()).success).toBe(true);
+      expect(
+        employerCreateJobSchema.safeParse(
+          baseCreateInput({ applicationUrl: null }),
+        ).success,
+      ).toBe(true);
+    });
+  });
 });
 
 describe("employerUpdateJobSchema", () => {
@@ -321,6 +355,20 @@ describe("employerUpdateJobSchema", () => {
       verificationStatus: "VERIFIED",
     });
     expect(res.success).toBe(false);
+  });
+
+  it("rejects a javascript: applicationUrl on update", () => {
+    const res = employerUpdateJobSchema.safeParse({
+      applicationUrl: "javascript:alert(1)",
+    });
+    expect(res.success).toBe(false);
+  });
+
+  it("accepts an https applicationUrl on update", () => {
+    const res = employerUpdateJobSchema.safeParse({
+      applicationUrl: "https://example.com/apply",
+    });
+    expect(res.success).toBe(true);
   });
 });
 

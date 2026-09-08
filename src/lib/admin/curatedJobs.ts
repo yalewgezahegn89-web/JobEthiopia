@@ -20,6 +20,16 @@
  *    never blocks creation.
  *  - NO publish gate here; publication provenance enforcement lives in
  *    validateJobForPublish() (src/lib/admin/jobs.ts).
+ *
+ * Phase 6 Step 7 scope (original source provenance):
+ *  - OPTIONAL originalSource input preserves the external original vacancy
+ *    source (official employer website + vacancy URL + employer reference)
+ *    alongside the internal data-entry method. When provided, the service
+ *    resolves-or-creates the WEBSITE source record server-side by its stable
+ *    name (never from a client id) and writes TWO job_sources edges: the
+ *    external edge first (the origin of the listing, so it stays the
+ *    representative provenance), then the Manual Entry edge. When omitted the
+ *    behaviour is byte-identical to earlier batches (single Manual edge).
  */
 import { and, desc, eq, ilike, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
@@ -28,6 +38,7 @@ import { jobSources } from "@/db/schema/jobSources";
 import { sources } from "@/db/schema/sources";
 import { auditLog } from "@/db/schema/auditLog";
 import { escapeLikePattern } from "@/lib/apiUtils";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 import { isStaffRole, type AuthUser } from "@/lib/auth/roles";
 import { generateSlug } from "@/lib/ingestion/slug";
 import { normalizeTitle } from "@/lib/normalization";
@@ -35,8 +46,10 @@ import {
   MANUAL_SOURCE_NAME,
   internalProvenanceUrl,
 } from "@/lib/sources/provenance";
-import { employerCreateJobSchema } from "@/lib/validations/employerJob";
-import type { EmployerCreateJobInput } from "@/lib/validations/employerJob";
+import {
+  curatedCreateJobSchema,
+  type CuratedCreateJobInput,
+} from "@/lib/validations/curatedJob";
 
 const MAX_SLUG_RETRIES = 10;
 
@@ -82,20 +95,24 @@ export type CuratedJobResult =
  *
  * Guarantees:
  *  - idempotent-normal slug generation with bounded collision retries
- *  - job + exactly one job_sources row + audit all committed atomically
- *  - never invents or accepts externalId/sourceId; resolves the Manual
+ *  - job + job_sources provenance + audit all committed atomically
+ *  - never accepts a client-supplied sourceId/sourceType; resolves the Manual
  *    source server-side by its stable name
+ *  - when originalSource is provided, resolves-or-creates the WEBSITE source
+ *    by its stable name and records the external vacancy URL + employer
+ *    reference on that edge; the external edge is written first so it remains
+ *    the representative provenance (earliest job_sources row)
  *  - always DRAFT + PENDING on creation; publication is left to moderation
  */
 export async function createCuratedJob(
   actor: AuthUser,
-  input: EmployerCreateJobInput,
+  input: CuratedCreateJobInput,
 ): Promise<CuratedJobResult> {
   if (!isStaffRole(actor.role)) {
     return { ok: false, code: "FORBIDDEN" };
   }
 
-  const parsed = employerCreateJobSchema.safeParse(input);
+  const parsed = curatedCreateJobSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, code: "VALIDATION" };
   }
@@ -152,6 +169,36 @@ export async function createCuratedJob(
     const sourceId = manualSource[0].id;
     const sourceUrl = internalProvenanceUrl(sourceId);
 
+    // Phase 6 Step 7: optional external original-source provenance. The source
+    // record is resolved-or-created server-side by its stable name (never from
+    // a client-supplied id), and the official vacancy URL + employer reference
+    // are kept on that edge. baseUrl is derived from the official URL origin.
+    const txTimestamp = new Date();
+    let originalSourceId: string | null = null;
+    if (data.originalSource) {
+      const existingSource = await tx
+        .select({ id: sources.id })
+        .from(sources)
+        .where(eq(sources.name, data.originalSource.sourceName))
+        .limit(1);
+
+      if (existingSource.length > 0) {
+        originalSourceId = existingSource[0].id;
+      } else {
+        const [createdSource] = await tx
+          .insert(sources)
+          .values({
+            name: data.originalSource.sourceName,
+            sourceType: "WEBSITE",
+            baseUrl: sourceBaseUrl(data.originalSource.sourceUrl),
+            trustLevel: "HIGH",
+          })
+          .returning({ id: sources.id });
+
+        originalSourceId = createdSource.id;
+      }
+    }
+
     const baseSlug = generateSlug(data.title);
     let createdJob: (typeof jobs.$inferSelect) | null = null;
 
@@ -187,6 +234,14 @@ export async function createCuratedJob(
             status: "DRAFT",
             verificationStatus: "PENDING",
           })
+          // A slug collision must not abort the whole transaction: PostgreSQL
+          // marks a transaction aborted after any failed statement, so an
+          // exception-based retry inside the same transaction can never work
+          // on real Postgres (every later statement fails with 25P02). Using
+          // ON CONFLICT DO NOTHING yields zero rows on collision without
+          // throwing, so the retry loop below simply continues to `-1`, `-2`,
+          // ... exactly as the disabled (exception) path intended.
+          .onConflictDoNothing({ target: jobs.slug })
           .returning();
 
         if (created) {
@@ -194,8 +249,11 @@ export async function createCuratedJob(
           break;
         }
       } catch (error: unknown) {
-        const msg = error instanceof Error ? error.message : "";
-        if (msg.includes("jobs_slug_unique")) {
+        // Defensive only: on PostgreSQL the ON CONFLICT guard above prevents
+        // unique violations from surfacing. Keep the constraint check for
+        // non-PostgreSQL backends / legacy drivers where the error may carry
+        // the constraint name on `message` or on the `cause` chain.
+        if (isPgUniqueViolation(error, "jobs_slug_unique")) {
           continue;
         }
         throw error;
@@ -204,6 +262,29 @@ export async function createCuratedJob(
 
     if (!createdJob) {
       return { ok: false, code: "SLUG_COLLISION" };
+    }
+
+    if (originalSourceId && data.originalSource) {
+      await tx.insert(jobSources).values({
+        jobId: createdJob.id,
+        sourceId: originalSourceId,
+        sourceUrl: data.originalSource.sourceUrl,
+        externalId: data.originalSource.externalId ?? null,
+        rawHash: null,
+        lastSeenAt: null,
+        // Both edges are written in the same transaction and would otherwise
+        // share the transaction timestamp. Pin the external edge one
+        // millisecond earlier so it is deterministically the "earliest"
+        // job_sources row (the representative provenance in moderation).
+        createdAt: new Date(txTimestamp.getTime() - 1),
+      })
+        // The (source, externalId) pair is globally unique: one official
+        // vacancy reference belongs to one canonical job. A duplicate/workflow
+        // re-entry claiming the same reference must NOT abort creation (the
+        // warn-only duplicate contract). When the external edge already exists
+        // on another job, this new job simply falls back to Manual-entry-only
+        // provenance and the admin is alerted via the duplicate warning.
+        .onConflictDoNothing();
     }
 
     await tx.insert(jobSources).values({
@@ -224,6 +305,16 @@ export async function createCuratedJob(
         source: "manual",
         sourceId,
         organizationId: createdJob.organizationId,
+        ...(data.originalSource
+          ? {
+              originalSource: {
+                sourceName: data.originalSource.sourceName,
+                sourceUrl: data.originalSource.sourceUrl,
+                externalId: data.originalSource.externalId ?? null,
+              },
+              originalSourceId,
+            }
+          : {}),
       },
     });
 
@@ -233,4 +324,13 @@ export async function createCuratedJob(
       ...(duplicateWarning ? { warning: duplicateWarning } : {}),
     };
   });
+}
+
+/** Derives a source base URL from an official vacancy URL (origin only). */
+function sourceBaseUrl(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
 }

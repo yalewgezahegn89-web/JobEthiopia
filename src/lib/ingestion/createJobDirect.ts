@@ -140,6 +140,7 @@ export async function createJobDirect(
           status: "DRAFT" as never,
           verificationStatus: "PENDING" as never,
         })
+        .onConflictDoNothing({ target: jobs.slug })
         .returning();
 
       if (created) {

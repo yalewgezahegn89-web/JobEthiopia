@@ -48,6 +48,9 @@ function createForm(overrides: Record<string, string> = {}): FormData {
   if (overrides.deadline !== undefined) fd.set("deadline", overrides.deadline);
   if (overrides.applicationUrl !== undefined) fd.set("applicationUrl", overrides.applicationUrl);
   if (overrides.requirements !== undefined) fd.set("requirements", overrides.requirements);
+  if (overrides.originalSourceName !== undefined) fd.set("originalSourceName", overrides.originalSourceName);
+  if (overrides.originalSourceUrl !== undefined) fd.set("originalSourceUrl", overrides.originalSourceUrl);
+  if (overrides.originalExternalId !== undefined) fd.set("originalExternalId", overrides.originalExternalId);
   return fd;
 }
 
@@ -212,6 +215,83 @@ describe("createCuratedJobAction — client-controlled fields are ignored", () =
       expect.anything(),
       expect.not.objectContaining({ status: expect.anything() }),
     );
+  });
+});
+
+describe("createCuratedJobAction — original vacancy source (Phase 6 Step 7)", () => {
+  it("passes the original source block through to the service when fully provided", async () => {
+    await expect(
+      createCuratedJobAction(
+        INITIAL,
+        createForm({
+          originalSourceName: "UNICEF Careers Website",
+          originalSourceUrl: "https://jobs.unicef.org/cw/en-us/job/595227",
+          originalExternalId: "595227",
+        }),
+      ),
+    ).rejects.toThrow(`REDIRECT:/admin/jobs/${JOB_ID}`);
+    expect(mocks.mockCreateCuratedJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        originalSource: {
+          sourceName: "UNICEF Careers Website",
+          sourceUrl: "https://jobs.unicef.org/cw/en-us/job/595227",
+          externalId: "595227",
+        },
+      }),
+    );
+  });
+
+  it("omits the original source entirely when the name is absent", async () => {
+    await expect(createCuratedJobAction(INITIAL, createForm())).rejects.toThrow(
+      `REDIRECT:/admin/jobs/${JOB_ID}`,
+    );
+    expect(mocks.mockCreateCuratedJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.not.objectContaining({ originalSource: expect.anything() }),
+    );
+  });
+
+  it("does not build an original source from a URL without a source name (partial input ignored)", async () => {
+    await expect(
+      createCuratedJobAction(
+        INITIAL,
+        createForm({ originalSourceUrl: "https://jobs.unicef.org" }),
+      ),
+    ).rejects.toThrow(`REDIRECT:/admin/jobs/${JOB_ID}`);
+    expect(mocks.mockCreateCuratedJob).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.not.objectContaining({ originalSource: expect.anything() }),
+    );
+  });
+
+  it("rejects a malformed official URL with an originalSource field error", async () => {
+    const result = await createCuratedJobAction(
+      INITIAL,
+      createForm({
+        originalSourceName: "UNICEF Careers Website",
+        originalSourceUrl: "not a url",
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.fieldErrors).toBeTruthy();
+    if (result.fieldErrors) {
+      expect(
+        Object.keys(result.fieldErrors).some((key) =>
+          key.startsWith("originalSource"),
+        ),
+      ).toBe(true);
+    }
+    expect(mocks.mockCreateCuratedJob).not.toHaveBeenCalled();
+  });
+
+  it("returns a field error when a source name is given without a URL", async () => {
+    const result = await createCuratedJobAction(
+      INITIAL,
+      createForm({ originalSourceName: "UNICEF Careers Website" }),
+    );
+    expect(result.ok).toBe(false);
+    expect(mocks.mockCreateCuratedJob).not.toHaveBeenCalled();
   });
 });
 

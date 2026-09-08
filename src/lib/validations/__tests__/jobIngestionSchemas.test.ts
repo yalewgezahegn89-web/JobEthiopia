@@ -59,6 +59,34 @@ describe("createJobSchema server-owned fields", () => {
     );
     expect(res.success).toBe(false);
   });
+
+  describe("createJobSchema applicationUrl scheme restriction", () => {
+    it.each(["https://example.com/apply", "http://example.com/apply"])(
+      "accepts %s",
+      (applicationUrl) => {
+        const res = createJobSchema.safeParse(baseCreateInput({ applicationUrl }));
+        expect(res.success).toBe(true);
+      },
+    );
+
+    it.each([
+      "javascript:alert(1)",
+      "data:text/html,<script>alert(1)</script>",
+      "ftp://example.com",
+      "mailto:admin@example.com",
+      "not a url",
+    ])("rejects %s", (applicationUrl) => {
+      const res = createJobSchema.safeParse(baseCreateInput({ applicationUrl }));
+      expect(res.success).toBe(false);
+    });
+
+    it("lets empty and null applicationUrl pass through unchanged", () => {
+      expect(createJobSchema.safeParse(baseCreateInput()).success).toBe(true);
+      expect(
+        createJobSchema.safeParse(baseCreateInput({ applicationUrl: null })).success,
+      ).toBe(true);
+    });
+  });
 });
 
 describe("updateJobSchema verificationStatus blocking", () => {

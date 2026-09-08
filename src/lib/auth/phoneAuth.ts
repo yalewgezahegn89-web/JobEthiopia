@@ -32,6 +32,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema/users";
 import { authAccounts } from "@/db/schema/authAccounts";
 import { auditLog } from "@/db/schema/auditLog";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 import { createSession, revokeSession } from "./session";
 import { verifyOtp } from "./phone-verification";
 import { writeAuditLog } from "./audit";
@@ -165,11 +166,7 @@ export async function createPhoneUser(
 
     return outcome;
   } catch (err) {
-    if (
-      err instanceof Error &&
-      (err.message.includes("auth_accounts_provider_provider_account_id_unique") ||
-        (err as { code?: unknown }).code === "23505")
-    ) {
+    if (isPgUniqueViolation(err)) {
       return { ok: false, reason: "duplicate" };
     }
     return { ok: false, reason: "error" };
