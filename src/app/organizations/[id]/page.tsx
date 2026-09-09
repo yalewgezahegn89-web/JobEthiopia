@@ -6,7 +6,9 @@ import {
   type PublicOrganizationDetail,
 } from "@/lib/organizations/public";
 import { fetchJobs, type PublicJobSummary } from "@/lib/jobs/public";
+import { getAppBaseUrl } from "@/lib/appBaseUrl";
 import JobCard from "@/components/job-card";
+import { getI18n } from "@/lib/i18n/server";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import {
   CheckIcon,
@@ -16,10 +18,71 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Organization | JobEthiopia",
-  description: "Organization profile and open jobs on JobEthiopia.",
-};
+function truncateMetadata(value: string, maxLength: number): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length <= maxLength) return clean;
+  return clean.slice(0, maxLength - 3).trimEnd() + "...";
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+
+  let organization: PublicOrganizationDetail | null = null;
+  try {
+    organization = await fetchOrganizationById(id);
+  } catch {
+    // fall through to fallback metadata
+  }
+
+  if (!organization) {
+    return {
+      title: "Organization | JobEthiopia",
+      description: "Organization profile and open jobs on JobEthiopia.",
+    };
+  }
+
+  const baseUrl = getAppBaseUrl();
+  const canonicalUrl = `${baseUrl}/organizations/${id}`;
+
+  const isPubliclyEligible = organization.status === "ACTIVE";
+  const title = organization.name;
+  const description = organization.description
+    ? truncateMetadata(organization.description, 160)
+    : `${title} — explore open jobs on JobEthiopia.`;
+
+  if (!isPubliclyEligible) {
+    return {
+      title,
+      description,
+      robots: { index: false, follow: false },
+      alternates: { canonical: canonicalUrl },
+    };
+  }
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title: `${title} | JobEthiopia`,
+      description,
+      url: canonicalUrl,
+      type: "website",
+      siteName: "JobEthiopia",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} | JobEthiopia`,
+      description,
+    },
+    alternates: {
+      canonical: canonicalUrl,
+    },
+  };
+}
 
 export default async function OrganizationPage({
   params,
@@ -27,6 +90,7 @@ export default async function OrganizationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getI18n();
 
   let organization: PublicOrganizationDetail | null = null;
   let loadError = false;
@@ -81,6 +145,7 @@ export default async function OrganizationPage({
           { label: "Organizations", href: "/organizations" },
           { label: organization.name },
         ]}
+        t={t}
       />
 
       <article className="mt-4 overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
@@ -184,7 +249,7 @@ export default async function OrganizationPage({
           <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {openJobs.map((job) => (
               <li key={job.id} className="h-full">
-                <JobCard job={job} />
+                <JobCard job={job} t={t} />
               </li>
             ))}
           </ul>

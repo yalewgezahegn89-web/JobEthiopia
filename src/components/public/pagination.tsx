@@ -1,13 +1,16 @@
 import Link from "next/link";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
 export function Pagination({
   currentPage,
   totalPages,
   hrefForPage,
+  t,
 }: {
   currentPage: number;
   totalPages: number;
   hrefForPage: (page: number) => string;
+  t: Dictionary;
 }) {
   if (totalPages <= 1) {
     return null;
@@ -23,7 +26,7 @@ export function Pagination({
   return (
     <nav
       className="mt-10 flex items-center justify-between gap-4"
-      aria-label="Pagination"
+      aria-label={t.common.paginationLabel}
     >
       {currentPage > 1 ? (
         <Link
@@ -31,16 +34,16 @@ export function Pagination({
           className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-all duration-200 hover:bg-surface-raised hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           <ArrowLeft className="h-4 w-4" />
-          Previous
+          {t.common.previous}
         </Link>
       ) : (
         <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-subtle opacity-60">
           <ArrowLeft className="h-4 w-4" />
-          Previous
+          {t.common.previous}
         </span>
       )}
 
-      <div className="hidden items-center gap-1.5 sm:flex" aria-label="Pages">
+      <div className="hidden items-center gap-1.5 sm:flex" aria-label={t.common.pagesLabel}>
         {start > 1 && (
           <>
             <PageLink page={1} currentPage={currentPage} hrefForPage={hrefForPage} />
@@ -63,12 +66,12 @@ export function Pagination({
           href={hrefForPage(currentPage + 1)}
           className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-all duration-200 hover:bg-surface-raised hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Next
+          {t.common.next}
           <ArrowRight className="h-4 w-4" />
         </Link>
       ) : (
         <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-subtle opacity-60">
-          Next
+          {t.common.next}
           <ArrowRight className="h-4 w-4" />
         </span>
       )}

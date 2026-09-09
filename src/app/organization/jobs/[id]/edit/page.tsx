@@ -5,6 +5,7 @@ import { verifySession } from "@/lib/auth/session";
 import { getEmployerJob } from "@/lib/employer/jobs";
 import { EditJobForm } from "./form";
 import { Breadcrumb } from "@/components/public/breadcrumb";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function EditJobPage({
   if (user.role !== "ORGANIZATION_ADMIN") redirect("/login");
 
   const { id } = await params;
+  const t = await getI18n();
 
   let job;
   try {
@@ -45,6 +47,7 @@ export default async function EditJobPage({
           { label: job.title, href: `/organization/jobs/${job.id}` },
           { label: "Edit" },
         ]}
+        t={t}
       />
       <div className="mt-4">
         <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">

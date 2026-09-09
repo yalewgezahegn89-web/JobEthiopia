@@ -9,6 +9,8 @@ import { fetchCategories } from "@/lib/categories/public";
 import { fetchProfessions } from "@/lib/professions/public";
 import { fetchLocations } from "@/lib/locations/public";
 import JobCard from "@/components/job-card";
+import { getI18n } from "@/lib/i18n/server";
+import type { Messages } from "@/lib/i18n/dictionary";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +48,7 @@ export default async function JobsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const t = await getI18n();
   const params = await searchParams;
 
   const q = firstValue(params.q) ?? "";
@@ -84,10 +87,10 @@ export default async function JobsPage({
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
         <ErrorState
-          heading="We could not load jobs"
-          body="Something went wrong while loading job listings. Please try again shortly."
+          heading={t.jobs.loadErrorHeading}
+          body={t.jobs.loadErrorBody}
           ctaHref="/jobs"
-          ctaLabel="Try again"
+          ctaLabel={t.jobs.loadErrorCta}
         />
       </div>
     );
@@ -150,19 +153,19 @@ export default async function JobsPage({
     <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:py-12">
       <div className="max-w-3xl">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
-          Job discovery
+          {t.jobs.eyebrow}
         </p>
         <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          Find a job that fits
+          {t.jobs.title}
         </h1>
         <p className="mt-2 text-base leading-7 text-muted">
-          Search openings across Ethiopia and filter by profession, category,
-          and location.
+          {t.jobs.subtitle}
         </p>
       </div>
 
       <div className="mt-8 rounded-xl border border-border bg-surface p-5 shadow-sm">
         <SearchForm
+          t={t}
           q={q}
           categories={categories}
           professions={professions}
@@ -176,27 +179,27 @@ export default async function JobsPage({
       </div>
 
       <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
-        <ResultCount total={total} from={from} to={to} />
+        <ResultCount total={total} from={from} to={to} t={t} />
         {hasFilters && (
           <Link
             href="/jobs"
             className="focus-visible:outline-2 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            Clear all filters
+            {t.search.clearAllFilters}
           </Link>
         )}
       </div>
 
       {items.length === 0 ? (
         <div className="mt-6">
-          <EmptyState hasFilters={hasFilters} noResult={result !== null} />
+          <EmptyState t={t} hasFilters={hasFilters} noResult={result !== null} />
         </div>
       ) : (
         <>
           <ul className="mt-6 grid gap-4 sm:grid-cols-2">
             {items.map((job) => (
               <li key={job.id} className="h-full">
-                <JobCard job={job} />
+                <JobCard job={job} t={t} />
               </li>
             ))}
           </ul>
@@ -204,7 +207,7 @@ export default async function JobsPage({
           {totalPages > 1 && (
             <nav
               className="mt-10 flex items-center justify-between gap-4"
-              aria-label="Pagination"
+              aria-label={t.jobs.paginationLabel}
             >
               {currentPage > 1 ? (
                 <Link
@@ -212,18 +215,19 @@ export default async function JobsPage({
                   className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-all duration-200 hover:bg-surface-raised hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   <ArrowIcon dir="left" />
-                  Previous
+                  {t.jobs.previous}
                 </Link>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-subtle opacity-60">
                   <ArrowIcon dir="left" />
-                  Previous
+                  {t.jobs.previous}
                 </span>
               )}
 
               <PageIndicator
                 currentPage={currentPage}
                 totalPages={totalPages}
+                pagesLabel={t.common.pagesLabel}
                 hrefFor={(p) => hrefWith({ page: String(p) })}
               />
 
@@ -232,12 +236,12 @@ export default async function JobsPage({
                   href={hrefWith({ page: String(currentPage + 1) })}
                   className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-all duration-200 hover:bg-surface-raised hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
-                  Next
+                  {t.jobs.next}
                   <ArrowIcon dir="right" />
                 </Link>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-subtle opacity-60">
-                  Next
+                  {t.jobs.next}
                   <ArrowIcon dir="right" />
                 </span>
               )}
@@ -250,6 +254,7 @@ export default async function JobsPage({
 }
 
 function SearchForm({
+  t,
   q,
   categories,
   professions,
@@ -260,6 +265,7 @@ function SearchForm({
   locationId,
   employmentType,
 }: {
+  t: Messages;
   q: string;
   categories: FilterOption[];
   professions: FilterOption[];
@@ -271,7 +277,12 @@ function SearchForm({
   employmentType?: string;
 }) {
   return (
-    <form action="/jobs" aria-label="Search jobs" method="get" className="space-y-5">
+    <form
+      action="/jobs"
+      aria-label={t.search.searchJobs}
+      method="get"
+      className="space-y-5"
+    >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
           <svg
@@ -288,14 +299,14 @@ function SearchForm({
             <path d="m21 21-4.3-4.3" />
           </svg>
           <label htmlFor="q" className="sr-only">
-            Search jobs by keyword
+            {t.search.searchKeywordLabel}
           </label>
           <input
             id="q"
             name="q"
             type="search"
             defaultValue={q || ""}
-            placeholder="Job title, keyword, or skill"
+            placeholder={t.search.searchPlaceholder}
             className="w-full rounded-lg border border-border bg-surface-raised py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           />
         </div>
@@ -316,48 +327,52 @@ function SearchForm({
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.3-4.3" />
           </svg>
-          Search
+          {t.search.search}
         </button>
       </div>
 
       <div className="border-t border-border-subtle pt-4">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-          Filters
+          {t.search.filters}
         </p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SelectField
             id="categoryId"
             name="categoryId"
-            label="Category"
+            label={t.search.category}
             value={categoryId ?? ""}
             options={categories.map((o) => ({ value: o.id, label: o.name }))}
+            anyLabel={t.search.any}
           />
           <SelectField
             id="professionId"
             name="professionId"
-            label="Profession"
+            label={t.search.profession}
             value={professionId ?? ""}
             options={professions.map((o) => ({
               value: o.id,
               label: o.name,
             }))}
+            anyLabel={t.search.any}
           />
           <SelectField
             id="locationId"
             name="locationId"
-            label="Location"
+            label={t.search.location}
             value={locationId ?? ""}
             options={locations.map((o) => ({ value: o.id, label: o.name }))}
+            anyLabel={t.search.any}
           />
           <SelectField
             id="employmentType"
             name="employmentType"
-            label="Employment type"
+            label={t.search.employmentType}
             value={employmentType ?? ""}
             options={employmentTypes.map((value) => ({
               value,
               label: value.replace("_", " "),
             }))}
+            anyLabel={t.search.any}
           />
         </div>
       </div>
@@ -371,12 +386,14 @@ function SelectField({
   label,
   value,
   options,
+  anyLabel,
 }: {
   id: string;
   name: string;
   label: string;
   value: string;
   options: { value: string; label: string }[];
+  anyLabel: string;
 }) {
   return (
     <div>
@@ -390,7 +407,7 @@ function SelectField({
           defaultValue={value}
           className="w-full appearance-none rounded-lg border border-border bg-surface-raised py-2.5 pl-3 pr-9 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          <option value="">Any</option>
+          <option value="">{anyLabel}</option>
           {options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
@@ -418,21 +435,25 @@ function ResultCount({
   total,
   from,
   to,
+  t,
 }: {
   total: number;
   from: number;
   to: number;
+  t: Messages;
 }) {
   if (total === 0) {
-    return <p className="text-sm text-muted">No jobs found</p>;
+    return <p className="text-sm text-muted">{t.search.noJobsFound}</p>;
   }
   return (
     <p className="text-sm text-muted">
       <span className="font-semibold text-foreground">{total}</span>{" "}
-      {total === 1 ? "job" : "jobs"} found
-      {` · Showing `}
+      {total === 1
+        ? t.search.jobCountSingular(total)
+        : t.search.jobCount(total)}
+      {` · ${t.search.showing} `}
       <span className="font-semibold text-foreground">
-        {from}–{to}
+        {t.search.resultRange(from, to)}
       </span>
     </p>
   );
@@ -441,10 +462,12 @@ function ResultCount({
 function PageIndicator({
   currentPage,
   totalPages,
+  pagesLabel,
   hrefFor,
 }: {
   currentPage: number;
   totalPages: number;
+  pagesLabel: string;
   hrefFor: (page: number) => string;
 }) {
   const pages: number[] = [];
@@ -454,7 +477,10 @@ function PageIndicator({
     pages.push(p);
   }
   return (
-    <div className="hidden items-center gap-1.5 sm:flex" aria-label="Pages">
+    <div
+      className="hidden items-center gap-1.5 sm:flex"
+      aria-label={pagesLabel}
+    >
       {start > 1 && (
         <>
           <PageLink page={1} currentPage={currentPage} hrefFor={hrefFor} />
@@ -510,17 +536,19 @@ function PageLink({
 }
 
 function EmptyState({
+  t,
   hasFilters,
   noResult,
 }: {
+  t: Messages;
   hasFilters: boolean;
   noResult: boolean;
 }) {
-  const heading = hasFilters ? "No jobs found" : "No jobs available right now";
+  const heading = hasFilters
+    ? t.jobs.withFiltersHeading
+    : t.jobs.noFiltersHeading;
   const body =
-    hasFilters && noResult
-      ? "Try another keyword, location, or clear your filters to see more."
-      : "Check back soon — new roles are added regularly.";
+    hasFilters && noResult ? t.jobs.withFiltersBody : t.jobs.noFiltersBody;
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-6 py-16 text-center">
       <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-raised text-primary">
@@ -544,7 +572,7 @@ function EmptyState({
         href="/jobs"
         className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        Browse all jobs
+        {t.jobs.browseAllJobs}
       </Link>
     </div>
   );

@@ -62,6 +62,15 @@ vi.mock("next/link", () => ({
     ),
 }));
 
+vi.mock("@/lib/i18n/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
+  const { dictionaries } = await import("@/lib/i18n/dictionary");
+  return {
+    ...actual,
+    getI18n: async () => dictionaries.en,
+  };
+});
+
 import Home from "@/app/page";
 
 function makeJob(overrides: Record<string, unknown> = {}) {
@@ -322,11 +331,19 @@ describe("Homepage", () => {
   });
 
   it("exports page-specific SEO metadata", async () => {
-    const { metadata } = await import("@/app/page");
+    const { generateMetadata } = await import("@/app/page");
+    const metadata = await generateMetadata();
     expect(metadata).toBeDefined();
-    expect(metadata.title).toBe("JobEthiopia | Find Jobs in Ethiopia");
+    expect(metadata.title).toBe("Find Jobs in Ethiopia");
     expect(metadata.description).toBe(
       "Find verified job opportunities across Ethiopia by profession, category, and location.",
     );
+  });
+
+  it("does not duplicate the brand in the authored homepage title", async () => {
+    const { generateMetadata } = await import("@/app/page");
+    const metadata = await generateMetadata();
+    expect(metadata.title).toBe("Find Jobs in Ethiopia");
+    expect(metadata.title).not.toContain("JobEthiopia");
   });
 });

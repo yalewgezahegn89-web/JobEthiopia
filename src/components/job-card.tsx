@@ -6,6 +6,7 @@ import {
 } from "@/lib/jobs/public";
 import { Badge } from "@/components/ui/badge";
 import { BrandMark } from "@/components/ui/brand-mark";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
 function orgInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -16,7 +17,13 @@ function orgInitials(name: string): string {
   ).toUpperCase();
 }
 
-export default function JobCard({ job }: { job: PublicJobSummary }) {
+export default function JobCard({
+  job,
+  t,
+}: {
+  job: PublicJobSummary;
+  t: Dictionary;
+}) {
   const freshness = freshnessLabel(job.postedAt);
   const closing = closingState(job.deadline, job.status);
   const isVerified = job.verificationStatus === "VERIFIED";
@@ -55,7 +62,7 @@ export default function JobCard({ job }: { job: PublicJobSummary }) {
           )}
           {isVerified && (
             <Badge variant="success" className="ml-auto">
-              Verified
+              {t.common.verified}
             </Badge>
           )}
         </div>
@@ -98,18 +105,18 @@ export default function JobCard({ job }: { job: PublicJobSummary }) {
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-border-subtle pt-3 text-xs text-muted">
-          {isExpired && <Badge variant="destructive">Expired</Badge>}
+          {isExpired && <Badge variant="destructive">{t.common.expiry}</Badge>}
           {isClosing && (
             <Badge variant="warning">
               <ClockIcon className="mr-1 h-3 w-3" />
-              Closing soon
+              {t.common.closingSoon}
             </Badge>
           )}
           {!isExpired && !isClosing && freshness && <span>{freshness}</span>}
 
           {job.deadlineText && (
             <span>
-              Deadline: <time>{job.deadlineText}</time>
+              {t.common.deadlinePrefix} <time>{job.deadlineText}</time>
             </span>
           )}
 

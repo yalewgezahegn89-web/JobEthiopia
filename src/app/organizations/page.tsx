@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/public/page-header";
 import { EmptyState } from "@/components/public/empty-state";
 import { Pagination } from "@/components/public/pagination";
 import { BuildingIcon, CheckIcon } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export default async function OrganizationsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const t = await getI18n();
   const page = toPositiveInteger(firstValue(params.page), 1);
 
   let result: PublicOrganizationList | null = null;
@@ -53,15 +55,13 @@ export default async function OrganizationsPage({
   if (loadError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold">Organizations</h1>
-        <p className="mt-4 text-muted">
-          We could not load organizations right now. Please try again shortly.
-        </p>
+        <h1 className="text-2xl font-bold">{t.organizations.loadErrorHeading}</h1>
+        <p className="mt-4 text-muted">{t.organizations.loadErrorBody}</p>
         <Link
           href="/organizations"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Retry
+          {t.common.retry}
         </Link>
       </div>
     );
@@ -85,28 +85,34 @@ export default async function OrganizationsPage({
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
-      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Organizations" }]} />
+      <Breadcrumb
+        items={[
+          { label: t.organizations.breadcrumbHome, href: "/" },
+          { label: t.organizations.breadcrumbOrganizations },
+        ]}
+        t={t}
+      />
 
       <div className="mt-4">
         <PageHeader
-          eyebrow="Hiring organizations"
-          title="Organizations"
-          description="Discover organizations hiring across Ethiopia and explore their open roles."
+          eyebrow={t.organizations.eyebrow}
+          title={t.organizations.title}
+          description={t.organizations.description}
         />
       </div>
 
       {items.length === 0 ? (
         <EmptyState
           icon={<BuildingIcon className="h-7 w-7" />}
-          heading="No organizations found"
-          body="There are no active organizations to show right now. Check back soon."
+          heading={t.organizations.noResultsHeading}
+          body={t.organizations.noResultsBody}
         />
       ) : (
         <>
           <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((organization) => (
               <li key={organization.id} className="h-full">
-                <OrganizationCard organization={organization} />
+                <OrganizationCard organization={organization} t={t} />
               </li>
             ))}
           </ul>
@@ -115,6 +121,7 @@ export default async function OrganizationsPage({
             currentPage={currentPage}
             totalPages={totalPages}
             hrefForPage={hrefWithPage}
+            t={t}
           />
         </>
       )}
@@ -124,8 +131,10 @@ export default async function OrganizationsPage({
 
 export function OrganizationCard({
   organization,
+  t,
 }: {
   organization: PublicOrganizationSummary;
+  t: Awaited<ReturnType<typeof getI18n>>;
 }) {
   return (
     <Link
@@ -137,7 +146,7 @@ export function OrganizationCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={organization.logoUrl}
-            alt={`${organization.name} logo`}
+            alt={t.organizations.logoAlt(organization.name)}
             className="h-14 w-14 shrink-0 rounded-lg bg-surface-raised object-contain"
           />
         ) : (
@@ -152,7 +161,7 @@ export function OrganizationCard({
           {organization.isVerified && (
             <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-success-light px-2 py-0.5 text-xs font-semibold text-success">
               <CheckIcon className="h-3 w-3" />
-              Verified
+              {t.common.verified}
             </span>
           )}
         </div>
@@ -171,14 +180,14 @@ export function OrganizationCard({
           )}
           {organization.websiteUrl && (
             <span className="inline-flex items-center gap-1.5">
-              Website
+              {t.common.website}
             </span>
           )}
         </div>
       )}
 
       <span className="mt-auto inline-flex items-center gap-1 pt-4 text-sm font-semibold text-primary">
-        View organization
+        {t.organizations.viewOrganization}
         <span className="transition-transform duration-200 group-hover:translate-x-0.5">
           →
         </span>

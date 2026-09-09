@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderToString } from "react-dom/server";
 import { createElement, type ReactNode } from "react";
+import { dictionaries } from "@/lib/i18n/dictionary";
 
 const mocks = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
@@ -40,6 +41,11 @@ vi.mock("@/components/employer/bulk-application-actions", () => ({
       `bulk:${applications.map((a) => a.id).join(",")}`,
     ),
 }));
+
+vi.mock("@/lib/i18n/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
+  return { ...actual, getI18n: async () => dictionaries.en };
+});
 
 import EmployerApplicationsPage from "../page";
 

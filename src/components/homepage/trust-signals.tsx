@@ -1,29 +1,10 @@
+import type { Dictionary } from "@/lib/i18n/dictionary";
+
 type TrustSignal = {
   title: string;
   description: string;
   icon: "verified" | "precise" | "curated";
 };
-
-const SIGNALS: TrustSignal[] = [
-  {
-    title: "Verified listings",
-    description:
-      "Every published role is reviewed for authenticity before it reaches you.",
-    icon: "verified",
-  },
-  {
-    title: "Precise search",
-    description:
-      "Filter by profession, category, and location to find roles that fit you.",
-    icon: "precise",
-  },
-  {
-    title: "Curated opportunities",
-    description:
-      "Fresh, relevant openings surfaced from across Ethiopia's job market.",
-    icon: "curated",
-  },
-];
 
 const ICONS: Record<TrustSignal["icon"], React.ReactNode> = {
   verified: (
@@ -75,10 +56,29 @@ const ICONS: Record<TrustSignal["icon"], React.ReactNode> = {
   ),
 };
 
-export function TrustSignals() {
+export function TrustSignals({ t }: { t: Dictionary }) {
+
+  const SIGNALS: TrustSignal[] = [
+    {
+      title: t.home.signalVerifiedTitle,
+      description: t.home.signalVerifiedBody,
+      icon: "verified",
+    },
+    {
+      title: t.home.signalPreciseTitle,
+      description: t.home.signalPreciseBody,
+      icon: "precise",
+    },
+    {
+      title: t.home.signalCuratedTitle,
+      description: t.home.signalCuratedBody,
+      icon: "curated",
+    },
+  ];
+
   return (
     <section
-      aria-label="Why choose JobEthiopia"
+      aria-label={t.home.whyLabel}
       className="border-y border-border-subtle bg-surface"
     >
       <div className="mx-auto w-full max-w-7xl px-4 py-10 sm:py-12">

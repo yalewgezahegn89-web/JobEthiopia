@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useI18n } from "@/lib/i18n/client";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 type LinkItem = { href: string; label: string };
 
@@ -26,6 +28,7 @@ export function MobileHeader({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const { t } = useI18n();
 
   function close() {
     setIsOpen(false);
@@ -38,7 +41,7 @@ export function MobileHeader({
         onClick={() => setIsOpen((v) => !v)}
         aria-expanded={isOpen}
         aria-controls="mobile-menu"
-        aria-label={isOpen ? "Close menu" : "Open menu"}
+        aria-label={isOpen ? t.nav.closeMenu : t.nav.openMenu}
         className={`inline-flex items-center justify-center rounded-lg p-2 text-muted hover:text-foreground hover:bg-surface-raised transition-colors duration-150 ${focusRing}`}
       >
         {isOpen ? (
@@ -86,15 +89,17 @@ export function MobileHeader({
             id="mobile-menu"
             role="dialog"
             aria-modal="true"
-            aria-label="Navigation menu"
+            aria-label={t.nav.navMenuLabel}
             className="absolute top-0 right-0 flex h-full w-80 max-w-[85vw] flex-col overflow-y-auto border-l border-border bg-surface shadow-xl"
           >
             <div className="flex items-center justify-between border-b border-border-subtle px-4 py-4">
-              <span className="text-base font-bold text-foreground">Menu</span>
+              <span className="text-base font-bold text-foreground">
+                {t.nav.menu}
+              </span>
               <button
                 type="button"
                 onClick={close}
-                aria-label="Close menu"
+                aria-label={t.nav.closeMenu}
                 className={`rounded-lg p-2 text-muted hover:text-foreground hover:bg-surface-raised transition-colors duration-150 ${focusRing}`}
               >
                 <svg
@@ -114,7 +119,7 @@ export function MobileHeader({
               </button>
             </div>
 
-            <nav aria-label="Mobile navigation" className="p-4">
+            <nav aria-label={t.nav.mobileNavLabel} className="p-4">
               <ul className="space-y-1">
                 {primaryLinks.map((link) => {
                   const isActive =
@@ -136,11 +141,14 @@ export function MobileHeader({
                   );
                 })}
               </ul>
+              <div className="pt-4">
+                <LanguageSwitcher />
+              </div>
             </nav>
 
             <div className="border-t border-border-subtle p-4">
               <p className="px-4 py-2 text-xs font-medium uppercase tracking-wider text-subtle">
-                Account
+                {t.nav.account}
               </p>
               {userInfo ? (
                 <ul className="mt-1 space-y-1">
@@ -169,7 +177,7 @@ export function MobileHeader({
                         type="submit"
                         className={`w-full rounded-lg px-4 py-3 text-left text-base font-medium text-destructive hover:bg-destructive-light transition-colors duration-150 ${focusRing}`}
                       >
-                        Logout
+                        {t.nav.logOut}
                       </button>
                     </form>
                   </li>

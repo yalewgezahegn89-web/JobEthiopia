@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, Fragment, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { dictionaries } from "@/lib/i18n/dictionary";
 
 const mocks = vi.hoisted(() => ({
   mockFetchCategories: vi.fn(),
@@ -27,6 +28,11 @@ vi.mock("@/lib/categories/public", async (importOriginal) => {
     ...actual,
     fetchCategories: (...a: unknown[]) => mocks.mockFetchCategories(...a),
   };
+});
+
+vi.mock("@/lib/i18n/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
+  return { ...actual, getI18n: async () => dictionaries.en };
 });
 
 import CategoriesPage from "@/app/categories/page";

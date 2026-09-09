@@ -8,15 +8,78 @@ import {
   type PublicArticleSummary,
 } from "@/lib/careerArticles/public";
 import { selectRelatedArticles } from "@/lib/careerArticles/related";
+import { getAppBaseUrl } from "@/lib/appBaseUrl";
+import { getI18n } from "@/lib/i18n/server";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { BookIcon, CalendarIcon, ArrowRightIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Career Resource | JobEthiopia",
-  description: "Career advice and resources on JobEthiopia.",
-};
+function truncateMetadata(value: string, maxLength: number): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length <= maxLength) return clean;
+  return clean.slice(0, maxLength - 3).trimEnd() + "...";
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+
+  let article: PublicArticleDetail | null = null;
+  try {
+    article = await fetchCareerArticle(id);
+  } catch {
+    // fall through to fallback metadata
+  }
+
+  if (!article) {
+    return {
+      title: "Career Resource | JobEthiopia",
+      description: "Career advice and resources on JobEthiopia.",
+    };
+  }
+
+  const baseUrl = getAppBaseUrl();
+  const canonicalUrl = `${baseUrl}/careers/${id}`;
+
+  const isPubliclyEligible = article.status === "PUBLISHED";
+  const title = article.title;
+  const description = article.excerpt
+    ? truncateMetadata(article.excerpt, 160)
+    : `${title} — career advice and resources on JobEthiopia.`;
+
+  if (!isPubliclyEligible) {
+    return {
+      title,
+      description,
+      robots: { index: false, follow: false },
+      alternates: { canonical: canonicalUrl },
+    };
+  }
+
+  return {
+    title,
+    description,
+    openGraph: {
+      title: `${title} | JobEthiopia`,
+      description,
+      url: canonicalUrl,
+      type: "article",
+      siteName: "JobEthiopia",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} | JobEthiopia`,
+      description,
+    },
+    alternates: {
+      canonical: canonicalUrl,
+    },
+  };
+}
 
 export default async function CareerArticlePage({
   params,
@@ -24,6 +87,7 @@ export default async function CareerArticlePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getI18n();
 
   let article: PublicArticleDetail | null = null;
   let loadError = false;
@@ -78,6 +142,7 @@ export default async function CareerArticlePage({
           { label: "Career resources", href: "/careers" },
           { label: article.title },
         ]}
+        t={t}
       />
 
       <article className="mt-6">

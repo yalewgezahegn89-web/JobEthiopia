@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, Fragment, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { dictionaries } from "@/lib/i18n/dictionary";
 
 const mocks = vi.hoisted(() => ({
   mockFetchCareerArticle: vi.fn(),
@@ -35,6 +36,11 @@ vi.mock("@/lib/careerArticles/public", async (importOriginal) => {
 vi.mock("@/lib/careerArticles/related", () => ({
   selectRelatedArticles: (...a: unknown[]) => mocks.mockSelectRelatedArticles(...a),
 }));
+
+vi.mock("@/lib/i18n/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
+  return { ...actual, getI18n: async () => dictionaries.en };
+});
 
 import CareerArticlePage from "@/app/careers/[id]/page";
 

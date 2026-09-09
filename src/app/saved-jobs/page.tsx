@@ -7,6 +7,7 @@ import { SavedJobList } from "@/components/saved-jobs/saved-job-list";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { Pagination } from "@/components/public/pagination";
 import { SaveIcon } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,7 @@ export default async function SavedJobsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const t = await getI18n();
 
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -66,6 +68,7 @@ export default async function SavedJobsPage({
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:py-10">
       <Breadcrumb
         items={[{ label: "Home", href: "/" }, { label: "Saved Jobs" }]}
+        t={t}
       />
 
       <header className="mt-4 max-w-3xl">
@@ -143,6 +146,7 @@ export default async function SavedJobsPage({
             currentPage={currentPage}
             totalPages={totalPages}
             hrefForPage={hrefWithPage}
+            t={t}
           />
         </>
       )}

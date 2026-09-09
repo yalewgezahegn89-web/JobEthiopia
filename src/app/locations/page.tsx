@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/public/page-header";
 import { EmptyState } from "@/components/public/empty-state";
 import { Pagination } from "@/components/public/pagination";
 import { PinIcon, GlobeIcon } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,7 @@ export default async function LocationsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const t = await getI18n();
   const page = toPositiveInteger(firstValue(params.page), 1);
 
   let result: PublicLocationList | null = null;
@@ -53,15 +55,13 @@ export default async function LocationsPage({
   if (loadError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold">Locations</h1>
-        <p className="mt-4 text-muted">
-          We could not load locations right now. Please try again shortly.
-        </p>
+        <h1 className="text-2xl font-bold">{t.locations.loadErrorHeading}</h1>
+        <p className="mt-4 text-muted">{t.locations.loadErrorBody}</p>
         <Link
           href="/locations"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Retry
+          {t.common.retry}
         </Link>
       </div>
     );
@@ -85,13 +85,19 @@ export default async function LocationsPage({
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
-      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Locations" }]} />
+      <Breadcrumb
+        items={[
+          { label: t.locations.breadcrumbHome, href: "/" },
+          { label: t.locations.breadcrumbLocations },
+        ]}
+        t={t}
+      />
 
       <div className="mt-4">
         <PageHeader
-          eyebrow="Explore by region"
-          title="Locations"
-          description="Explore jobs by location and find opportunities near you across Ethiopia."
+          eyebrow={t.locations.eyebrow}
+          title={t.locations.title}
+          description={t.locations.description}
         />
       </div>
 
@@ -103,8 +109,8 @@ export default async function LocationsPage({
       {items.length === 0 ? (
         <EmptyState
           icon={<PinIcon className="h-7 w-7" />}
-          heading="No locations found"
-          body="There are no active locations to show right now. Check back soon."
+          heading={t.locations.noResultsHeading}
+          body={t.locations.noResultsBody}
         />
       ) : (
         <>
@@ -120,6 +126,7 @@ export default async function LocationsPage({
             currentPage={currentPage}
             totalPages={totalPages}
             hrefForPage={hrefWithPage}
+            t={t}
           />
         </>
       )}

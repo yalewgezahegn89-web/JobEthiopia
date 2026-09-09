@@ -2,20 +2,28 @@ import Link from "next/link";
 import type { PublicCategorySummary } from "@/lib/categories/public";
 import type { PublicProfessionSummary } from "@/lib/professions/public";
 import type { PublicLocationSummary } from "@/lib/locations/public";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
 export function ExploreByPath({
   professions,
   categories,
   locations,
+  t,
 }: {
   professions: PublicProfessionSummary[];
   categories: PublicCategorySummary[];
   locations: PublicLocationSummary[];
+  t: Dictionary;
 }) {
+
   return (
     <div className="space-y-14">
-      <ProfessionCategoryGrid professions={professions} categories={categories} />
-      <LocationGrid locations={locations} />
+      <ProfessionCategoryGrid
+        professions={professions}
+        categories={categories}
+        t={t}
+      />
+      <LocationGrid locations={locations} t={t} />
     </div>
   );
 }
@@ -23,9 +31,11 @@ export function ExploreByPath({
 function ProfessionCategoryGrid({
   professions,
   categories,
+  t,
 }: {
   professions: PublicProfessionSummary[];
   categories: PublicCategorySummary[];
+  t: Dictionary;
 }) {
   const hasProfessions = professions.length > 0;
   const hasCategories = categories.length > 0;
@@ -35,17 +45,16 @@ function ProfessionCategoryGrid({
     <section aria-labelledby="explore-heading">
       <div className="mb-6">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
-          Explore
+          {t.home.exploreEyebrow}
         </p>
         <h2
           id="explore-heading"
           className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
         >
-          Explore careers by path
+          {t.home.exploreTitle}
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted sm:text-base">
-          Browse opportunities across professions and categories to find the
-          direction that fits your goals.
+          {t.home.exploreSubtitle}
         </p>
       </div>
 
@@ -85,7 +94,7 @@ function ProfessionCategoryGrid({
                 {category.name}
                 {category.parentId && (
                   <span className="ml-2 text-xs font-medium text-subtle">
-                    Subcategory
+                    {t.common.subcategory}
                   </span>
                 )}
               </h3>
@@ -104,36 +113,42 @@ function ProfessionCategoryGrid({
           href="/professions"
           className="focus-visible:outline-2 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          View all professions
+          {t.home.viewAllProfessions}
         </Link>
         <Link
           href="/categories"
           className="focus-visible:outline-2 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          View all categories
+          {t.home.viewAllCategories}
         </Link>
       </div>
     </section>
   );
 }
 
-function LocationGrid({ locations }: { locations: PublicLocationSummary[] }) {
+function LocationGrid({
+  locations,
+  t,
+}: {
+  locations: PublicLocationSummary[];
+  t: Dictionary;
+}) {
   if (locations.length === 0) return null;
 
   return (
     <section aria-labelledby="locations-heading">
       <div className="mb-6">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
-          Locations
+          {t.home.locationsEyebrow}
         </p>
         <h2
           id="locations-heading"
           className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
         >
-          Explore jobs by location
+          {t.home.locationsTitle}
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted sm:text-base">
-          Discover opportunities in cities and regions across Ethiopia.
+          {t.home.locationsSubtitle}
         </p>
       </div>
 
@@ -163,7 +178,7 @@ function LocationGrid({ locations }: { locations: PublicLocationSummary[] }) {
           href="/locations"
           className="focus-visible:outline-2 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          View all locations
+          {t.home.viewAllLocations}
         </Link>
       </div>
     </section>

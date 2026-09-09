@@ -1,5 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
+import { dictionaries } from "@/lib/i18n/dictionary";
+
+vi.mock("@/lib/i18n/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/client")>();
+  return {
+    ...actual,
+    useI18n: () => ({ locale: "en" as const, t: dictionaries.en }),
+  };
+});
+
+vi.mock("@/lib/i18n/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
+  return { ...actual, getI18n: async () => dictionaries.en };
+});
 
 const mocks = vi.hoisted(() => ({
   mockFetchJobById: vi.fn(),

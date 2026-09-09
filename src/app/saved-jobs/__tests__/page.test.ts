@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { dictionaries } from "@/lib/i18n/dictionary";
 
 const mocks = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
@@ -29,6 +30,11 @@ vi.mock("@/lib/savedJobs/dal", () => ({
 vi.mock("@/components/saved-jobs/saved-job-list", () => ({
   SavedJobList: ({ items }: { items: unknown[] }) => createElement("ul", { "data-testid": "saved-list" }, String(items.length)),
 }));
+
+vi.mock("@/lib/i18n/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
+  return { ...actual, getI18n: async () => dictionaries.en };
+});
 
 import SavedJobsPage from "@/app/saved-jobs/page";
 

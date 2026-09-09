@@ -1,25 +1,29 @@
 import Link from "next/link";
 import type { PublicArticleSummary } from "@/lib/careerArticles/public";
 import { SectionHeading } from "@/components/homepage/section-heading";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
 export function CareerResources({
   articles,
+  t,
 }: {
   articles: PublicArticleSummary[];
+  t: Dictionary;
 }) {
+
   return (
     <section aria-labelledby="resources-heading">
       <SectionHeading
         id="resources-heading"
-        eyebrow="Career resources"
-        title="Grow your career"
-        subtitle="Practical guidance and insights to help you move forward in your career."
+        eyebrow={t.home.resourcesEyebrow}
+        title={t.home.resourcesTitle}
+        subtitle={t.home.resourcesSubtitle}
         action={
           <Link
             href="/careers"
             className="focus-visible:outline-2 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            View all resources
+            {t.home.viewAllResources}
           </Link>
         }
       />
@@ -55,7 +59,7 @@ export function CareerResources({
                 </p>
               )}
               <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
-                Read article
+                {t.home.readArticle}
                 <svg
                   className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5"
                   viewBox="0 0 24 24"

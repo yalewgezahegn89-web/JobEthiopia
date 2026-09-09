@@ -2,35 +2,37 @@ import Link from "next/link";
 import type { PublicJobSummary } from "@/lib/jobs/public";
 import { SectionHeading } from "@/components/homepage/section-heading";
 import JobCard from "@/components/job-card";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
-export function LatestJobs({ jobs }: { jobs: PublicJobSummary[] }) {
+export function LatestJobs({ jobs, t }: { jobs: PublicJobSummary[]; t: Dictionary }) {
+
   return (
     <section aria-labelledby="latest-jobs-heading">
       <SectionHeading
         id="latest-jobs-heading"
-        eyebrow="Fresh opportunities"
-        title="Latest Jobs"
-        subtitle="Newly published roles from across Ethiopia, updated regularly."
+        eyebrow={t.home.latestJobsEyebrow}
+        title={t.home.latestJobsTitle}
+        subtitle={t.home.latestJobsSubtitle}
         action={
           <Link
             href="/jobs"
             className="focus-visible:outline-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            View all jobs
+            {t.home.viewAllJobs}
           </Link>
         }
       />
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {jobs.map((job) => (
-          <JobCard key={job.id} job={job} />
+          <JobCard key={job.id} job={job} t={t} />
         ))}
       </div>
     </section>
   );
 }
 
-export function ClosingSoon({ jobs }: { jobs: PublicJobSummary[] }) {
+export function ClosingSoon({ jobs, t }: { jobs: PublicJobSummary[]; t: Dictionary }) {
   if (jobs.length === 0) return null;
 
   return (
@@ -43,24 +45,24 @@ export function ClosingSoon({ jobs }: { jobs: PublicJobSummary[] }) {
         eyebrow={
           <span className="inline-flex items-center gap-1.5">
             <ClockIcon />
-            Act quickly
+            {t.home.closingSoonEyebrow}
           </span>
         }
-        title="Closing soon"
-        subtitle="Application deadlines are approaching on these roles."
+        title={t.home.closingSoonTitle}
+        subtitle={t.home.closingSoonSubtitle}
         action={
           <Link
             href="/jobs"
             className="focus-visible:outline-2 text-sm font-semibold text-warning hover:text-warning focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            View all jobs
+            {t.home.viewAllJobs}
           </Link>
         }
       />
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2">
         {jobs.map((job) => (
-          <JobCard key={job.id} job={job} />
+          <JobCard key={job.id} job={job} t={t} />
         ))}
       </div>
     </section>

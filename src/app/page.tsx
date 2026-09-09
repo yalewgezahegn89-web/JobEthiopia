@@ -12,16 +12,20 @@ import { LatestJobs, ClosingSoon } from "@/components/homepage/jobs";
 import { ExploreByPath } from "@/components/homepage/explore";
 import { EmployerCta } from "@/components/homepage/employer-cta";
 import { CareerResources } from "@/components/homepage/career-resources";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "JobEthiopia | Find Jobs in Ethiopia",
-  description:
-    "Find verified job opportunities across Ethiopia by profession, category, and location.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getI18n();
+  return {
+    title: t.home.metaTitle,
+    description: t.home.metaDescription,
+  };
+}
 
 export default async function Home() {
+  const t = await getI18n();
   const [jobsResult, articlesResult, closingResult, categoriesResult, professionsResult, locationsResult] =
     await Promise.all([
       fetchJobs({ limit: 5 }).catch(() => null),
@@ -43,40 +47,41 @@ export default async function Home() {
 
   return (
     <div className="flex w-full flex-col">
-      <Hero locations={locations} />
+      <Hero locations={locations} t={t} />
 
-      <TrustSignals />
+      <TrustSignals t={t} />
 
       <div className="mx-auto w-full max-w-7xl space-y-16 px-4 py-14 sm:space-y-20 sm:py-16">
         {jobsResult === null || jobs.length === 0 ? (
-          <JobsEmptyState />
+          <JobsEmptyState t={t} />
         ) : (
-          <LatestJobs jobs={jobs} />
+          <LatestJobs jobs={jobs} t={t} />
         )}
 
-        {closingJobs.length > 0 && <ClosingSoon jobs={closingJobs} />}
+        {closingJobs.length > 0 && <ClosingSoon jobs={closingJobs} t={t} />}
 
         <ExploreByPath
           professions={professions}
           categories={categories}
           locations={locations}
+          t={t}
         />
       </div>
 
-      <EmployerCta />
+      <EmployerCta t={t} />
 
       <div className="mx-auto w-full max-w-7xl space-y-16 px-4 py-14 sm:py-16">
         {articlesResult === null || articles.length === 0 ? (
-          <ResourcesEmptyState />
+          <ResourcesEmptyState t={t} />
         ) : (
-          <CareerResources articles={articles} />
+          <CareerResources articles={articles} t={t} />
         )}
       </div>
     </div>
   );
 }
 
-function JobsEmptyState() {
+function JobsEmptyState({ t }: { t: Awaited<ReturnType<typeof getI18n>> }) {
   return (
     <section
       aria-labelledby="latest-jobs-heading"
@@ -86,22 +91,20 @@ function JobsEmptyState() {
         id="latest-jobs-heading"
         className="text-2xl font-bold tracking-tight text-foreground"
       >
-        Latest Jobs
+        {t.home.latestJobsEmptyHeading}
       </h2>
-      <p className="mt-2 text-sm text-muted">
-        We could not load the latest jobs right now.
-      </p>
+      <p className="mt-2 text-sm text-muted">{t.home.latestJobsEmptyBody}</p>
       <Link
         href="/jobs"
         className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        Browse jobs
+        {t.home.latestJobsEmptyCta}
       </Link>
     </section>
   );
 }
 
-function ResourcesEmptyState() {
+function ResourcesEmptyState({ t }: { t: Awaited<ReturnType<typeof getI18n>> }) {
   return (
     <section
       aria-labelledby="resources-heading"
@@ -111,16 +114,14 @@ function ResourcesEmptyState() {
         id="resources-heading"
         className="text-2xl font-bold tracking-tight text-foreground"
       >
-        Career Resources
+        {t.home.resourcesEmptyHeading}
       </h2>
-      <p className="mt-2 text-sm text-muted">
-        We could not load the latest career resources right now.
-      </p>
+      <p className="mt-2 text-sm text-muted">{t.home.resourcesEmptyBody}</p>
       <Link
         href="/careers"
         className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        Browse career resources
+        {t.home.resourcesEmptyCta}
       </Link>
     </section>
   );

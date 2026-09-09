@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/public/page-header";
 import { EmptyState } from "@/components/public/empty-state";
 import { Pagination } from "@/components/public/pagination";
 import { TagIcon } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export default async function CategoriesPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const t = await getI18n();
   const page = toPositiveInteger(firstValue(params.page), 1);
 
   let result: PublicCategoryList | null = null;
@@ -52,15 +54,13 @@ export default async function CategoriesPage({
   if (loadError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold">Categories</h1>
-        <p className="mt-4 text-muted">
-          We could not load categories right now. Please try again shortly.
-        </p>
+        <h1 className="text-2xl font-bold">{t.categories.loadErrorHeading}</h1>
+        <p className="mt-4 text-muted">{t.categories.loadErrorBody}</p>
         <Link
           href="/categories"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Retry
+          {t.common.retry}
         </Link>
       </div>
     );
@@ -84,28 +84,34 @@ export default async function CategoriesPage({
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
-      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Categories" }]} />
+      <Breadcrumb
+        items={[
+          { label: t.categories.breadcrumbHome, href: "/" },
+          { label: t.categories.breadcrumbCategories },
+        ]}
+        t={t}
+      />
 
       <div className="mt-4">
         <PageHeader
-          eyebrow="Browse by field"
-          title="Categories"
-          description="Explore job categories to find roles that match your field and interests."
+          eyebrow={t.categories.eyebrow}
+          title={t.categories.title}
+          description={t.categories.description}
         />
       </div>
 
       {items.length === 0 ? (
         <EmptyState
           icon={<TagIcon className="h-7 w-7" />}
-          heading="No categories found"
-          body="There are no active categories to show right now. Check back soon."
+          heading={t.categories.noResultsHeading}
+          body={t.categories.noResultsBody}
         />
       ) : (
         <>
           <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((category, index) => (
               <li key={category.id} className="h-full">
-                <CategoryCard category={category} index={index} />
+                <CategoryCard category={category} index={index} t={t} />
               </li>
             ))}
           </ul>
@@ -114,6 +120,7 @@ export default async function CategoriesPage({
             currentPage={currentPage}
             totalPages={totalPages}
             hrefForPage={hrefWithPage}
+            t={t}
           />
         </>
       )}
@@ -124,9 +131,11 @@ export default async function CategoriesPage({
 function CategoryCard({
   category,
   index,
+  t,
 }: {
   category: { id: string; name: string; description: string | null; parentId: string | null };
   index: number;
+  t: Awaited<ReturnType<typeof getI18n>>;
 }) {
   const amber = index % 2 === 1;
   return (
@@ -152,11 +161,11 @@ function CategoryCard({
       <span className="mt-auto flex flex-wrap items-center gap-2 pt-4">
         {category.parentId && (
           <span className="rounded-full bg-surface-raised px-2.5 py-0.5 text-xs font-semibold text-muted">
-            Subcategory
+            {t.common.subcategory}
           </span>
         )}
         <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
-          Explore jobs
+          {t.categories.exploreJobs}
           <span className="transition-transform duration-200 group-hover:translate-x-0.5">
             →
           </span>

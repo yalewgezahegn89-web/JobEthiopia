@@ -14,6 +14,7 @@ import {
   PinIcon,
   CalendarIcon,
 } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +85,7 @@ export default async function EmployerJobDetailPage({
   if (user.role !== "ORGANIZATION_ADMIN") redirect("/login");
 
   const { id } = await params;
+  const t = await getI18n();
 
   let job;
   try {
@@ -140,6 +142,7 @@ export default async function EmployerJobDetailPage({
           { label: "Jobs", href: "/organization/jobs" },
           { label: job.title },
         ]}
+        t={t}
       />
 
       <header className="mt-4 overflow-hidden rounded-xl border border-border bg-surface shadow-sm">

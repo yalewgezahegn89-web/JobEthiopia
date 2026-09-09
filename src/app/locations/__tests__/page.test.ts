@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, Fragment, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { dictionaries } from "@/lib/i18n/dictionary";
 
 const mocks = vi.hoisted(() => ({
   mockFetchLocations: vi.fn(),
@@ -27,6 +28,11 @@ vi.mock("@/lib/locations/public", async (importOriginal) => {
     ...actual,
     fetchLocations: (...a: unknown[]) => mocks.mockFetchLocations(...a),
   };
+});
+
+vi.mock("@/lib/i18n/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
+  return { ...actual, getI18n: async () => dictionaries.en };
 });
 
 import LocationsPage from "@/app/locations/page";
@@ -63,7 +69,7 @@ describe("LocationsPage", () => {
     const html = await renderPage();
     expect(html).toContain('aria-label="Breadcrumb"');
     expect(html).toContain("Locations");
-    expect(html).toContain("Explore by region");
+    expect(html).toContain("Browse by place");
   });
 
   it("renders location cards linking to their detail pages with type labels", async () => {

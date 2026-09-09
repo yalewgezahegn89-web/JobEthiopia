@@ -1,13 +1,16 @@
 import type { MetadataRoute } from "next";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
+import { buildPublicSitemapUrls } from "@/lib/sitemap/publicSitemap";
 
-function siteUrl(): URL {
-  return new URL(getAppBaseUrl());
+function siteUrl(): string {
+  return getAppBaseUrl().replace(/\/$/, "");
 }
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
-  return ["/", "/jobs", "/careers"].map((path) => ({
-    url: new URL(path, base).toString(),
+  const urls = await buildPublicSitemapUrls();
+  return urls.map((entry) => ({
+    url: `${base}${entry.path}`,
+    lastModified: entry.lastModified,
   }));
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, Fragment, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { dictionaries } from "@/lib/i18n/dictionary";
 
 const mocks = vi.hoisted(() => ({
   mockFetchProfessions: vi.fn(),
@@ -27,6 +28,11 @@ vi.mock("@/lib/professions/public", async (importOriginal) => {
     ...actual,
     fetchProfessions: (...a: unknown[]) => mocks.mockFetchProfessions(...a),
   };
+});
+
+vi.mock("@/lib/i18n/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
+  return { ...actual, getI18n: async () => dictionaries.en };
 });
 
 import ProfessionsPage from "@/app/professions/page";
@@ -63,7 +69,7 @@ describe("ProfessionsPage", () => {
     const html = await renderPage();
     expect(html).toContain('aria-label="Breadcrumb"');
     expect(html).toContain("Professions");
-    expect(html).toContain("Find your path");
+    expect(html).toContain("Browse by occupation");
   });
 
   it("renders profession cards linking to their detail pages", async () => {

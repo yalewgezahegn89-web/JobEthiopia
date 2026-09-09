@@ -11,6 +11,8 @@ import {
   type PublicJobSummary,
 } from "@/lib/jobs/public";
 import { selectRelatedJobs } from "@/lib/jobs/related";
+import { getI18n } from "@/lib/i18n/server";
+import type { Messages } from "@/lib/i18n/dictionary";
 import { getCurrentUser } from "@/lib/auth/context";
 import { isJobSaved } from "@/lib/savedJobs/dal";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
@@ -175,6 +177,7 @@ export default async function JobPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getI18n();
 
   let job: PublicJobDetail | null = null;
   let loadError = false;
@@ -189,10 +192,10 @@ export default async function JobPage({
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-12">
         <ErrorState
-          heading="We could not load this job"
-          body="Something went wrong while loading this job. Please try again shortly."
+          heading={t.jobs.loadJobHeading}
+          body={t.jobs.loadJobBody}
           ctaHref="/jobs"
-          ctaLabel="Back to Jobs"
+          ctaLabel={t.jobs.backToJobs}
         />
       </div>
     );
@@ -260,15 +263,17 @@ export default async function JobPage({
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
       <Breadcrumb
         items={[
-          { label: "Home", href: "/" },
-          { label: "Jobs", href: "/jobs" },
+          { label: t.common.home, href: "/" },
+          { label: t.nav.jobs, href: "/jobs" },
           { label: job.title },
         ]}
+        t={t}
       />
 
       <article className="mt-5">
         <JobHeader
           job={job}
+          t={t}
           employmentType={employmentType}
           experience={experience}
           freshness={freshness}
@@ -279,23 +284,24 @@ export default async function JobPage({
         <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_320px]">
           <div className="min-w-0">
             <main className="space-y-8">
-              <ContentSections job={job} />
-              <SourceSection job={job} closing={closing} />
+              <ContentSections job={job} t={t} />
+              <SourceSection job={job} t={t} closing={closing} />
             </main>
           </div>
 
           <aside
-            aria-label="Job overview"
+            aria-label={t.jobs.jobOverviewLabel}
             className="min-w-0 lg:sticky lg:top-6 lg:self-start"
           >
             <div className="space-y-4">
               <section
-                aria-label="Apply and save"
+                aria-label={t.jobs.applyAndSaveLabel}
                 className="rounded-xl border border-border bg-surface p-5"
               >
                 <DeadlineNote
                   closing={closing}
                   deadlineText={job.deadlineText}
+                  t={t}
                 />
 
                 {showInternalApply && (
@@ -312,19 +318,18 @@ export default async function JobPage({
                       rel="noopener noreferrer"
                       className="focus-visible:outline-2 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3 text-base font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
                     >
-                      Apply on employer site
+                      {t.jobs.applyOnEmployerSite}
                       <ExternalIcon className="h-4 w-4" />
                     </a>
                     <p className="mt-2 text-xs text-muted">
-                      Opens an external application page in a new tab.
+                      {t.jobs.externalApplyHint}
                     </p>
                   </div>
                 )}
 
                 {closing === "EXPIRED" && (
                   <p className="mt-4 text-sm font-medium text-destructive">
-                    This job has closed and is no longer accepting
-                    applications.
+                    {t.jobs.closedNotice}
                   </p>
                 )}
 
@@ -341,7 +346,7 @@ export default async function JobPage({
                 </div>
               </section>
 
-              <KeyFacts job={job} closing={closing} />
+              <KeyFacts job={job} t={t} closing={closing} />
             </div>
           </aside>
         </div>
@@ -352,26 +357,26 @@ export default async function JobPage({
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
-                Keep exploring
+                {t.jobs.keepExploring}
               </p>
               <h2
                 id="related-jobs-heading"
                 className="text-xl font-semibold tracking-tight"
               >
-                More opportunities
+                {t.jobs.moreOpportunities}
               </h2>
             </div>
             <Link
               href="/jobs"
               className="focus-visible:outline-2 hidden shrink-0 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary sm:inline-flex"
             >
-              View all jobs
+              {t.home.viewAllJobs}
             </Link>
           </div>
           <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {relatedItems.map((relatedJob) => (
               <li key={relatedJob.id} className="h-full">
-                <JobCard job={relatedJob} />
+                <JobCard job={relatedJob} t={t} />
               </li>
             ))}
           </ul>
@@ -390,6 +395,7 @@ export default async function JobPage({
 
 function JobHeader({
   job,
+  t,
   employmentType,
   experience,
   freshness,
@@ -397,6 +403,7 @@ function JobHeader({
   closing,
 }: {
   job: PublicJobDetail;
+  t: Messages;
   employmentType: string | null;
   experience: string | null;
   freshness: string | null;
@@ -423,11 +430,15 @@ function JobHeader({
             <p className="truncate text-base font-medium text-muted">
               {job.organizationName ?? "JobEthiopia"}
             </p>
-            {verified && <Badge variant="success">Verified</Badge>}
+            {verified && <Badge variant="success">{t.common.verified}</Badge>}
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <DeadlineBadge closing={closing} deadlineText={job.deadlineText} />
+          <DeadlineBadge
+            t={t}
+            closing={closing}
+            deadlineText={job.deadlineText}
+          />
           {freshness && <Badge variant="default">{freshness}</Badge>}
         </div>
       </div>
@@ -457,7 +468,7 @@ function JobHeader({
 
       {verifiedFreshness && (
         <p className="mt-4 text-xs text-subtle">
-          Verified {verifiedFreshness}
+          {t.jobs.verifiedFreshnessPrefix} {verifiedFreshness}
         </p>
       )}
     </header>
@@ -466,40 +477,48 @@ function JobHeader({
 
 function KeyFacts({
   job,
+  t,
   closing,
 }: {
   job: PublicJobDetail;
+  t: Messages;
   closing: "OPEN" | "CLOSING" | "EXPIRED" | null;
 }) {
   const experience = experienceText(job.experienceMin, job.experienceMax);
   return (
     <section
-      aria-label="Key facts"
+      aria-label={t.jobs.keyFactsLabel}
       className="rounded-xl border border-border bg-surface p-5"
     >
-      <h2 className="text-base font-semibold tracking-tight">Key facts</h2>
+      <h2 className="text-base font-semibold tracking-tight">
+        {t.jobs.keyFacts}
+      </h2>
       <dl className="mt-4 space-y-3 text-sm">
         <Fact
-          label="Deadline"
-          value={job.deadlineText ?? "Rolling"}
+          label={t.jobs.deadline}
+          value={job.deadlineText ?? t.jobs.rolling}
           emphasise={closing === "CLOSING" || closing === "EXPIRED"}
           closing={closing}
         />
-        {job.salaryText && <Fact label="Salary" value={job.salaryText} />}
-        {job.locationName && <Fact label="Location" value={job.locationName} />}
+        {job.salaryText && <Fact label={t.jobs.salary} value={job.salaryText} />}
+        {job.locationName && (
+          <Fact label={t.search.location} value={job.locationName} />
+        )}
         {employmentTypeDisplay(job.employmentType) && (
           <Fact
-            label="Employment type"
+            label={t.search.employmentType}
             value={employmentTypeDisplay(job.employmentType)!}
           />
         )}
-        {job.categoryName && <Fact label="Category" value={job.categoryName} />}
-        {job.professionName && (
-          <Fact label="Profession" value={job.professionName} />
+        {job.categoryName && (
+          <Fact label={t.search.category} value={job.categoryName} />
         )}
-        {experience && <Fact label="Experience" value={experience} />}
+        {job.professionName && (
+          <Fact label={t.search.profession} value={job.professionName} />
+        )}
+        {experience && <Fact label={t.jobs.experience} value={experience} />}
         {formatDate(job.postedAt) && (
-          <Fact label="Posted" value={formatDate(job.postedAt)!} />
+          <Fact label={t.jobs.posted} value={formatDate(job.postedAt)!} />
         )}
       </dl>
     </section>
@@ -538,33 +557,37 @@ function Fact({
 }
 
 function DeadlineBadge({
+  t,
   closing,
   deadlineText,
 }: {
+  t: Messages;
   closing: "OPEN" | "CLOSING" | "EXPIRED" | null;
   deadlineText: string | null;
 }) {
   if (closing === "EXPIRED") {
-    return <Badge variant="destructive">Expired</Badge>;
+    return <Badge variant="destructive">{t.common.expiry}</Badge>;
   }
   if (closing === "CLOSING") {
     return (
       <Badge variant="warning">
         <ClockIcon className="h-3.5 w-3.5" />
-        Closing soon
+        {t.common.closingSoon}
       </Badge>
     );
   }
   if (closing === "OPEN" && deadlineText) {
-    return <Badge variant="success">Open</Badge>;
+    return <Badge variant="success">{t.common.open}</Badge>;
   }
   return null;
 }
 
 function DeadlineNote({
+  t,
   closing,
   deadlineText,
 }: {
+  t: Messages;
   closing: "OPEN" | "CLOSING" | "EXPIRED" | null;
   deadlineText: string | null;
 }) {
@@ -574,26 +597,30 @@ function DeadlineNote({
   if (closing === "EXPIRED") {
     return (
       <p className="text-sm font-semibold text-destructive">
-        Deadline: {deadlineText ?? "Past"}
+        {t.common.deadlinePrefix} {deadlineText ?? t.common.expiry}
       </p>
     );
   }
   if (closing === "CLOSING") {
     return (
       <p className="text-sm font-semibold text-warning">
-        Deadline: {deadlineText}
+        {t.common.deadlinePrefix} {deadlineText}
       </p>
     );
   }
-  return <p className="text-sm font-medium text-muted">Deadline: {deadlineText}</p>;
+  return (
+    <p className="text-sm font-medium text-muted">
+      {t.common.deadlinePrefix} {deadlineText}
+    </p>
+  );
 }
 
-function ContentSections({ job }: { job: PublicJobDetail }) {
+function ContentSections({ job, t }: { job: PublicJobDetail; t: Messages }) {
   return (
     <>
       {job.description && (
         <section>
-          <SectionHeading>About the role</SectionHeading>
+          <SectionHeading>{t.jobs.aboutRole}</SectionHeading>
           <p className="mt-3 whitespace-pre-line text-base leading-relaxed text-foreground">
             {sentenceCase(job.description)}
           </p>
@@ -602,7 +629,7 @@ function ContentSections({ job }: { job: PublicJobDetail }) {
 
       {job.responsibilities && (
         <section>
-          <SectionHeading>Responsibilities</SectionHeading>
+          <SectionHeading>{t.jobs.responsibilities}</SectionHeading>
           <p className="mt-3 whitespace-pre-line text-base leading-relaxed text-foreground">
             {sentenceCase(job.responsibilities)}
           </p>
@@ -611,7 +638,7 @@ function ContentSections({ job }: { job: PublicJobDetail }) {
 
       {job.requirements && (
         <section>
-          <SectionHeading>Requirements</SectionHeading>
+          <SectionHeading>{t.jobs.requirements}</SectionHeading>
           <p className="mt-3 whitespace-pre-line text-base leading-relaxed text-foreground">
             {sentenceCase(job.requirements)}
           </p>
@@ -620,7 +647,7 @@ function ContentSections({ job }: { job: PublicJobDetail }) {
 
       {job.educationRequirements && (
         <section>
-          <SectionHeading>Qualifications</SectionHeading>
+          <SectionHeading>{t.jobs.qualifications}</SectionHeading>
           <p className="mt-3 whitespace-pre-line text-base leading-relaxed text-foreground">
             {sentenceCase(job.educationRequirements)}
           </p>
@@ -629,7 +656,7 @@ function ContentSections({ job }: { job: PublicJobDetail }) {
 
       {job.benefits && (
         <section>
-          <SectionHeading>Benefits</SectionHeading>
+          <SectionHeading>{t.jobs.benefits}</SectionHeading>
           <p className="mt-3 whitespace-pre-line text-base leading-relaxed text-foreground">
             {sentenceCase(job.benefits)}
           </p>
@@ -649,30 +676,25 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 function SourceSection({
   job,
+  t,
   closing,
 }: {
   job: PublicJobDetail;
+  t: Messages;
   closing: "OPEN" | "CLOSING" | "EXPIRED" | null;
 }) {
   const verified = job.verificationStatus === "VERIFIED";
   if (job.applicationUrl) {
     return (
       <section
-        aria-label="How to apply"
+        aria-label={t.jobs.howToApply}
         className="rounded-xl border border-border bg-surface p-5"
       >
-        <h2 className="text-base font-semibold tracking-tight">How to apply</h2>
+        <h2 className="text-base font-semibold tracking-tight">
+          {t.jobs.howToApply}
+        </h2>
         <p className="mt-2 text-sm leading-6 text-muted">
-          This role is managed through an external application. Use the{" "}
-          <a
-            href={job.applicationUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-semibold text-primary hover:text-primary-hover underline underline-offset-2"
-          >
-            Apply on employer site
-          </a>{" "}
-          button to continue on the hiring organization&apos;s page.
+          {t.jobs.howToApplyBody}
         </p>
       </section>
     );
@@ -681,23 +703,23 @@ function SourceSection({
   if (verified || (closing === "OPEN" && job.deadlineText)) {
     return (
       <section
-        aria-label="Trust and application"
+        aria-label={t.jobs.trustSectionTitle}
         className="rounded-xl border border-border bg-surface p-5"
       >
         <h2 className="text-base font-semibold tracking-tight">
-          About this application
+          {t.jobs.trustSectionTitle}
         </h2>
         <dl className="mt-3 space-y-2 text-sm text-muted">
           {verified && (
             <div className="flex items-center gap-2">
-              <Badge variant="success">Verified</Badge>
-              <span>This listing has been verified.</span>
+              <Badge variant="success">{t.common.verified}</Badge>
+              <span>{t.jobs.verifiedListing}</span>
             </div>
           )}
           {closing === "OPEN" && job.deadlineText && (
             <div className="flex items-center gap-2">
               <CalendarIcon className="h-4 w-4 text-subtle" />
-              <span>Apply before {job.deadlineText}.</span>
+              <span>{t.jobs.applyBefore(job.deadlineText)}</span>
             </div>
           )}
         </dl>

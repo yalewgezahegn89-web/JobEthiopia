@@ -7,6 +7,7 @@ import { listApplicationsForCandidate } from "@/lib/applications/dal";
 import { ApplicationHistory } from "@/components/applications/history";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { BuildingIcon } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export default async function ApplicationsPage() {
   if (user.role !== "CANDIDATE" || isStaffRole(user.role)) {
     redirect("/jobs");
   }
+  const t = await getI18n();
 
   let items: Awaited<ReturnType<typeof listApplicationsForCandidate>>["items"] = [];
   let loadError = false;
@@ -38,6 +40,7 @@ export default async function ApplicationsPage() {
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:py-10">
       <Breadcrumb
         items={[{ label: "Home", href: "/" }, { label: "My Applications" }]}
+        t={t}
       />
 
       <header className="mt-4 max-w-3xl">

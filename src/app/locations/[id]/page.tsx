@@ -8,6 +8,7 @@ import {
 import { fetchJobs, type PublicJobSummary } from "@/lib/jobs/public";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
 import JobCard from "@/components/job-card";
+import { getI18n } from "@/lib/i18n/server";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { PinIcon } from "@/components/public/icons";
 
@@ -74,6 +75,7 @@ export default async function LocationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getI18n();
 
   let location: PublicLocationDetail | null = null;
   let loadError = false;
@@ -142,6 +144,7 @@ export default async function LocationPage({
           { label: "Locations", href: "/locations" },
           { label: location.name },
         ]}
+        t={t}
       />
 
       <header className="mt-4 flex flex-wrap items-start gap-5">
@@ -246,7 +249,7 @@ export default async function LocationPage({
           <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {locationJobs.map((job) => (
               <li key={job.id} className="h-full">
-                <JobCard job={job} />
+                <JobCard job={job} t={t} />
               </li>
             ))}
           </ul>

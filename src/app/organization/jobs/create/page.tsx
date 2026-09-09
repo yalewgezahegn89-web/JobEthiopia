@@ -8,11 +8,13 @@ import { organizations } from "@/db/schema/organizations";
 import { and, inArray, eq } from "drizzle-orm";
 import { CreateJobForm } from "./form";
 import { Breadcrumb } from "@/components/public/breadcrumb";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function CreateJobPage() {
   const store = await cookies();
+  const t = await getI18n();
   const rawToken = store.get(SESSION_COOKIE_NAME)?.value ?? "";
   if (!rawToken) redirect("/login");
 
@@ -43,6 +45,7 @@ export default async function CreateJobPage() {
           { label: "Jobs", href: "/organization/jobs" },
           { label: "Create job" },
         ]}
+        t={t}
       />
       <div className="mt-4">
         <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">

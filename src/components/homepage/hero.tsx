@@ -1,7 +1,9 @@
 import Link from "next/link";
 import type { PublicLocationSummary } from "@/lib/locations/public";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
-export function Hero({ locations }: { locations: PublicLocationSummary[] }) {
+export function Hero({ locations, t }: { locations: PublicLocationSummary[]; t: Dictionary }) {
+
   return (
     <section className="relative overflow-hidden">
       <HeroGeometry />
@@ -10,18 +12,18 @@ export function Hero({ locations }: { locations: PublicLocationSummary[] }) {
           <div>
             <p className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary-light px-3 py-1 text-xs font-semibold text-primary">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
-              Trusted Ethiopian job marketplace
+              {t.home.trustedMarketplace}
             </p>
             <h1 className="text-4xl font-bold leading-tight tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-              Find your next{" "}
-              <span className="text-primary">opportunity</span> in Ethiopia
+              {t.home.heroTitle}{" "}
+              <span className="text-primary">{t.home.heroTitleHighlight}</span>{" "}
+              {t.home.heroTitleTail}
             </h1>
             <p className="mt-5 max-w-xl text-base leading-7 text-muted sm:text-lg">
-              Discover fresh, relevant, and trustworthy job openings across
-              Ethiopia — searchable by profession, location, and category.
+              {t.home.heroSubtitle}
             </p>
 
-            <SearchPanel locations={locations} />
+            <SearchPanel locations={locations} t={t} />
 
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-muted">
               <span>
@@ -29,7 +31,7 @@ export function Hero({ locations }: { locations: PublicLocationSummary[] }) {
                   href="/professions"
                   className="font-semibold text-primary hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
-                  Browse professions
+                  {t.home.browseProfessions}
                 </Link>
               </span>
               <span className="h-1 w-1 rounded-full bg-subtle" aria-hidden="true" />
@@ -38,7 +40,7 @@ export function Hero({ locations }: { locations: PublicLocationSummary[] }) {
                   href="/locations"
                   className="font-semibold text-primary hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
-                  Browse locations
+                  {t.home.browseLocations}
                 </Link>
               </span>
               <span className="h-1 w-1 rounded-full bg-subtle" aria-hidden="true" />
@@ -47,14 +49,14 @@ export function Hero({ locations }: { locations: PublicLocationSummary[] }) {
                   href="/categories"
                   className="font-semibold text-primary hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
-                  Browse categories
+                  {t.home.browseCategories}
                 </Link>
               </span>
             </div>
           </div>
 
           <div className="hidden lg:block">
-            <EmployerPanel />
+            <EmployerPanel t={t} />
           </div>
         </div>
       </div>
@@ -62,17 +64,23 @@ export function Hero({ locations }: { locations: PublicLocationSummary[] }) {
   );
 }
 
-function SearchPanel({ locations }: { locations: PublicLocationSummary[] }) {
+function SearchPanel({
+  locations,
+  t,
+}: {
+  locations: PublicLocationSummary[];
+  t: Dictionary;
+}) {
   return (
     <form
       action="/jobs"
-      aria-label="Search jobs"
+      aria-label={t.search.searchJobs}
       method="get"
       className="mt-8 overflow-hidden rounded-xl border border-border bg-surface shadow-md"
     >
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
         <label htmlFor="q" className="sr-only">
-          Search jobs by keyword
+          {t.search.searchKeywordLabel}
         </label>
         <div className="relative flex-1">
           <svg
@@ -92,7 +100,7 @@ function SearchPanel({ locations }: { locations: PublicLocationSummary[] }) {
             id="q"
             name="q"
             type="search"
-            placeholder="Job title, keyword, or skill"
+            placeholder={t.search.searchPlaceholder}
             className="w-full rounded-lg border border-border bg-surface-raised py-3 pl-11 pr-4 text-sm text-foreground placeholder:text-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           />
         </div>
@@ -100,14 +108,14 @@ function SearchPanel({ locations }: { locations: PublicLocationSummary[] }) {
         {locations.length > 0 && (
           <div className="relative sm:w-56">
             <label htmlFor="locationId" className="sr-only">
-              Filter by location
+              {t.search.filterByLocation}
             </label>
             <select
               id="locationId"
               name="locationId"
               className="w-full appearance-none rounded-lg border border-border bg-surface-raised py-3 pl-4 pr-9 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              <option value="">All locations</option>
+              <option value="">{t.search.allLocations}</option>
               {locations.map((location) => (
                 <option key={location.id} value={location.id}>
                   {location.name}
@@ -133,14 +141,18 @@ function SearchPanel({ locations }: { locations: PublicLocationSummary[] }) {
           type="submit"
           className="rounded-lg bg-primary px-6 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Search
+          {t.search.search}
         </button>
       </div>
     </form>
   );
 }
 
-function EmployerPanel() {
+function EmployerPanel({
+  t,
+}: {
+  t: Dictionary;
+}) {
   return (
     <div className="rounded-2xl border border-border bg-surface p-8 shadow-sm">
       <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-light">
@@ -158,20 +170,19 @@ function EmployerPanel() {
           <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
         </svg>
       </div>
-      <h2 className="mt-5 text-xl font-bold text-foreground">Are you hiring?</h2>
+      <h2 className="mt-5 text-xl font-bold text-foreground">
+        {t.home.employerPanelTitle}
+      </h2>
       <p className="mt-2 text-sm leading-6 text-muted">
-        Post a job and reach qualified candidates across Ethiopia with a
-        dedicated employer account.
+        {t.home.employerPanelBody}
       </p>
       <Link
         href="/employer/register"
         className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        For Employers
+        {t.home.employerPanelCta}
       </Link>
-      <p className="mt-3 text-xs text-subtle">
-        Free to get started &middot; no upfront commitment
-      </p>
+      <p className="mt-3 text-xs text-subtle">{t.home.employerPanelNote}</p>
     </div>
   );
 }

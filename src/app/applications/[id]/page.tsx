@@ -20,6 +20,7 @@ import {
   CheckIcon,
   ArrowRightIcon,
 } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -145,6 +146,7 @@ export default async function ApplicationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getI18n();
 
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -176,6 +178,7 @@ export default async function ApplicationDetailPage({
           { label: "My Applications", href: "/applications" },
           { label: detail.jobTitle },
         ]}
+        t={t}
       />
 
       <header className="mt-5 overflow-hidden rounded-xl border border-border bg-surface shadow-sm">

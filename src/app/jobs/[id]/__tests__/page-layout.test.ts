@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, Fragment, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { dictionaries } from "@/lib/i18n/dictionary";
 
 const mocks = vi.hoisted(() => ({
   mockFetchJobById: vi.fn(),
@@ -60,6 +61,11 @@ vi.mock("@/components/saved-jobs/save-button", () => ({
   SaveButton: ({ jobId }: { jobId: string }) =>
     createElement("button", { "data-save-job": jobId }, "Save"),
 }));
+
+vi.mock("@/lib/i18n/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
+  return { ...actual, getI18n: async () => dictionaries.en };
+});
 
 import JobPage, { generateMetadata } from "@/app/jobs/[id]/page";
 

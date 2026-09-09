@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/public/page-header";
 import { EmptyState } from "@/components/public/empty-state";
 import { Pagination } from "@/components/public/pagination";
 import { UserIcon, BriefcaseIcon } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ export default async function ProfessionsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const t = await getI18n();
   const page = toPositiveInteger(firstValue(params.page), 1);
 
   let result: PublicProfessionList | null = null;
@@ -52,15 +54,13 @@ export default async function ProfessionsPage({
   if (loadError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold">Professions</h1>
-        <p className="mt-4 text-muted">
-          We could not load professions right now. Please try again shortly.
-        </p>
+        <h1 className="text-2xl font-bold">{t.professions.loadErrorHeading}</h1>
+        <p className="mt-4 text-muted">{t.professions.loadErrorBody}</p>
         <Link
           href="/professions"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Retry
+          {t.common.retry}
         </Link>
       </div>
     );
@@ -84,28 +84,34 @@ export default async function ProfessionsPage({
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
-      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Professions" }]} />
+      <Breadcrumb
+        items={[
+          { label: t.professions.breadcrumbHome, href: "/" },
+          { label: t.professions.breadcrumbProfessions },
+        ]}
+        t={t}
+      />
 
       <div className="mt-4">
         <PageHeader
-          eyebrow="Find your path"
-          title="Professions"
-          description="Find opportunities by profession and explore the roles that match your career path."
+          eyebrow={t.professions.eyebrow}
+          title={t.professions.title}
+          description={t.professions.description}
         />
       </div>
 
       {items.length === 0 ? (
         <EmptyState
           icon={<BriefcaseIcon className="h-7 w-7" />}
-          heading="No professions found"
-          body="There are no active professions to show right now. Check back soon."
+          heading={t.professions.noResultsHeading}
+          body={t.professions.noResultsBody}
         />
       ) : (
         <>
           <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((profession) => (
               <li key={profession.id} className="h-full">
-                <ProfessionCard profession={profession} />
+                <ProfessionCard profession={profession} t={t} />
               </li>
             ))}
           </ul>
@@ -114,6 +120,7 @@ export default async function ProfessionsPage({
             currentPage={currentPage}
             totalPages={totalPages}
             hrefForPage={hrefWithPage}
+            t={t}
           />
         </>
       )}
@@ -123,8 +130,10 @@ export default async function ProfessionsPage({
 
 function ProfessionCard({
   profession,
+  t,
 }: {
   profession: { id: string; name: string; description: string | null };
+  t: Awaited<ReturnType<typeof getI18n>>;
 }) {
   return (
     <Link
@@ -143,7 +152,7 @@ function ProfessionCard({
         </p>
       )}
       <span className="mt-auto inline-flex items-center gap-1 pt-4 text-sm font-semibold text-primary">
-        Explore profession
+        {t.professions.viewProfession}
         <span className="transition-transform duration-200 group-hover:translate-x-0.5">
           →
         </span>

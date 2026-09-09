@@ -42,7 +42,8 @@
   --color-warning-light: var(--warning-light);
   --color-destructive: var(--destructive);
   --color-destructive-light: var(--destructive-light);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-geist-sans), "Noto Sans Ethiopic", "Abyssinica SIL",
+    "Nyala", "Kefa", "Geez", sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
@@ -73,7 +74,12 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /* Geist (Latin) is the primary UI font; the fallback stack adds
+     Ethiopic-capable system/installed fonts so Amharic (Geez) and Afaan
+     Oromoo glyphs render correctly without bundling a large web font.
+     English typography is unchanged. */
+  font-family: var(--font-geist-sans), Arial, Helvetica, "Noto Sans Ethiopic",
+    "Abyssinica SIL", "Nyala", "Kefa", "Geez", sans-serif;
 }
 
 /* Smooth transitions for interactive elements */

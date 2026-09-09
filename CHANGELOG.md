@@ -2,6 +2,68 @@
 
 All notable changes are tracked by phase and batch.
 
+## Phase 7 — Production Launch, Discoverability, Localization & User-Growth
+
+Phase 7 was formally defined after Phase 6 completion. Ordered batches
+were locked as documented in ROADMAP.md.
+
+Initial supported interface languages: English, Amharic (አማርኛ),
+Afaan Oromoo.
+
+### Batch 1 — Baseline Repair
+
+- Repaired pre-existing TypeScript errors (`tsc` exit 0)
+- Established clean 179/3312 green test baseline
+- Commit: `chore(phase7): repair baseline type safety` (`d232691`)
+
+### Batch 2 — Phase 7 Specification
+
+- Formalized Phase 7 scope in ROADMAP.md
+- Recorded Phase 7 history in CHANGELOG.md
+- No product implementation occurred in this batch
+
+### Batch 3 (pending) — Production Launch Readiness
+
+Not yet started.
+
+### Batch 4 (pending) — SEO / Discoverability
+
+Not yet started.
+
+### Batch 5 (pending) — Localization / Ethiopian Language Support
+
+Not yet started.
+
+### Batch 6 (pending) — Job Alerts
+
+Not yet started.
+
+### Batch 7 (pending) — Automated Ingestion
+
+Not yet started.
+
+### Batch 8 (pending) — Analytics
+
+Not yet started.
+
+### Batch 9 (pending) — Career / CV Tools
+
+Not yet started.
+
+### Batch 10 (pending) — Monetization
+
+Not yet started.
+
+### Batch 11 (pending) — AI Matching
+
+Not yet started.
+
+### Batch 12 (pending) — Scale / Hardening
+
+Not yet started.
+
+---
+
 ## Phase 3 — Platform & Security Release (B75–B99)
 
 The first formal release baseline. Functional scope for the candidate, employer,

@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/public/page-header";
 import { EmptyState } from "@/components/public/empty-state";
 import { Pagination } from "@/components/public/pagination";
 import { BookIcon, CalendarIcon } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,7 @@ export default async function CareersPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const t = await getI18n();
 
   const category = firstValue(params.category);
   const page = toPositiveInteger(firstValue(params.page), 1);
@@ -66,16 +68,13 @@ export default async function CareersPage({
   if (loadError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold">Career Resources</h1>
-        <p className="mt-4 text-muted">
-          We could not load career resources right now. Please try again
-          shortly.
-        </p>
+        <h1 className="text-2xl font-bold">{t.careers.loadErrorHeading}</h1>
+        <p className="mt-4 text-muted">{t.careers.loadErrorBody}</p>
         <Link
           href="/careers"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Retry
+          {t.careers.loadErrorCta}
         </Link>
       </div>
     );
@@ -102,19 +101,25 @@ export default async function CareersPage({
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
-      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Careers" }]} />
+      <Breadcrumb
+        items={[
+          { label: t.careers.breadcrumbHome, href: "/" },
+          { label: t.careers.breadcrumbCareers },
+        ]}
+        t={t}
+      />
 
       <div className="mt-4">
         <PageHeader
-          eyebrow="Career resources"
-          title="Career resources"
-          description="Practical advice and guidance to help you grow your career and land the right role."
+          eyebrow={t.careers.eyebrow}
+          title={t.careers.title}
+          description={t.careers.description}
         />
       </div>
 
       {categories.length > 0 && (
         <nav
-          aria-label="Article categories"
+          aria-label={t.careers.articleCategoriesLabel}
           className="mt-6 flex flex-wrap items-center gap-2"
         >
             {category && (
@@ -122,7 +127,7 @@ export default async function CareersPage({
                 href="/careers"
                 className="inline-flex items-center rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                All
+                {t.careers.allLabel}
               </Link>
             )}
             {categories.map((name) => {
@@ -148,18 +153,18 @@ export default async function CareersPage({
       {items.length === 0 ? (
         <EmptyState
           icon={<BookIcon className="h-7 w-7" />}
-          heading="No career resources yet"
-          body="Try a different category or check back later."
+          heading={t.careers.noResultsHeading}
+          body={t.careers.noResultsBody}
         />
       ) : (
         <>
-          {featured && <FeaturedArticle article={featured} />}
+          {featured && <FeaturedArticle article={featured} publishedPrefix={t.careers.publishedPrefix} />}
 
           {rest.length > 0 && (
             <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {rest.map((article) => (
                 <li key={article.id} className="h-full">
-                  <ArticleCard article={article} />
+                  <ArticleCard article={article} publishedPrefix={t.careers.publishedPrefix} />
                 </li>
               ))}
             </ul>
@@ -169,6 +174,7 @@ export default async function CareersPage({
             currentPage={currentPage}
             totalPages={totalPages}
             hrefForPage={hrefWithPage}
+            t={t}
           />
         </>
       )}
@@ -178,8 +184,10 @@ export default async function CareersPage({
 
 function FeaturedArticle({
   article,
+  publishedPrefix,
 }: {
   article: PublicArticleSummary;
+  publishedPrefix: string;
 }) {
   return (
     <article className="group mt-8 rounded-xl border border-border bg-surface shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md">
@@ -209,7 +217,7 @@ function FeaturedArticle({
           {article.publishedAt && (
             <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-subtle">
               <CalendarIcon className="h-3.5 w-3.5" />
-              Published {article.publishedAt}
+              {publishedPrefix} {article.publishedAt}
             </p>
           )}
         </div>
@@ -218,7 +226,13 @@ function FeaturedArticle({
   );
 }
 
-function ArticleCard({ article }: { article: PublicArticleSummary }) {
+function ArticleCard({
+  article,
+  publishedPrefix,
+}: {
+  article: PublicArticleSummary;
+  publishedPrefix: string;
+}) {
   return (
     <Link
       href={`/careers/${article.id}`}
@@ -242,7 +256,7 @@ function ArticleCard({ article }: { article: PublicArticleSummary }) {
       {article.publishedAt && (
         <p className="mt-auto inline-flex items-center gap-1.5 pt-4 text-xs text-subtle">
           <CalendarIcon className="h-3.5 w-3.5" />
-          Published {article.publishedAt}
+          {publishedPrefix} {article.publishedAt}
         </p>
       )}
     </Link>

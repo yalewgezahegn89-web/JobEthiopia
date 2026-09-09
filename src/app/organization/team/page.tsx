@@ -9,6 +9,7 @@ import { RemoveMemberButton } from "./remove-member-button";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { EmptyState } from "@/components/public/empty-state";
 import { UserIcon, PlusIcon, BuildingIcon } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function OrganizationTeamPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "ORGANIZATION_ADMIN") redirect("/login");
+  const t = await getI18n();
 
   const [members, organizations] = await Promise.all([
     listEmployerTeam(user.id),
@@ -39,6 +41,7 @@ export default async function OrganizationTeamPage() {
     <div>
       <Breadcrumb
         items={[{ label: "Home", href: "/organization" }, { label: "Team" }]}
+        t={t}
       />
 
       <div className="mt-4">

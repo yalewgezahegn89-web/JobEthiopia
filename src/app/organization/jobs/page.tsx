@@ -12,6 +12,7 @@ import {
 } from "@/components/public/icons";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { EmptyState } from "@/components/public/empty-state";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,7 @@ export default async function EmployerJobsPage({
   if (user.role !== "ORGANIZATION_ADMIN") redirect("/login");
 
   const params = await searchParams;
+  const t = await getI18n();
   const statusParam =
     typeof params.status === "string" ? params.status : undefined;
   const pageParam = typeof params.page === "string" ? params.page : undefined;
@@ -90,6 +92,7 @@ export default async function EmployerJobsPage({
     <div>
       <Breadcrumb
         items={[{ label: "Home", href: "/organization" }, { label: "Jobs" }]}
+        t={t}
       />
 
       <div className="mt-4 flex flex-wrap items-end justify-between gap-4">

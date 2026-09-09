@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
 type Crumb = {
   label: string;
@@ -7,17 +8,20 @@ type Crumb = {
 
 export function Breadcrumb({
   items,
+  t,
 }: {
   items: Crumb[];
+  t: Dictionary;
 }) {
   return (
     <nav aria-label="Breadcrumb" className="py-1">
       <ol className="flex flex-wrap items-center gap-1.5 text-sm text-subtle">
         {items.map((item, index) => {
           const isLast = index === items.length - 1;
+          const label = item.href === "/" ? t.nav.home : item.label;
           return (
             <li
-              key={`${item.label}-${index}`}
+              key={`${label}-${index}`}
               className={isLast ? "flex min-w-0 items-center gap-1.5" : "flex items-center gap-1.5"}
             >
               {index > 0 && (
@@ -30,14 +34,14 @@ export function Breadcrumb({
                   href={item.href}
                   className="truncate hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
-                  {item.label}
+                  {label}
                 </Link>
               ) : (
                 <span
                   aria-current={isLast ? "page" : undefined}
                   className="truncate font-medium text-foreground"
                 >
-                  {item.label}
+                  {label}
                 </span>
               )}
             </li>

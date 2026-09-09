@@ -8,6 +8,7 @@ vi.mock("next/link", () => ({
 }));
 
 import JobCard from "@/components/job-card";
+import { dictionaries } from "@/lib/i18n/dictionary";
 
 function makeJob(overrides: Record<string, unknown> = {}) {
   return {
@@ -34,7 +35,7 @@ function makeJob(overrides: Record<string, unknown> = {}) {
 }
 
 function render(job: ReturnType<typeof makeJob>): string {
-  return renderToStaticMarkup(createElement(JobCard, { job }));
+  return renderToStaticMarkup(createElement(JobCard, { job, t: dictionaries.en }));
 }
 
 describe("JobCard", () => {

@@ -12,6 +12,7 @@ import { BulkApplicationActions } from "@/components/employer/bulk-application-a
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { EmptyState } from "@/components/public/empty-state";
 import { UserIcon } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,7 @@ export default async function EmployerApplicationsPage({
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   if (user.role !== "ORGANIZATION_ADMIN") redirect("/login");
+  const t = await getI18n();
 
   const params = await searchParams;
   const VALID_STATUSES: ApplicationStatus[] = [
@@ -127,6 +129,7 @@ export default async function EmployerApplicationsPage({
     <div>
       <Breadcrumb
         items={[{ label: "Home", href: "/organization" }, { label: "Applications" }]}
+        t={t}
       />
 
       <div className="mt-4">
