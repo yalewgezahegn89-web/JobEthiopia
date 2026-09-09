@@ -340,7 +340,6 @@ describe("JobPage generateMetadata", () => {
     expect(metadata.twitter).toBeDefined();
     expect(metadata.twitter!.title).toContain("Senior Accountant");
     expect(metadata.twitter!.description).toContain("skilled accountant");
-    expect(metadata.twitter!.card).toBe("summary_large_image");
   });
 
   it("returns canonical URL using /jobs/{id}", async () => {

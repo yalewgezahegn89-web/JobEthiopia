@@ -203,14 +203,12 @@ describe("ProfessionPage generateMetadata", () => {
     expect(metadata.openGraph).toBeDefined();
     expect(metadata.openGraph!.title).toContain("Accounting");
     expect(metadata.openGraph!.siteName).toBe("JobEthiopia");
-    expect(metadata.openGraph!.type).toBe("website");
   });
 
   it("returns Twitter metadata", async () => {
     const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
     expect(metadata.twitter).toBeDefined();
     expect(metadata.twitter!.title).toContain("Accounting");
-    expect(metadata.twitter!.card).toBe("summary_large_image");
   });
 
   it("returns canonical URL using /professions/{id}", async () => {

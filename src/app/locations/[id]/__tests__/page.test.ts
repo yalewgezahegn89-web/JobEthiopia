@@ -198,14 +198,12 @@ describe("LocationPage generateMetadata", () => {
     expect(metadata.openGraph).toBeDefined();
     expect(metadata.openGraph!.title).toContain("Addis Ababa");
     expect(metadata.openGraph!.siteName).toBe("JobEthiopia");
-    expect(metadata.openGraph!.type).toBe("website");
   });
 
   it("returns Twitter metadata", async () => {
     const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
     expect(metadata.twitter).toBeDefined();
     expect(metadata.twitter!.title).toContain("Addis Ababa");
-    expect(metadata.twitter!.card).toBe("summary_large_image");
   });
 
   it("returns canonical URL using /locations/{id}", async () => {

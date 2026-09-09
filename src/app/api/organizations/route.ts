@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     return jsonError(`${path}${issue.message}`, 400);
   }
 
-  const { isVerified: _callerIsVerified, ...insertData } = parsed.data;
+  const insertData = parsed.data;
 
   try {
     const [created] = await db

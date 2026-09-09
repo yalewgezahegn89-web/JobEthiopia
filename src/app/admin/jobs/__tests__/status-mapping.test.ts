@@ -24,6 +24,12 @@ function row(status: string, verificationStatus: string, title = "Job", lastVeri
     professionName: null,
     locationName: null,
     sourceName: null,
+    sourceType: null,
+    sourceUrl: null,
+    externalId: null,
+    firstSeenAt: null,
+    lastSeenAt: null,
+    trustLevel: null,
   };
 }
 

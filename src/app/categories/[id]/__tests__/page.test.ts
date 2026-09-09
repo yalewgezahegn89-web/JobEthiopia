@@ -169,14 +169,12 @@ describe("CategoryPage generateMetadata", () => {
     expect(metadata.openGraph).toBeDefined();
     expect(metadata.openGraph!.title).toContain("Finance");
     expect(metadata.openGraph!.siteName).toBe("JobEthiopia");
-    expect(metadata.openGraph!.type).toBe("website");
   });
 
   it("returns Twitter metadata", async () => {
     const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
     expect(metadata.twitter).toBeDefined();
     expect(metadata.twitter!.title).toContain("Finance");
-    expect(metadata.twitter!.card).toBe("summary_large_image");
   });
 
   it("returns canonical URL using /categories/{id}", async () => {

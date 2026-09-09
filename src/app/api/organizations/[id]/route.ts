@@ -91,7 +91,7 @@ export async function PUT(
     return jsonError(`${path}${issue.message}`, 400);
   }
 
-  const { isVerified: _callerIsVerified, ...updateData } = parsed.data;
+  const updateData = parsed.data;
 
   try {
     const existing = await db.query.organizations.findFirst({
