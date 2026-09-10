@@ -681,3 +681,86 @@ describe("ssrfFetch DNS-rebinding pinning", () => {
     expect(second.family).toBe(4);
   });
 });
+
+function setupHttpMockWithBody(
+  statusCode: number,
+  body: string,
+  headers: Record<string, string> = {},
+) {
+  mocks.mockRequest.mockImplementation(
+    (_opts: unknown, cb: unknown) => {
+      if (typeof cb !== "function") {
+        return { on: vi.fn(), end: vi.fn(), destroy: vi.fn() };
+      }
+      const fakeResponse = {
+        statusCode,
+        headers,
+        resume: vi.fn(),
+        on: vi.fn((event: string, fn: (...args: unknown[]) => void) => {
+          if (event === "data") fn(Buffer.from(body, "utf8"));
+          if (event === "end") fn();
+          return fakeResponse;
+        }),
+      };
+      const fakeReq = {
+        on: vi.fn(),
+        end: vi.fn(() => {
+          cb(fakeResponse);
+        }),
+        destroy: vi.fn(),
+      };
+      return fakeReq;
+    },
+  );
+}
+
+describe("ssrfFetch body capture", () => {
+  function resolveExample() {
+    mocks.mockResolve4.mockImplementation(
+      (h: string, cb: (err: Error | null, addrs?: string[]) => void) => {
+        if (h === "example.com") cb(null, ["8.8.8.8"]);
+        else cb(new Error("ENOTFOUND"));
+      },
+    );
+  }
+
+  it("returns the response body as text when maxBytes is requested", async () => {
+    resolveExample();
+    setupHttpMockWithBody(200, JSON.stringify({ hello: "world" }), {
+      "content-type": "application/json",
+    });
+
+    const result = await ssrfFetch("http://example.com", { maxBytes: 4096 });
+    expect(result.ok).toBe(true);
+    expect(result.status).toBe(200);
+    expect(result.text).toBe(JSON.stringify({ hello: "world" }));
+  });
+
+  it("does not include a text key when maxBytes is not requested", async () => {
+    resolveExample();
+    setupHttpMockWithBody(200, "ignored body");
+
+    const result = await ssrfFetch("http://example.com");
+    expect(result.ok).toBe(true);
+    expect("text" in result).toBe(false);
+  });
+
+  it("rejects when the response body exceeds maxBytes", async () => {
+    resolveExample();
+    setupHttpMockWithBody(200, "12345");
+
+    await expect(
+      ssrfFetch("http://example.com", { maxBytes: 3 }),
+    ).rejects.toThrow(SsrfError);
+  });
+
+  it("returns the body even for non-ok status codes", async () => {
+    resolveExample();
+    setupHttpMockWithBody(404, "Not Found");
+
+    const result = await ssrfFetch("http://example.com", { maxBytes: 4096 });
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(404);
+    expect(result.text).toBe("Not Found");
+  });
+});

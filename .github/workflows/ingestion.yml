@@ -1,0 +1,49 @@
+name: Ingestion
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ingestion-production
+  cancel-in-progress: false
+
+jobs:
+  run-ingestion:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Invoke production ingestion endpoint
+        env:
+          MAINTENANCE_TARGET_URL: "${{ vars.MAINTENANCE_TARGET_URL }}"
+          MAINTENANCE_API_KEY: "${{ secrets.MAINTENANCE_API_KEY }}"
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MAINTENANCE_TARGET_URL}" ]; then
+            echo "MAINTENANCE_TARGET_URL is not configured."
+            exit 1
+          fi
+
+          if [ -z "${MAINTENANCE_API_KEY}" ]; then
+            echo "MAINTENANCE_API_KEY is not configured."
+            exit 1
+          fi
+
+          INGESTION_URL="${MAINTENANCE_TARGET_URL%/}/api/internal/ingestion/run"
+
+          curl \
+            --silent \
+            --show-error \
+            --fail-with-body \
+            --request POST \
+            --max-time 300 \
+            --retry 3 \
+            --retry-delay 30 \
+            --retry-on-http-error 429,500,502,503,504 \
+            --header "x-maintenance-key: ${MAINTENANCE_API_KEY}" \
+            "${INGESTION_URL}"

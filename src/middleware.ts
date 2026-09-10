@@ -65,6 +65,7 @@ const REGISTER = { limit: 5, windowMs: 15 * 60_000 } as const;
 const INGESTION = { limit: 10, windowMs: 60_000 } as const;
 const API_MUTATION = { limit: 30, windowMs: 60_000 } as const;
 const MAINTENANCE = { limit: 3, windowMs: 5 * 60_000 } as const;
+const INGESTION_RUN = { limit: 5, windowMs: 5 * 60_000 } as const;
 const JOB_ALERTS = { limit: 5, windowMs: 5 * 60_000 } as const;
 const APPLICATIONS = { limit: 10, windowMs: 60_000 } as const;
 const RESUME_UPLOAD = { limit: 5, windowMs: 60 * 60_000 } as const;
@@ -223,6 +224,25 @@ export function middleware(request: NextRequest) {
       );
       if (!result.allowed) {
         logRejected(429, pathname, "maintenance");
+        return applyRequestId(
+          applyCsp(
+            rateLimited(result.retryAfterSeconds!),
+            cspHeaderName,
+            cspValue,
+          ),
+          requestId,
+        );
+      }
+    }
+
+    // Internal automated ingestion — rate-limited POST endpoint
+    if (targetPathname === "/api/internal/ingestion/run" && method === "POST") {
+      const result = checkRateLimit(
+        buildRateLimitKey("ingestion-run", clientIp),
+        INGESTION_RUN,
+      );
+      if (!result.allowed) {
+        logRejected(429, pathname, "ingestion-run");
         return applyRequestId(
           applyCsp(
             rateLimited(result.retryAfterSeconds!),

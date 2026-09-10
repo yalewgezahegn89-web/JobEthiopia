@@ -381,6 +381,69 @@ describe("middleware — rate limiting", () => {
     });
   });
 
+  describe("ingestion run", () => {
+    it("allows POST /api/internal/ingestion/run within limit", () => {
+      mockNext.mockReturnValue({ passed: true });
+      for (let i = 0; i < 5; i++) {
+        const result = middleware(
+          fakeRequest({
+            pathname: "/api/internal/ingestion/run",
+            method: "POST",
+            headers: { "x-forwarded-for": "13.0.0.1" },
+          }),
+        );
+        expect(result).toEqual({ passed: true });
+      }
+      expect(mockJson).not.toHaveBeenCalled();
+    });
+
+    it("blocks POST /api/internal/ingestion/run after 5 attempts", () => {
+      mockJson.mockReturnValue({ status: 429 });
+      for (let i = 0; i < 5; i++) {
+        middleware(
+          fakeRequest({
+            pathname: "/api/internal/ingestion/run",
+            method: "POST",
+            headers: { "x-forwarded-for": "13.0.0.1" },
+          }),
+        );
+      }
+      middleware(
+        fakeRequest({
+          pathname: "/api/internal/ingestion/run",
+          method: "POST",
+          headers: { "x-forwarded-for": "13.0.0.1" },
+        }),
+      );
+      expect(mockJson).toHaveBeenCalled();
+    });
+
+    it("ingestion-run limit is independent of the maintenance limit", () => {
+      mockNext.mockReturnValue({ passed: true });
+      // Exhaust the maintenance bucket on the maintenance path
+      for (let i = 0; i < 3; i++) {
+        middleware(
+          fakeRequest({
+            pathname: "/api/internal/maintenance/run",
+            method: "POST",
+            headers: { "x-forwarded-for": "13.0.0.2" },
+          }),
+        );
+      }
+      mockJson.mockClear();
+      // Ingestion-run uses a separate key, should still work
+      const result = middleware(
+        fakeRequest({
+          pathname: "/api/internal/ingestion/run",
+          method: "POST",
+          headers: { "x-forwarded-for": "13.0.0.2" },
+        }),
+      );
+      expect(result).toEqual({ passed: true });
+      expect(mockJson).not.toHaveBeenCalled();
+    });
+  });
+
   describe("shared default bucket", () => {
     it("different spoofed x-forwarded-for values no longer create independent buckets", () => {
       mockNext.mockReturnValue({ passed: true });
