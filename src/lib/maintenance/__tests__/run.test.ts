@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   mockExpireDueJobs: vi.fn(),
   mockCheckDueSources: vi.fn(),
+  mockPruneAnalyticsEvents: vi.fn(),
 }));
 
 vi.mock("../expiration", () => ({
@@ -13,10 +14,15 @@ vi.mock("../sourceHealth", () => ({
   checkDueSources: (...args: unknown[]) => mocks.mockCheckDueSources(...args),
 }));
 
+vi.mock("@/lib/analytics/retention", () => ({
+  pruneAnalyticsEvents: (...args: unknown[]) => mocks.mockPruneAnalyticsEvents(...args),
+}));
+
 import { runMaintenance } from "../run";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.mockPruneAnalyticsEvents.mockResolvedValue({ pruned: 0 });
 });
 
 describe("runMaintenance", () => {
@@ -70,6 +76,7 @@ describe("runMaintenance", () => {
       sourcesSucceeded: 3,
       sourcesFailed: 1,
       sourcesSkipped: 1,
+      analyticsEventsPruned: 0,
     });
   });
 
@@ -103,7 +110,43 @@ describe("runMaintenance", () => {
       sourcesSucceeded: 0,
       sourcesFailed: 0,
       sourcesSkipped: 0,
+      analyticsEventsPruned: 0,
     });
+  });
+
+  it("prunes analytics events with the run timestamp", async () => {
+    mocks.mockExpireDueJobs.mockResolvedValue({ expired: 0 });
+    mocks.mockCheckDueSources.mockResolvedValue({
+      checked: 0,
+      succeeded: 0,
+      failed: 0,
+      skipped: 0,
+    });
+    mocks.mockPruneAnalyticsEvents.mockResolvedValue({ pruned: 42 });
+
+    const result = await runMaintenance(new Date("2026-06-01T00:00:00Z"));
+    expect(mocks.mockPruneAnalyticsEvents).toHaveBeenCalledWith(
+      new Date("2026-06-01T00:00:00Z"),
+    );
+    expect(result.analyticsEventsPruned).toBe(42);
+  });
+
+  it("analytics retention failure does not break the maintenance run", async () => {
+    mocks.mockExpireDueJobs.mockResolvedValue({ expired: 2 });
+    mocks.mockCheckDueSources.mockResolvedValue({
+      checked: 3,
+      succeeded: 2,
+      failed: 1,
+      skipped: 0,
+    });
+    mocks.mockPruneAnalyticsEvents.mockRejectedValue(
+      new Error("analytics table unavailable"),
+    );
+
+    const result = await runMaintenance(new Date("2026-06-01T00:00:00Z"));
+    expect(result.expiredJobs).toBe(2);
+    expect(result.sourcesChecked).toBe(3);
+    expect(result.analyticsEventsPruned).toBe(0);
   });
 
   it("DB/system failure is handled safely", async () => {

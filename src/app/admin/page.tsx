@@ -10,6 +10,7 @@ import {
   TagIcon,
   FileIcon,
   SaveIcon,
+  ChartIcon,
   ArrowRightIcon,
 } from "@/components/public/icons";
 
@@ -65,6 +66,12 @@ const areas = [
     title: "Operations",
     description: "Monitor maintenance and ingestion health.",
     icon: SaveIcon,
+  },
+  {
+    href: "/admin/analytics",
+    title: "Analytics",
+    description: "Job discovery, engagement, and platform activity.",
+    icon: ChartIcon,
   },
 ];
 

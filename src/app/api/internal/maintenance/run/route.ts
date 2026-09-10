@@ -61,6 +61,7 @@ export async function POST(request: Request) {
           sourcesSucceeded: result.sourcesSucceeded,
           sourcesFailed: result.sourcesFailed,
           sourcesSkipped: result.sourcesSkipped,
+          analyticsEventsPruned: result.analyticsEventsPruned,
           durationMs,
         },
       });
@@ -79,6 +80,7 @@ export async function POST(request: Request) {
       sourcesSucceeded: result.sourcesSucceeded,
       sourcesFailed: result.sourcesFailed,
       sourcesSkipped: result.sourcesSkipped,
+      analyticsEventsPruned: result.analyticsEventsPruned,
     });
 
     return NextResponse.json(result);

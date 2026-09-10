@@ -40,3 +40,4 @@ export { authAccounts } from "./authAccounts";
 export { phoneVerifications } from "./phoneVerifications";
 export { jobAlerts } from "./jobAlerts";
 export { jobAlertDeliveries } from "./jobAlertDeliveries";
+export { analyticsEvents } from "./analyticsEvents";

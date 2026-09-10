@@ -14,6 +14,11 @@ import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize, escapeLikePattern } from "@/lib/apiUtils";
 import { buildPublicJobEligibilityConditions } from "@/lib/jobs/eligibility";
+import {
+  trackDiscoveryEvent,
+  classifyJobListEvent,
+  buildJobSearchMetadata,
+} from "@/lib/analytics/events";
 
 function toEntityMap<T extends { id: string }>(rows: T[]): Map<string, T> {
   return new Map(rows.map((row) => [row.id, row]));
@@ -254,7 +259,7 @@ export async function GET(request: Request) {
     const total = Number(countResult[0]?.count ?? 0);
     const totalPages = Math.ceil(total / limit);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       items,
       pagination: {
         page,
@@ -263,6 +268,38 @@ export async function GET(request: Request) {
         totalPages,
       },
     });
+
+    // Best-effort discovery analytics (never impacts the response).
+    try {
+      const discovered = classifyJobListEvent({
+        q: keyword,
+        categoryId,
+        professionId,
+        locationId,
+        employmentType,
+        organizationId,
+      });
+      await trackDiscoveryEvent({
+        event: discovered,
+        metadata:
+          discovered === "job_search"
+            ? buildJobSearchMetadata({
+                q: keyword,
+                categoryId,
+                professionId,
+                locationId,
+                employmentType,
+                organizationId,
+                resultCount: total,
+                page,
+              })
+            : { page },
+      });
+    } catch {
+      // Analytics failures are isolated and swallowed.
+    }
+
+    return response;
   } catch {
     return jsonError("Internal server error", 500);
   }

@@ -15,6 +15,7 @@ import { checkBodySize } from "@/lib/apiUtils";
 import { isPgUniqueViolation } from "@/lib/pgErrors";
 import { isJobStale, DEFAULT_STALE_MAX_AGE_DAYS } from "@/lib/jobs/public";
 import { validateJobForPublish } from "@/lib/admin/jobs";
+import { trackDiscoveryEvent } from "@/lib/analytics/events";
 
 type JobStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "EXPIRED" | "REMOVED";
 
@@ -106,7 +107,7 @@ export async function GET(
         : Promise.resolve(null),
     ]);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       item: {
         ...job,
         organization: organization ?? null,
@@ -115,6 +116,18 @@ export async function GET(
         location: location ?? null,
       },
     });
+
+    // Best-effort discovery analytics (never impacts the response).
+    try {
+      await trackDiscoveryEvent({
+        event: "job_viewed",
+        jobId: parsed.data.id,
+      });
+    } catch {
+      // Analytics failures are isolated and swallowed.
+    }
+
+    return response;
   } catch {
     return jsonError("Internal server error", 500);
   }
