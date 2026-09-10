@@ -20,6 +20,7 @@ import { redirect } from "next/navigation";
 import { requireStaffAdmin } from "@/lib/auth/context";
 import { assertTrustedCsrfFromRequest, CsrfError } from "@/lib/auth/csrf";
 import { moderateJob, type ModerationAction } from "@/lib/admin/jobs";
+import { dispatchInstantAlertsForJob } from "@/lib/jobAlerts/delivery";
 import {
   createCuratedJob,
   type CuratedJobDuplicateWarning,
@@ -75,13 +76,29 @@ export async function moderateJobAction(
     return { ok: false, error: GENERIC_ERROR };
   }
 
+  let result: Awaited<ReturnType<typeof moderateJob>> | null = null;
   try {
-    const result = await moderateJob(jobId, actionRaw, actor.id);
+    result = await moderateJob(jobId, actionRaw, actor.id);
     if (!result.ok) {
       return { ok: false, error: GENERIC_ERROR };
     }
   } catch {
     return { ok: false, error: GENERIC_ERROR };
+  }
+
+  // Instant job alerts fire on the one true "became public" event: an admin
+  // moderation that moved the job to PUBLISHED. Fire-and-forget — a delivery
+  // problem must never fail a publish.
+  if (
+    actionRaw === "PUBLISH" &&
+    result?.ok &&
+    result.state?.toStatus === "PUBLISHED"
+  ) {
+    try {
+      await dispatchInstantAlertsForJob(jobId);
+    } catch {
+      // Intentionally swallowed: publishing must not depend on alerts.
+    }
   }
 
   return { ok: true };

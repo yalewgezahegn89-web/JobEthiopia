@@ -1,0 +1,129 @@
+name: Job Alerts Daily Digest
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/lib/jobAlerts/**"
+      - "src/lib/email/**"
+      - "src/lib/jobs/eligibility.ts"
+      - "src/app/api/job-alerts/**"
+      - "src/app/api/internal/job-alerts/**"
+      - ".github/workflows/job-alerts.yml"
+
+concurrency:
+  group: job-alerts-production
+  cancel-in-progress: false
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  trigger-production-digest:
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Trigger production job-alerts digest endpoint
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          INSTANCES="${INSTANCES:-production}"
+          FAILED=0
+
+          for instance in $INSTANCES; do
+            if [ "$instance" = "production" ]; then
+              TARGET_URL="$PRODUCTION_URL"
+            else
+              echo "::error::Unknown digest instance '$instance'"
+              FAILED=$((FAILED+1))
+              continue
+            fi
+
+            echo "Dispatching job-alerts digest to $instance ($TARGET_URL)"
+
+            response=$(curl -s -w "\n%{http_code}" -X POST "$TARGET_URL/api/internal/job-alerts/daily" \
+              --connect-timeout 10 --max-time 30 \
+              -H "x-maintenance-key: $MAINTENANCE_API_KEY")
+
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+
+            if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+              echo "✅ Digest accepted by $instance ($http_code)"
+              if [ -n "$body" ] && [ "$body" != "null" ]; then
+                echo "Result: $body"
+              fi
+            else
+              echo "::error::Job-alerts digest rejected by $instance ($http_code)"
+              echo "Response: $body"
+              FAILED=$((FAILED+1))
+            fi
+          done
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::error::$FAILED job-alerts digest instance(s) failed"
+            exit 1
+          fi
+
+          echo "✅ All job-alerts digest instances accepted"
+
+  pr-summary:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Emit PR summary
+        run: |
+          cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          ## Job Alerts Digest workflow
+
+          \`.github/workflows/job-alerts.yml\` active for this pull request.
+
+          **Cron schedule:** \`0 4 * * *\` — daily at 04:00 UTC (after maintenance)
+
+          **Production endpoint:** \`POST /api/internal/job-alerts/daily\`
+          - Authenticates via `x-maintenance-key` header (`MAINTENANCE_API_KEY` env)
+          - Same key/page as the maintenance endpoint — configure one value per environment
+
+          ### What it does
+
+          1. Sweeps ACTIVE/DAILY alerts not served in the last 23 hours
+          2. Matches eligible public jobs via the shared eligibility helper
+          3. Sends one localized email (en/am/om) per alert
+          4. Records per-job delivery rows for dedup
+          5. Updates lastSentAt timestamp on success
+          6. Writes audit log with full delivery stats
+          7. Returns JSON result (alerts processed, sent, skipped, failed)
+
+          ### Environment variables
+
+          | Variable | Source | Description |
+          |---|---|---|
+          | `MAINTENANCE_API_KEY` | Pages secret (reuse maintenance page) | Shared secret for both maintenance and digest endpoints |
+          | `RESEND_API_KEY` | Pages secret | Email transport key (noop if absent) |
+          | `EMAIL_FROM` | Pages secret | From address (noop if absent) |
+
+          ### Local development
+
+          ```bash
+          curl -X POST http://localhost:3000/api/internal/job-alerts/daily \
+            -H "x-maintenance-key: test-maintenance-key"
+          ```
+
+          - No email sent when `RESEND_API_KEY` is absent (noop transport)
+          - Returns stats showing alerts processed, matches, delivery outcomes
+          EOF

@@ -183,3 +183,5 @@ export { createSavedJobSchema, savedJobIdParamSchema } from "./savedJobs";
 export type { CreateSavedJobInput, SavedJobIdParam } from "./savedJobs";
 export { bulkApplicationStatusChangeSchema, BULK_STATUS_CHANGE_MAX_IDS } from "./applicationStatus";
 export type { BulkApplicationStatusChangeInput } from "./applicationStatus";
+export { createJobAlertSchema, updateJobAlertSchema, jobAlertIdParamSchema } from "./jobAlerts";
+export type { CreateJobAlertInput, UpdateJobAlertInput, JobAlertIdParam } from "./jobAlerts";

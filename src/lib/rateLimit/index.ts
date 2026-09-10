@@ -31,7 +31,8 @@ export type RateLimitBucket =
   | "register"
   | "otp-request"
   | "otp-resend"
-  | "otp-verify";
+  | "otp-verify"
+  | "job-alerts";
 
 /**
  * Builds the deterministic in-memory bucket key for a bucket + client identity.

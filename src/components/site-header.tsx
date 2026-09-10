@@ -24,10 +24,11 @@ export default async function SiteHeader() {
     { href: "/locations", label: t.nav.locations },
   ];
 
-  const candidateLinks = [
+const candidateLinks = [
     { href: "/applications", label: t.nav.myApplications },
     { href: "/saved-jobs", label: t.nav.savedJobs },
     { href: "/profile", label: t.nav.profile },
+    { href: "/job-alerts", label: t.nav.jobAlerts },
   ];
 
   const employerLinks = [

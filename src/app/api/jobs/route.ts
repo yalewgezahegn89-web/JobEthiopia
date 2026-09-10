@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { desc, eq, and, or, ilike, inArray, sql, type SQL } from "drizzle-orm";
+import { desc, and, or, ilike, inArray, eq, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { organizations } from "@/db/schema/organizations";
@@ -13,7 +13,7 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize, escapeLikePattern } from "@/lib/apiUtils";
-import { DEFAULT_STALE_MAX_AGE_DAYS } from "@/lib/jobs/public";
+import { buildPublicJobEligibilityConditions } from "@/lib/jobs/eligibility";
 
 function toEntityMap<T extends { id: string }>(rows: T[]): Map<string, T> {
   return new Map(rows.map((row) => [row.id, row]));
@@ -124,29 +124,10 @@ export async function GET(request: Request) {
     }
 
     const now = new Date();
-    const staleCutoff = new Date(now.getTime() - DEFAULT_STALE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000);
-
-    const activeOrgRows = await db.query.organizations.findMany({
-      columns: { id: true },
-      where: eq(organizations.status, "ACTIVE"),
-    });
-    const activeOrgIds = activeOrgRows.map((r) => r.id);
-
-    const conditions: (SQL | undefined)[] = [
-      eq(jobs.status, "PUBLISHED"),
-      // Freshness: a job verified exactly DEFAULT_STALE_MAX_AGE_DAYS ago is
-      // stale (isJobStale treats elapsed >= 30d as stale), so the list must
-      // require `>` on the cutoff to hide it there too.
-      sql`${jobs.lastVerifiedAt} IS NOT NULL AND ${jobs.lastVerifiedAt} > ${staleCutoff.toISOString()}`,
-      sql`(${jobs.deadline} IS NULL OR ${jobs.deadline} >= ${now.toISOString()})`,
-    ];
-    if (activeOrgIds.length > 0) {
-      conditions.push(inArray(jobs.organizationId, activeOrgIds));
-    } else {
-      conditions.push(sql`1 = 0`);
-    }
+    const conditions: (SQL | undefined)[] =
+      await buildPublicJobEligibilityConditions(now);
     if (employmentType) {
-      conditions.push(eq(jobs.employmentType, employmentType));
+      conditions.push(eq(jobs.employmentType, employmentType as never));
     }
     if (organizationId) {
       conditions.push(eq(jobs.organizationId, organizationId));

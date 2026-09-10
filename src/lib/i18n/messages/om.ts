@@ -37,6 +37,7 @@ export const om = {
     forEmployers: "Abbootii Hojiitiif",
     myApplications: "Iyyannoo Koo",
     savedJobs: "Hojiilee Boodaawaa",
+    jobAlerts: "Beeksisota Hojiitii",
     profile: "Galmee",
     organization: "Dhaabbata",
     applications: "Iyyannoo",
@@ -274,6 +275,30 @@ export const om = {
     applyHint: "Iyyannoo kee kallattiidhaan gara hojii kanaatti erga.",
     alreadyApplied: "Duraanuu hojii kanaaf ihyaatteetta.",
     submissionFailed: "Iyyannoo kee erguu hin dandeenye. Mee itti deebii yaali.",
+  },
+  jobAlerts: {
+    navLabel: "Beeksisota Hojiitii",
+    email: {
+      subjectPrefix: (name: string) =>
+        `Hojiilee haaraa "${name}" wajjiin walqixa`,
+      intro: (name: string) =>
+        `Hojiileen haaraa beeksisa kee "${name}" wajjiin walqixa argamaniiru.`,
+      countLabel: (n: number) => `Hojiilee haaraa ${n} argamaniiru`,
+      noKeywords: "Jecha gurguddoo hin qabu",
+      deadlineLabel: "Guyyaa xumuraa",
+      footer:
+        "Waan JobEthiopia irratti beeksisa hojii uumtetaniif ergaa kana argachaa jirtu.",
+      manageAlerts: "Beeksisota kee bulchaa",
+      unsubscribe: "Hambisaa",
+      unsubscribeConfirmationTitle: "Hambamee jira",
+      unsubscribeConfirmation: "Hambamtee jirta.",
+      unsubscribeConfirmationBody:
+        "Beeksisa hojii kanaaf deebii email hin argattu.",
+      unsubscribeExpired: "Liinkiin xumurteera",
+      unsubscribeExpiredBody:
+        "Liinkiin kuni sirrii miti yookaan yeroon isaa darbeera.",
+      backToHome: "Gara JobEthiopia deebi'i",
+    },
   },
   empty: {
     defaultHeading: "Amma argamuuf wanni hin jiru",

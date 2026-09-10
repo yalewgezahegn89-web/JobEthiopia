@@ -37,6 +37,7 @@ export const am = {
     forEmployers: "ለአሰሪዎች",
     myApplications: "የእኔ ማመልከቻዎች",
     savedJobs: "የተቀመጡ ስራዎች",
+    jobAlerts: "የስራ ማሳወቂያዎች",
     profile: "መገለጫ",
     organization: "ድርጅት",
     applications: "ማመልከቻዎች",
@@ -273,6 +274,29 @@ export const am = {
     applyHint: "ማመልከቻዎን በቀጥታ ወደዚህ ስራ ይልካል።",
     alreadyApplied: "ቀድሞውኑ ለዚህ ስራ አመልክተዋል።",
     submissionFailed: "ማመልከቻዎን መላክ አልተቻለም። እባክዎ እንደገና ይሞክሩ።",
+  },
+  jobAlerts: {
+    navLabel: "የስራ ማሳወቂያዎች",
+    email: {
+      subjectPrefix: (name: string) => `"${name}"ን የሚዛመዱ አዲስ ስራዎች`,
+      intro: (name: string) =>
+        `የእርስዎን ማሳወቂያ "${name}" የሚዛመዱ አዲስ ስራዎች አሉ።`,
+      countLabel: (n: number) => `${n} አዲስ ስራዎች ተገኝተዋል`,
+      noKeywords: "ምንም ቁልፍ ቃላት የለም",
+      deadlineLabel: "መጨረሻ ቀን",
+      footer:
+        "በ JobEthiopia ላይ የስራ ማሳወቂያ ስለፈጠሩ ይህን መልእክት እየተቀበሉ ነው።",
+      manageAlerts: "የስራ ማሳወቂያዎችዎን ያስተዳድሩ",
+      unsubscribe: "ከደንበኝነት ይውጡ",
+      unsubscribeConfirmationTitle: "ከደንበኝነት ወጥተዋል",
+      unsubscribeConfirmation: "ከደንበኝነት ወጥተዋል።",
+      unsubscribeConfirmationBody:
+        "ለዚህ የስራ ማሳወቂያ ከእንግዲህ ኢሜይል አይደርስዎትም።",
+      unsubscribeExpired: "አገናኙ ጊዜው አልፏል",
+      unsubscribeExpiredBody:
+        "ይህ የመውጫ አገናኝ ልክ ያልሆነ ወይም ጊዜው አልፏል።",
+      backToHome: "ወደ JobEthiopia ይመለሱ",
+    },
   },
   empty: {
     defaultHeading: "እስካሁን የሚታይ ነገር የለም",

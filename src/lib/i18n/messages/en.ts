@@ -37,6 +37,7 @@ export const en = {
     forEmployers: "For Employers",
     myApplications: "My Applications",
     savedJobs: "Saved Jobs",
+    jobAlerts: "Job Alerts",
     profile: "Profile",
     organization: "Organization",
     applications: "Applications",
@@ -282,6 +283,28 @@ export const en = {
     applyHint: "Submits your application to this job directly.",
     alreadyApplied: "You have already applied to this job.",
     submissionFailed: "We could not submit your application. Please try again.",
+  },
+  jobAlerts: {
+    navLabel: "Job Alerts",
+    email: {
+      subjectPrefix: (name: string) => `New jobs matching "${name}"`,
+      intro: (name: string) => `New jobs match your alert "${name}".`,
+      countLabel: (n: number) => `${n} new jobs found`,
+      noKeywords: "No keywords",
+      deadlineLabel: "Deadline",
+      footer:
+        "You are receiving this because you created a job alert on JobEthiopia.",
+      manageAlerts: "Manage your job alerts",
+      unsubscribe: "Unsubscribe",
+      unsubscribeConfirmationTitle: "Unsubscribed",
+      unsubscribeConfirmation: "You are unsubscribed.",
+      unsubscribeConfirmationBody:
+        "You will no longer receive emails for this job alert.",
+      unsubscribeExpired: "Link expired",
+      unsubscribeExpiredBody:
+        "This unsubscribe link is invalid or has expired.",
+      backToHome: "Back to JobEthiopia",
+    },
   },
   empty: {
     defaultHeading: "Nothing to show here yet",

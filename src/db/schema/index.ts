@@ -12,6 +12,9 @@ export {
   applicationStatusEnum,
   employerOnboardingRequestStatusEnum,
   authProviderEnum,
+  alertFrequencyEnum,
+  alertStatusEnum,
+  alertDeliveryStatusEnum,
 } from "./enums";
 
 export { locations } from "./locations";
@@ -35,3 +38,5 @@ export { savedJobs } from "./savedJobs";
 export { applicationNotes } from "./applicationNotes";
 export { authAccounts } from "./authAccounts";
 export { phoneVerifications } from "./phoneVerifications";
+export { jobAlerts } from "./jobAlerts";
+export { jobAlertDeliveries } from "./jobAlertDeliveries";
