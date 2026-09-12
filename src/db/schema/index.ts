@@ -41,3 +41,8 @@ export { phoneVerifications } from "./phoneVerifications";
 export { jobAlerts } from "./jobAlerts";
 export { jobAlertDeliveries } from "./jobAlertDeliveries";
 export { analyticsEvents } from "./analyticsEvents";
+export { candidateCvs } from "./candidateCvs";
+export { candidateCvExperiences } from "./candidateCvExperiences";
+export { candidateCvEducations } from "./candidateCvEducations";
+export { candidateCvSkills } from "./candidateCvSkills";
+export { candidateCvCertifications } from "./candidateCvCertifications";

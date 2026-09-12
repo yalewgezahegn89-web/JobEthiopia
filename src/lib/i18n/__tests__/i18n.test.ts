@@ -50,6 +50,7 @@ const TOP_LEVEL_KEYS = [
   "notFound",
   "footer",
   "adminAnalytics",
+  "cv",
 ] as const;
 
 describe("locale allowlist", () => {
