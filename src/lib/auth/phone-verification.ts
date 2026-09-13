@@ -13,6 +13,7 @@
  */
 
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { createHash } from "node:crypto";
 import { db } from "@/db";
 import { phoneVerifications } from "@/db/schema/phoneVerifications";
 import { authAccounts } from "@/db/schema/authAccounts";
@@ -29,6 +30,14 @@ import {
 import { OTP_AUDIT_ACTIONS } from "./constants";
 import { writeAuditLog } from "./audit";
 import { checkRateLimit, buildScopedRateLimitKey } from "@/lib/rateLimit";
+
+/**
+ * Hashes a phone number for safe inclusion in audit metadata.
+ * The raw phone is never stored; only the SHA-256 hash is used.
+ */
+function hashPhoneForAudit(phone: string): string {
+  return createHash("sha256").update(phone).digest("hex").slice(0, 16);
+}
 
 /** OTP delivery transport. Raw codes only flow through this callback. */
 export type OtpDelivery = (params: {
@@ -154,7 +163,7 @@ export async function requestOtp(
         actorUserId: options.userId ?? null,
         targetType: "phone_verification",
         targetId: requestId,
-        metadata: { phone, delivery: "failed" },
+        metadata: { phone: hashPhoneForAudit(phone), delivery: "failed" },
       });
       return { ok: false, reason: "error" };
     }
@@ -165,7 +174,7 @@ export async function requestOtp(
     actorUserId: options.userId ?? null,
     targetType: "phone_verification",
     targetId: requestId,
-    metadata: { phone, delivery: options.deliver ? "dispatched" : "none" },
+    metadata: { phone: hashPhoneForAudit(phone), delivery: options.deliver ? "dispatched" : "none" },
   });
 
   return { ok: true, requestId, phone };
@@ -239,7 +248,7 @@ export async function verifyOtp(
         actorUserId: record.userId,
         targetType: "phone_verification",
         targetId: requestId,
-        metadata: { phone: phoneForAudit, reason: "max_attempts" },
+        metadata: { phone: hashPhoneForAudit(phoneForAudit), reason: "max_attempts" },
       });
       return { ok: false, reason: "max_attempts" };
     }
@@ -250,7 +259,7 @@ export async function verifyOtp(
         actorUserId: record.userId,
         targetType: "phone_verification",
         targetId: requestId,
-        metadata: { phone: phoneForAudit, reason: "expired" },
+        metadata: { phone: hashPhoneForAudit(phoneForAudit), reason: "expired" },
       });
       return { ok: false, reason: "expired" };
     }
@@ -273,7 +282,7 @@ export async function verifyOtp(
       actorUserId: record.userId,
       targetType: "phone_verification",
       targetId: requestId,
-      metadata: { phone: phoneForAudit, reason: "invalid" },
+      metadata: { phone: hashPhoneForAudit(phoneForAudit), reason: "invalid" },
     });
     return { ok: false, reason: "invalid" };
   }
@@ -299,7 +308,7 @@ export async function verifyOtp(
       actorUserId: record.userId,
       targetType: "phone_verification",
       targetId: requestId,
-      metadata: { phone: phoneForAudit, reason: "already_used" },
+      metadata: { phone: hashPhoneForAudit(phoneForAudit), reason: "already_used" },
     });
     return { ok: false, reason: "already_used" };
   }
@@ -309,7 +318,7 @@ export async function verifyOtp(
     actorUserId: record.userId,
     targetType: "phone_verification",
     targetId: requestId,
-    metadata: { phone: phoneForAudit },
+    metadata: { phone: hashPhoneForAudit(phoneForAudit) },
   });
 
   return { ok: true, phone: phoneForAudit, userId: record.userId };

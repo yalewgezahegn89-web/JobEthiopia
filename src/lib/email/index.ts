@@ -6,6 +6,7 @@ import type {
 import { buildPasswordResetEmail } from "./passwordReset";
 import { buildApplicationStatusEmail, buildApplicationSubmissionEmail } from "./notification";
 import { buildJobAlertEmail } from "./jobAlert";
+import { buildVerificationEmail, buildEmailChangeVerificationEmail } from "./verification";
 import type { ApplicationStatusNotification } from "./notification";
 import type { ApplicationSubmissionNotification } from "./notification";
 import type { JobAlertNotification } from "./jobAlert";
@@ -14,11 +15,12 @@ import { getAppBaseUrl } from "@/lib/auth/csrf";
 import { logInfo, logError } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
-export { buildPasswordResetEmail, buildApplicationStatusEmail, buildApplicationSubmissionEmail, buildJobAlertEmail };
+export { buildPasswordResetEmail, buildApplicationStatusEmail, buildApplicationSubmissionEmail, buildJobAlertEmail, buildVerificationEmail, buildEmailChangeVerificationEmail };
 export type {
   EmailTransport,
   PasswordResetEmail,
   SendPasswordResetEmail,
+  EmailMessage,
 } from "./types";
 export type { ApplicationStatusNotification } from "./notification";
 export type { ApplicationSubmissionNotification } from "./notification";
@@ -219,5 +221,62 @@ export async function dispatchJobAlertEmail(
       errorCode: "EMAIL_DISPATCH_FAILED",
     });
     return false;
+  }
+}
+
+/* ── Email verification ────────────────────────────────────────────── */
+
+/**
+ * Dispatches an email verification email to the user. Must be called AFTER the
+ * verification token has been created in the database.
+ *
+ * Never throws: email failure is logged and swallowed so the caller's response
+ * is unaffected.
+ */
+export async function dispatchEmailVerification(
+  to: string,
+  verifyUrl: string,
+): Promise<void> {
+  try {
+    await ensureTransport();
+    const email = buildVerificationEmail(to, verifyUrl);
+    await transport.sendEmail(email);
+    logInfo("email_send_succeeded", {
+      requestId: await getRequestId(),
+      emailType: "email_verification",
+      recipientType: "user",
+    });
+  } catch {
+    logError("email_send_failed", {
+      requestId: await getRequestId(),
+      emailType: "email_verification",
+      errorCode: "EMAIL_DISPATCH_FAILED",
+    });
+  }
+}
+
+/**
+ * Dispatches an email change verification email. Must be called AFTER the
+ * verification token has been created in the database.
+ */
+export async function dispatchEmailChangeVerification(
+  to: string,
+  verifyUrl: string,
+): Promise<void> {
+  try {
+    await ensureTransport();
+    const email = buildEmailChangeVerificationEmail(to, verifyUrl);
+    await transport.sendEmail(email);
+    logInfo("email_send_succeeded", {
+      requestId: await getRequestId(),
+      emailType: "email_change_verification",
+      recipientType: "user",
+    });
+  } catch {
+    logError("email_send_failed", {
+      requestId: await getRequestId(),
+      emailType: "email_change_verification",
+      errorCode: "EMAIL_DISPATCH_FAILED",
+    });
   }
 }

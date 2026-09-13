@@ -26,6 +26,8 @@ export { jobs } from "./jobs";
 export { jobSources } from "./jobSources";
 export { careerArticles } from "./careerArticles";
 export { users } from "./users";
+export { emailVerifications } from "./emailVerifications";
+export { loginFailures } from "./loginFailures";
 export { candidateProfiles } from "./candidateProfiles";
 export { sessions } from "./sessions";
 export { passwordResetTokens } from "./passwordResetTokens";

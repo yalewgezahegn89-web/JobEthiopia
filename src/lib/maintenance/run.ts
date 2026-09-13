@@ -1,6 +1,7 @@
 import { expireDueJobs } from "./expiration";
 import { checkDueSources } from "./sourceHealth";
 import { pruneAnalyticsEvents } from "@/lib/analytics/retention";
+import { runAuthCleanup } from "./authCleanup";
 import { logWarn } from "@/lib/observability/logger";
 
 export type MaintenanceResult = {
@@ -10,6 +11,8 @@ export type MaintenanceResult = {
   sourcesFailed: number;
   sourcesSkipped: number;
   analyticsEventsPruned: number;
+  emailVerificationsPruned: number;
+  loginFailuresPruned: number;
 };
 
 /**
@@ -45,6 +48,16 @@ export async function runMaintenance(
     });
   }
 
+  // Auth token cleanup (email_verifications, login_failures)
+  let authCleanup = { emailVerificationsPruned: 0, loginFailuresPruned: 0 };
+  try {
+    authCleanup = await runAuthCleanup(now);
+  } catch (err) {
+    logWarn("auth_cleanup_failed", {
+      reason: err instanceof Error ? err.message.slice(0, 200) : "UNKNOWN",
+    });
+  }
+
   return {
     expiredJobs: expiration.expired,
     sourcesChecked: health.checked,
@@ -52,5 +65,7 @@ export async function runMaintenance(
     sourcesFailed: health.failed,
     sourcesSkipped: health.skipped,
     analyticsEventsPruned,
+    emailVerificationsPruned: authCleanup.emailVerificationsPruned,
+    loginFailuresPruned: authCleanup.loginFailuresPruned,
   };
 }

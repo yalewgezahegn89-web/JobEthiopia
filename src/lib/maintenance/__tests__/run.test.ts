@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   mockExpireDueJobs: vi.fn(),
   mockCheckDueSources: vi.fn(),
   mockPruneAnalyticsEvents: vi.fn(),
+  mockRunAuthCleanup: vi.fn(),
 }));
 
 vi.mock("../expiration", () => ({
@@ -18,11 +19,16 @@ vi.mock("@/lib/analytics/retention", () => ({
   pruneAnalyticsEvents: (...args: unknown[]) => mocks.mockPruneAnalyticsEvents(...args),
 }));
 
+vi.mock("../authCleanup", () => ({
+  runAuthCleanup: (...args: unknown[]) => mocks.mockRunAuthCleanup(...args),
+}));
+
 import { runMaintenance } from "../run";
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.mockPruneAnalyticsEvents.mockResolvedValue({ pruned: 0 });
+  mocks.mockRunAuthCleanup.mockResolvedValue({ emailVerificationsPruned: 0, loginFailuresPruned: 0 });
 });
 
 describe("runMaintenance", () => {
@@ -77,6 +83,8 @@ describe("runMaintenance", () => {
       sourcesFailed: 1,
       sourcesSkipped: 1,
       analyticsEventsPruned: 0,
+      emailVerificationsPruned: 0,
+      loginFailuresPruned: 0,
     });
   });
 
@@ -111,6 +119,8 @@ describe("runMaintenance", () => {
       sourcesFailed: 0,
       sourcesSkipped: 0,
       analyticsEventsPruned: 0,
+      emailVerificationsPruned: 0,
+      loginFailuresPruned: 0,
     });
   });
 

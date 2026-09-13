@@ -7,28 +7,28 @@ const SRC_ROOT = join(process.cwd(), "src");
 const I18N_BARREL_RE = /from\s+["']@\/lib\/i18n["']/;
 const NEXT_HEADERS_RE = /["']next\/headers["']/;
 
-function collectClientComponentFiles(dir: string): string[] {
-  const files: string[] = [];
+const SKIP_DIRS = new Set(["__tests__", "db", "messages"]);
+
+function collectOffenders(dir: string): string[] {
+  const offenders: string[] = [];
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
-      files.push(...collectClientComponentFiles(full));
+      if (SKIP_DIRS.has(entry)) continue;
+      offenders.push(...collectOffenders(full));
     } else if (/\.(ts|tsx)$/.test(entry)) {
       const source = readFileSync(full, "utf8");
-      if (source.includes('"use client"')) {
-        files.push(full);
+      if (source.includes('"use client"') && I18N_BARREL_RE.test(source)) {
+        offenders.push(full);
       }
     }
   }
-  return files;
+  return offenders;
 }
 
 describe("client/server module boundary", () => {
   it("no client component imports the i18n barrel (which re-exports server.ts)", () => {
-    const offenders = collectClientComponentFiles(SRC_ROOT).filter((file) =>
-      I18N_BARREL_RE.test(readFileSync(file, "utf8")),
-    );
-    expect(offenders).toEqual([]);
+    expect(collectOffenders(SRC_ROOT)).toEqual([]);
   });
 
   it("language-switcher imports only client-safe i18n modules", () => {

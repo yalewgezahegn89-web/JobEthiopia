@@ -39,6 +39,15 @@ import { writeAuditLog } from "./audit";
 import { OTP_AUDIT_ACTIONS } from "./constants";
 import { normalizeEthiopianPhone } from "./phone";
 import type { UserRole } from "./roles";
+import { createHash } from "node:crypto";
+
+/**
+ * Hashes a phone number for safe inclusion in audit metadata.
+ * The raw phone is never stored; only the SHA-256 hash is used.
+ */
+function hashPhoneForAudit(phone: string): string {
+  return createHash("sha256").update(phone).digest("hex").slice(0, 16);
+}
 
 /** A phone-first candidate's name must be supplied and non-empty. */
 const NAME_MAX_LENGTH = 100;
@@ -255,7 +264,7 @@ export async function signInWithVerifiedPhone(
       action: OTP_AUDIT_ACTIONS.PHONE_LOGIN_FAILURE,
       targetType: "phone_verification",
       targetId: requestId,
-      metadata: { phone, reason: "no_account" },
+      metadata: { phone: hashPhoneForAudit(phone), reason: "no_account" },
     });
     return { ok: false, reason: "no_account" };
   }

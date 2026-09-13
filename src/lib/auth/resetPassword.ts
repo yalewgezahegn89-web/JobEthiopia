@@ -56,10 +56,13 @@ export function resetAttemptRateLimited(rawToken: string): boolean {
   }).allowed;
 }
 
-/* A static, never-matching hash used purely to burn ~one scrypt verify on the
- * unknown-email path so its cost is in the same class as the live path. */
-const EQUALIZER_PASSWORD_HASH =
-  "$2b$10$7EqJtq98hPqEX7fNZaFWoO5eF1a3ZbzYkPhUf9QbyCb1qW1ZLYlyS";
+/* A static, never-matching scrypt hash (same format/N/r/p as password.ts) used
+ * purely to burn ~one scrypt verify on the unknown-email path so its cost is in
+ * the same class as the live path. verifyPassword() only accepts the 6-part
+ * `scrypt$...` format, so the equalizer MUST be scrypt (a bcrypt string returns
+ * before doing any work) or the anti-enumeration timing dent silences itself. */
+export const EQUALIZER_PASSWORD_HASH =
+  "scrypt$16384$8$1$28361ed16c3f71f35c12a2429a271834$f3403ba4a2fdbe86bef1272adf430cf35691f3e64ede5a11c21a9d127c99a548e9acec4544c92014ff29a5aeb050342f40363b82ad6b1b9ada16c7beb636ea38";
 
 /** Bounded work for the unknown-email forgot path (anti-enumeration timing). */
 export async function equalizeUnknownEmailWork(): Promise<void> {
