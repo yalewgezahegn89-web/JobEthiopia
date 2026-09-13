@@ -326,3 +326,27 @@ export function ChartIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function SparkleIcon({ className }: IconProps) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M12 3v4" />
+      <path d="M12 17v4" />
+      <path d="M3 12h4" />
+      <path d="M17 12h4" />
+      <path d="m6 6 2.5 2.5" />
+      <path d="m15.5 15.5 2.5 2.5" />
+      <path d="m18 6-2.5 2.5" />
+      <path d="m8.5 15.5L6 18" />
+    </svg>
+  );
+}
