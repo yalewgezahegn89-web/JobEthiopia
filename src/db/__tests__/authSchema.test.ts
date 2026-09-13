@@ -4,18 +4,6 @@ import { join } from "node:path";
 
 const DRIZZLE_DIR = join(process.cwd(), "drizzle");
 
-function latestMigration(): string {
-  const files = readdirSync(DRIZZLE_DIR).filter((f) =>
-    /^\d+_.+\.sql$/.test(f),
-  );
-  files.sort((a, b) => {
-    const na = Number(a.split("_")[0]);
-    const nb = Number(b.split("_")[0]);
-    return na - nb;
-  });
-  return readFileSync(join(DRIZZLE_DIR, files[files.length - 1]), "utf8");
-}
-
 function migrationByIndex(index: number): string {
   const files = readdirSync(DRIZZLE_DIR).filter((f) =>
     /^\d+_.+\.sql$/.test(f),
@@ -28,9 +16,10 @@ function migrationByIndex(index: number): string {
   return readFileSync(join(DRIZZLE_DIR, files[index]), "utf8");
 }
 
-const latestSql = latestMigration();
 // 0014 is the phone OTP migration (auth_accounts, phone_verifications, auth_provider enum)
 const phoneOtpSql = migrationByIndex(14);
+// 0020 is the batch 3 account-trust migration (email_verifications, login_failures, etc.)
+const batch3Sql = migrationByIndex(20);
 
 describe("phone OTP schema (structural, non-destructive)", () => {
 
@@ -93,59 +82,59 @@ describe("phone OTP schema (structural, non-destructive)", () => {
 
 describe("batch 3 account-trust schema (structural, non-destructive)", () => {
   it("adds users.email_verified_at as nullable timestamptz", () => {
-    expect(latestSql).toContain(
+    expect(batch3Sql).toContain(
       'ALTER TABLE "users" ADD COLUMN "email_verified_at" timestamp with time zone;',
     );
   });
 
   it("creates email_verifications with token hash, email, and expiry", () => {
-    expect(latestSql).toContain('CREATE TABLE "email_verifications"');
-    expect(latestSql).toContain('"token_hash" text NOT NULL');
-    expect(latestSql).toContain('"email" text NOT NULL');
-    expect(latestSql).toContain('"expires_at" timestamp with time zone NOT NULL');
-    expect(latestSql).toContain('"consumed_at" timestamp with time zone');
+    expect(batch3Sql).toContain('CREATE TABLE "email_verifications"');
+    expect(batch3Sql).toContain('"token_hash" text NOT NULL');
+    expect(batch3Sql).toContain('"email" text NOT NULL');
+    expect(batch3Sql).toContain('"expires_at" timestamp with time zone NOT NULL');
+    expect(batch3Sql).toContain('"consumed_at" timestamp with time zone');
     // A raw token column must never exist.
-    expect(latestSql).not.toContain("token_plain");
-    expect(latestSql).not.toContain("token_code");
+    expect(batch3Sql).not.toContain("token_plain");
+    expect(batch3Sql).not.toContain("token_code");
   });
 
   it("creates login_failures with a hashed account key, not plaintext email", () => {
-    expect(latestSql).toContain('CREATE TABLE "login_failures"');
-    expect(latestSql).toContain('"account_key" text NOT NULL');
-    expect(latestSql).toContain('"attempted_at" timestamp with time zone');
+    expect(batch3Sql).toContain('CREATE TABLE "login_failures"');
+    expect(batch3Sql).toContain('"account_key" text NOT NULL');
+    expect(batch3Sql).toContain('"attempted_at" timestamp with time zone');
     // The login_failures block itself must not carry a plaintext email column
     // (account_key is the SHA-256 of the normalized email).
     const block =
-      latestSql.split('CREATE TABLE "login_failures"')[1].split(";")[0];
+      batch3Sql.split('CREATE TABLE "login_failures"')[1].split(";")[0];
     expect(block).not.toMatch(/"email"/i);
   });
 
   it("links email_verifications to users with ON DELETE CASCADE", () => {
-    expect(latestSql).toContain(
+    expect(batch3Sql).toContain(
       '"email_verifications_user_id_users_id_fk" FOREIGN KEY ("user_id")',
     );
-    expect(latestSql).toContain("ON DELETE cascade");
+    expect(batch3Sql).toContain("ON DELETE cascade");
   });
 
   it("creates the expected batch 3 indexes", () => {
-    expect(latestSql).toContain(
+    expect(batch3Sql).toContain(
       'CREATE UNIQUE INDEX "email_verifications_token_hash_unique"',
     );
-    expect(latestSql).toContain(
+    expect(batch3Sql).toContain(
       'CREATE INDEX "email_verifications_user_id_idx"',
     );
-    expect(latestSql).toContain(
+    expect(batch3Sql).toContain(
       'CREATE INDEX "email_verifications_expires_at_idx"',
     );
-    expect(latestSql).toContain(
+    expect(batch3Sql).toContain(
       'CREATE INDEX "login_failures_account_key_attempted_at_idx"',
     );
   });
 
   it("contains no destructive operations", () => {
-    expect(latestSql).not.toMatch(/DROP TABLE/i);
-    expect(latestSql).not.toMatch(/DROP COLUMN/i);
-    expect(latestSql).not.toMatch(/DELETE FROM/i);
-    expect(latestSql).not.toMatch(/TRUNCATE/i);
+    expect(batch3Sql).not.toMatch(/DROP TABLE/i);
+    expect(batch3Sql).not.toMatch(/DROP COLUMN/i);
+    expect(batch3Sql).not.toMatch(/DELETE FROM/i);
+    expect(batch3Sql).not.toMatch(/TRUNCATE/i);
   });
 });

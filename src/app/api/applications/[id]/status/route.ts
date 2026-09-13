@@ -14,6 +14,7 @@ import { employerStatusChangeSchema } from "@/lib/validations/applicationStatus"
 import { assertEmployerApplicationAccess } from "@/lib/auth/employerAccess";
 import { changeEmployerApplicationStatus } from "@/lib/employer/applications";
 import { dispatchApplicationStatusNotification } from "@/lib/email";
+import { notifyApplicationStatusChanged } from "@/lib/notifications/events";
 import { logInfo, logWarn, logError } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
@@ -178,6 +179,7 @@ export async function PATCH(
       try {
         const candidateRow = await db
           .select({
+            candidateUserId: applications.candidateUserId,
             candidateEmail: users.email,
             candidateName: users.name,
             jobTitle: jobs.title,
@@ -202,6 +204,13 @@ export async function PATCH(
               newStatus: result.item.status,
             });
           }
+
+          await notifyApplicationStatusChanged({
+            candidateUserId: c.candidateUserId,
+            applicationId: result.item.id,
+            jobTitle: c.jobTitle,
+            newStatus: result.item.status,
+          });
         }
       } catch {
         // Notification failure must not affect the response

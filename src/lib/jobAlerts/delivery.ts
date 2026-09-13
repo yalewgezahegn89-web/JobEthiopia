@@ -22,6 +22,7 @@ import { jobAlerts } from "@/db/schema/jobAlerts";
 import { jobAlertDeliveries } from "@/db/schema/jobAlertDeliveries";
 import { users } from "@/db/schema/users";
 import { dispatchJobAlertEmail } from "@/lib/email";
+import { notifyJobAlertMatch } from "@/lib/notifications/events";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { getAppBaseUrl } from "@/lib/auth/csrf";
 import type { Locale } from "@/lib/i18n/locale";
@@ -176,6 +177,12 @@ export async function deliverJobAlert(
       .update(jobAlerts)
       .set({ lastSentAt: new Date() })
       .where(eq(jobAlerts.id, alert.id));
+
+    await notifyJobAlertMatch({
+      userId: alert.userId,
+      alertName: alert.name,
+      matchCount: matches.length,
+    });
   } else {
     outcome.failed = matches.length;
   }

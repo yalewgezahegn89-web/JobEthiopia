@@ -54,6 +54,7 @@ const TOP_LEVEL_KEYS = [
   "ads",
   "cv",
   "recommendations",
+  "notifications",
 ] as const;
 
 describe("locale allowlist", () => {

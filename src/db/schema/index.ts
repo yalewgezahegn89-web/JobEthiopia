@@ -48,3 +48,4 @@ export { candidateCvExperiences } from "./candidateCvExperiences";
 export { candidateCvEducations } from "./candidateCvEducations";
 export { candidateCvSkills } from "./candidateCvSkills";
 export { candidateCvCertifications } from "./candidateCvCertifications";
+export { notifications } from "./notifications";
