@@ -177,6 +177,13 @@ export async function GET(request: Request) {
         orderBy: [desc(jobs.createdAt)],
         limit,
         offset,
+        columns: {
+          description: false,
+          responsibilities: false,
+          requirements: false,
+          educationRequirements: false,
+          benefits: false,
+        },
       }),
     ]);
 

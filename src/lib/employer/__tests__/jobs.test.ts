@@ -327,17 +327,12 @@ describe("listEmployerJobsForFilter", () => {
   it("returns jobs for authorized organizations", async () => {
     mocks.mockGetUserOrgIds.mockResolvedValue([ORG_ID]);
 
-    const jobsChain: Record<string, ReturnType<typeof vi.fn>> = {};
-    jobsChain.from = vi.fn().mockReturnValue(jobsChain);
-    jobsChain.where = vi.fn().mockReturnValue(jobsChain);
-    jobsChain.orderBy = vi.fn().mockImplementation(() =>
-      Promise.resolve([
+    mocks.mockDbSelectChain.mockReturnValueOnce(
+      buildTxSelectChain([
         { id: JOB_ID, title: "Engineer" },
         { id: JOB_ID_2, title: "Designer" },
       ]),
     );
-
-    mocks.mockDbSelectChain.mockReturnValueOnce(jobsChain);
 
     const result = await listEmployerJobsForFilter(USER_ID);
     expect(result).toHaveLength(2);

@@ -26,19 +26,19 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Home() {
   const t = await getI18n();
-  const [jobsResult, articlesResult, closingResult, categoriesResult, professionsResult, locationsResult] =
+  const [jobsResult, articlesResult, categoriesResult, professionsResult, locationsResult] =
     await Promise.all([
-      fetchJobs({ limit: 5 }).catch(() => null),
-      fetchCareerArticles({ limit: 3 }).catch(() => null),
       fetchJobs({ page: 1, limit: 20, status: "PUBLISHED" }).catch(() => null),
+      fetchCareerArticles({ limit: 3 }).catch(() => null),
       fetchCategories({ limit: 12 }).catch(() => null),
       fetchProfessions({ limit: 12 }).catch(() => null),
       fetchLocations({ limit: 12 }).catch(() => null),
     ]);
 
-  const jobs = jobsResult?.items ?? [];
+  const items = jobsResult?.items ?? [];
+  const jobs = items.slice(0, 5);
   const articles = articlesResult?.items ?? [];
-  const closingJobs = selectClosingJobs(closingResult?.items ?? [], {
+  const closingJobs = selectClosingJobs(items, {
     count: 5,
   });
   const categories = categoriesResult?.items ?? [];

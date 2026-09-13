@@ -252,26 +252,20 @@ describe("Homepage", () => {
       makeJob({ id: "reg-2", title: "Regular 2" }),
     ];
 
-    mocks.mockFetchJobs.mockImplementation((query: { limit?: number }) => {
-      if (query.limit === 5) {
-        return Promise.resolve({
-          items: regularJobs,
-          pagination: { page: 1, limit: 5, total: 2, totalPages: 1 },
-        });
-      }
-      return Promise.resolve({
-        items: [jobA, jobB, jobC],
-        pagination: { page: 1, limit: 20, total: 3, totalPages: 1 },
-      });
+    mocks.mockFetchJobs.mockResolvedValue({
+      items: [...regularJobs, jobA, jobB, jobC],
+      pagination: { page: 1, limit: 20, total: 5, totalPages: 1 },
     });
 
     const html = await renderHome();
 
     expect(html).toContain("Closing soon");
 
-    const posB = html.indexOf("Job B — 2 days");
-    const posC = html.indexOf("Job C — 4 days");
-    const posA = html.indexOf("Job A — 6 days");
+    const closingSection = html.slice(html.indexOf("Closing soon"));
+
+    const posB = closingSection.indexOf("Job B — 2 days");
+    const posC = closingSection.indexOf("Job C — 4 days");
+    const posA = closingSection.indexOf("Job A — 6 days");
 
     expect(posB).toBeGreaterThan(-1);
     expect(posC).toBeGreaterThan(-1);

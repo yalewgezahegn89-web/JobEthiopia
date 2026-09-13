@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { runMaintenance } from "@/lib/maintenance/run";
 import { writeAuditLog } from "@/lib/auth/audit";
-import { logInfo, logError } from "@/lib/observability/logger";
+import { logInfo, logError, logWarn } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
 function jsonError(message: string, status: number) {
@@ -34,7 +34,16 @@ function checkMaintenanceKey(request: Request): Response | null {
 
 export async function POST(request: Request) {
   const authError = checkMaintenanceKey(request);
-  if (authError) return authError;
+  if (authError) {
+    logWarn("internal_route_auth_rejected", {
+      route: "/api/internal/maintenance/run",
+      method: "POST",
+      status: authError.status,
+      errorCode:
+        authError.status === 401 ? "AUTH_FAILED" : "AUTH_CONFIG_MISSING",
+    });
+    return authError;
+  }
 
   const start = performance.now();
   const requestId = await getRequestId();

@@ -21,6 +21,7 @@ export async function listAlertsForUser(
   return db.query.jobAlerts.findMany({
     where: eq(jobAlerts.userId, userId),
     orderBy: [desc(jobAlerts.createdAt)],
+    limit: 100,
   });
 }
 

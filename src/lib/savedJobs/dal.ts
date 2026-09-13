@@ -73,6 +73,11 @@ export async function isJobSaved(
 /**
  * Saves a job for the given candidate. Only PUBLISHED jobs may be saved.
  * Idempotent: a duplicate save of an already-saved job resolves to a success.
+ *
+ * Only genuine business outcomes are folded into the result type. A database
+ * failure (e.g. a connection outage during the lookups or the insert) is
+ * rethrown so the route reports an internal error instead of mislabelling an
+ * infrastructure problem as a missing job (404).
  */
 export async function saveJob(
   candidateUserId: string,
@@ -82,36 +87,32 @@ export async function saveJob(
     return { ok: false, code: "JOB_NOT_FOUND" };
   }
 
-  try {
-    const job = await db
-      .select({ id: jobs.id, status: jobs.status })
-      .from(jobs)
-      .where(eq(jobs.id, jobId))
-      .limit(1);
+  const job = await db
+    .select({ id: jobs.id, status: jobs.status })
+    .from(jobs)
+    .where(eq(jobs.id, jobId))
+    .limit(1);
 
-    if (job.length === 0) {
-      return { ok: false, code: "JOB_NOT_FOUND" };
-    }
-    if (job[0].status !== "PUBLISHED") {
-      return { ok: false, code: "JOB_NOT_SAVEABLE" };
-    }
-
-    try {
-      await db.insert(savedJobs).values({
-        candidateUserId,
-        jobId,
-      });
-    } catch (err: unknown) {
-      if (!isUniqueViolation(err)) {
-        throw err;
-      }
-      // Duplicate save resolves idempotently to already-saved.
-    }
-
-    return { ok: true, saved: true, jobId };
-  } catch {
+  if (job.length === 0) {
     return { ok: false, code: "JOB_NOT_FOUND" };
   }
+  if (job[0].status !== "PUBLISHED") {
+    return { ok: false, code: "JOB_NOT_SAVEABLE" };
+  }
+
+  try {
+    await db.insert(savedJobs).values({
+      candidateUserId,
+      jobId,
+    });
+  } catch (err: unknown) {
+    if (!isUniqueViolation(err)) {
+      throw err;
+    }
+    // Duplicate save resolves idempotently to already-saved.
+  }
+
+  return { ok: true, saved: true, jobId };
 }
 
 /**

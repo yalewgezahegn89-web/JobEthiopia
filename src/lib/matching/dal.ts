@@ -69,7 +69,7 @@ function buildSearchableText(...parts: (string | null | undefined)[]): string {
 
 async function loadCandidateProfile(
   candidateId: string,
-): Promise<CandidateMatchProfile> {
+): Promise<{ profile: CandidateMatchProfile; excludedJobIds: string[] }> {
   const [profileRow, alertRows, savedJobIds, appliedJobIds, cv] = await Promise.all([
     db.query.candidateProfiles.findFirst({
       where: eq(candidateProfiles.candidateId, candidateId),
@@ -168,13 +168,18 @@ async function loadCandidateProfile(
   }
 
   return {
-    locationId: candidateLocationId,
-    locationParentId: candidateLocationParentId,
-    totalExperienceYears: profileRow?.totalExperienceYears ?? null,
-    preferredCategoryIds: [...categorySet],
-    preferredProfessionIds: [...professionSet],
-    preferredEmploymentTypes: [...employmentTypeSet],
-    skills,
+    profile: {
+      locationId: candidateLocationId,
+      locationParentId: candidateLocationParentId,
+      totalExperienceYears: profileRow?.totalExperienceYears ?? null,
+      preferredCategoryIds: [...categorySet],
+      preferredProfessionIds: [...professionSet],
+      preferredEmploymentTypes: [...employmentTypeSet],
+      skills,
+    },
+    // Saved/applied job ids double as the exclusion set for ranking, so the
+    // journey rows are queried once and reused instead of read again below.
+    excludedJobIds: uniquePreferenceJobIds,
   };
 }
 
@@ -240,18 +245,14 @@ export async function getCandidateRecommendations(
   const limit = sanitizeLimit(options.limit);
   const now = options.now ?? new Date();
 
-  const candidate = await loadCandidateProfile(candidateId);
-
-  const excludedJourneys = await Promise.all([
-    db.select({ jobId: savedJobs.jobId }).from(savedJobs).where(eq(savedJobs.candidateUserId, candidateId)).limit(500),
-    db.select({ jobId: applications.jobId }).from(applications).where(eq(applications.candidateUserId, candidateId)).limit(500),
-  ]);
-  const excludedIds = [...new Set(excludedJourneys.flatMap((rows) => rows.map((row) => row.jobId)))];
+  const { profile: candidate, excludedJobIds } = await loadCandidateProfile(
+    candidateId,
+  );
 
   const eligibility = await buildPublicJobEligibilityConditions(now);
   const conditions: SQL[] = [...eligibility.filter((condition): condition is SQL => Boolean(condition))];
-  if (excludedIds.length > 0) {
-    conditions.push(notInArray(jobs.id, excludedIds));
+  if (excludedJobIds.length > 0) {
+    conditions.push(notInArray(jobs.id, excludedJobIds));
   }
 
   const pool = await db

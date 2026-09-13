@@ -211,9 +211,46 @@ export interface DigestResult {
 }
 
 /**
+ * Atomically claims a due alert for this digest run. Only the first runner can
+ * claim an alert (conditional UPDATE on the ~23h not-served window), so two
+ * overlapping digests cannot both email the same subscriber. Returns false
+ * when another run already claimed it.
+ */
+async function claimAlertForDigest(
+  alertId: string,
+  reference: Date,
+  minLastSent: Date,
+): Promise<boolean> {
+  const claimed = await db
+    .update(jobAlerts)
+    .set({ lastSentAt: reference, updatedAt: reference })
+    .where(
+      and(
+        eq(jobAlerts.id, alertId),
+        or(isNull(jobAlerts.lastSentAt), lte(jobAlerts.lastSentAt, minLastSent)),
+      ),
+    )
+    .returning({ id: jobAlerts.id });
+
+  return claimed.length === 1;
+}
+
+async function restoreAlertClaim(
+  alertId: string,
+  previousLastSentAt: Date | null,
+): Promise<void> {
+  await db
+    .update(jobAlerts)
+    .set({ lastSentAt: previousLastSentAt, updatedAt: new Date() })
+    .where(eq(jobAlerts.id, alertId));
+}
+
+/**
  * Runs the daily digest: every ACTIVE/DAILY alert that has not been served in
  * the last ~23 hours is matched and delivered. Never throws; failures are
- * counted per outcome so a single bad alert cannot block the batch.
+ * counted per outcome so a single bad alert cannot block the batch. Each alert
+ * is claimed first (see claimAlertForDigest) so overlapping runs cannot both
+ * email the same subscriber.
  */
 export async function dispatchDailyDigests(now?: Date): Promise<DigestResult> {
   const reference = now ?? new Date();
@@ -241,17 +278,35 @@ export async function dispatchDailyDigests(now?: Date): Promise<DigestResult> {
 
   for (const alert of alerts) {
     result.alertsProcessed++;
+    const previousLastSentAt = alert.lastSentAt;
+
     try {
+      const claimed = await claimAlertForDigest(alert.id, reference, minLastSent);
+      if (!claimed) {
+        // Claimed by an overlapping run (or already served concurrently).
+        result.alertsSkipped++;
+        continue;
+      }
+
       const outcome = await deliverJobAlert(alert, { now: reference });
       result.sent += outcome.delivered;
       result.skippedNoEmail += outcome.skippedNoEmail;
       result.failed += outcome.failed;
       if (outcome.emailDelivered) result.emailsSent++;
-      if (outcome.delivered === 0 && outcome.skippedNoEmail === 0 && outcome.failed === 0) {
-        result.alertsSkipped++;
+
+      if (!outcome.emailDelivered) {
+        // Nothing actually emailed (no matches, no email on file, or transport
+        // failure): release the claim so the alert stays due for the next run.
+        await restoreAlertClaim(alert.id, previousLastSentAt).catch(
+          () => undefined,
+        );
+        if (outcome.skippedNoEmail === 0 && outcome.failed === 0) {
+          result.alertsSkipped++;
+        }
       }
     } catch {
       // A failed digest for one alert must not block the others.
+      await restoreAlertClaim(alert.id, previousLastSentAt).catch(() => undefined);
       result.failed += 1;
     }
   }

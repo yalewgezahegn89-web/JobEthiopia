@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   mockAlertFindFirst: vi.fn(),
   mockUserFindFirst: vi.fn(),
   mockAlertUpdate: vi.fn(),
+  mockClaimRows: vi.fn(() => [{ id: "claimed" }]),
   mockDeliveriesInsert: vi.fn(),
   mockDispatchEmail: vi.fn(),
   mockAudit: vi.fn(),
@@ -26,7 +27,7 @@ vi.mock("@/db", () => ({
       set: () => ({
         where: () => {
           mocks.mockAlertUpdate();
-          return { returning: () => Promise.resolve([]) };
+          return { returning: () => Promise.resolve(mocks.mockClaimRows()) };
         },
       }),
     }),
@@ -113,6 +114,7 @@ beforeEach(() => {
   mocks.mockAlertFindFirst.mockResolvedValue(undefined);
   mocks.mockDispatchEmail.mockResolvedValue(true);
   mocks.mockAudit.mockResolvedValue(undefined);
+  mocks.mockClaimRows.mockReturnValue([{ id: "claimed" }]);
 });
 
 describe("tokens", () => {
@@ -211,6 +213,25 @@ describe("dispatchDailyDigests", () => {
     expect(result.alertsProcessed).toBe(1);
     expect(result.failed).toBe(1);
     expect(result.emailsSent).toBe(0);
+  });
+
+  it("skips an alert that another run already claimed", async () => {
+    mocks.mockAlertFindMany.mockResolvedValue([alertRow()]);
+    mocks.mockClaimRows.mockReturnValue([]);
+    const result = await dispatchDailyDigests();
+    expect(result.alertsProcessed).toBe(1);
+    expect(result.alertsSkipped).toBe(1);
+    expect(result.emailsSent).toBe(0);
+    expect(mocks.mockDispatchEmail).not.toHaveBeenCalled();
+  });
+
+  it("sends a digest and counts the delivery", async () => {
+    mocks.mockAlertFindMany.mockResolvedValue([alertRow()]);
+    const result = await dispatchDailyDigests();
+    expect(result.alertsProcessed).toBe(1);
+    expect(result.emailsSent).toBe(1);
+    expect(result.sent).toBe(1);
+    expect(mocks.mockDispatchEmail).toHaveBeenCalledOnce();
   });
 });
 
