@@ -1,5 +1,5 @@
 import type { ApplicationStatus } from "@/lib/applications/dal";
-import { APPLICATION_STATUS_META } from "@/components/applications/status-badge";
+import { APPLICATION_STATUS_META, getStatusLabel } from "@/components/applications/status-badge";
 import { CheckIcon } from "@/components/public/icons";
 
 const PROGRESS_STEPS: ApplicationStatus[] = [
@@ -47,10 +47,15 @@ function MinusIcon({ className }: { className?: string }) {
 
 export function ApplicationStatusProgress({
   status,
+  t,
 }: {
   status: ApplicationStatus;
+  t?: (key: string) => string;
 }) {
   const meta = APPLICATION_STATUS_META[status];
+  const description = t
+    ? t(`applications.status.description${status.charAt(0)}${status.slice(1).toLowerCase()}`)
+    : meta.description;
 
   if (meta.tone === "terminal") {
     return (
@@ -68,11 +73,11 @@ export function ApplicationStatusProgress({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-semibold text-foreground">
-              {meta.label}
+              {getStatusLabel(status, t)}
             </p>
           </div>
           <p className="mt-1 text-sm leading-6 text-muted">
-            {meta.description}
+            {description}
           </p>
         </div>
       </div>
@@ -83,10 +88,9 @@ export function ApplicationStatusProgress({
 
   return (
     <div className="rounded-xl border border-border bg-surface px-5 py-5">
-      <p className="text-sm leading-6 text-muted">{meta.description}</p>
+      <p className="text-sm leading-6 text-muted">{description}</p>
       <ol className="mt-4 flex items-start" aria-label="Application progress">
         {PROGRESS_STEPS.map((step, index) => {
-          const stepMeta = APPLICATION_STATUS_META[step];
           const isDone = index < activeIndex;
           const isCurrent = index === activeIndex;
           return (
@@ -107,7 +111,9 @@ export function ApplicationStatusProgress({
                   index + 1
                 )}
                 {isCurrent && (
-                  <span className="sr-only">Current step</span>
+                  <span className="sr-only">
+                    {t ? t("applications.status.currentStep") : "Current step"}
+                  </span>
                 )}
               </span>
               <span className="mt-1 ml-2">
@@ -118,7 +124,7 @@ export function ApplicationStatusProgress({
                       : "text-subtle"
                   }`}
                 >
-                  {stepMeta.label}
+                  {getStatusLabel(step, t)}
                 </span>
               </span>
               {index < PROGRESS_STEPS.length - 1 && (

@@ -3,14 +3,32 @@
 import { useState, useTransition } from "react";
 import type { CandidateApplicationListItem } from "@/lib/applications/dal";
 import Link from "next/link";
-import { ApplicationStatusBadge } from "@/components/applications/status-badge";
+import { ApplicationStatusBadge, getStatusLabel } from "@/components/applications/status-badge";
 import { BuildingIcon, CalendarIcon, ArrowRightIcon } from "@/components/public/icons";
+
+function resolveLabel(key: string, t: Record<string, unknown>): string {
+  const parts = key.split(".");
+  let obj: unknown = t;
+  for (const p of parts) {
+    if (obj && typeof obj === "object" && p in obj) {
+      obj = (obj as Record<string, unknown>)[p];
+    } else {
+      return key;
+    }
+  }
+  return typeof obj === "string" ? obj : key;
+}
 
 export function ApplicationHistory({
   items,
+  t,
+  locale = "en",
 }: {
   items: CandidateApplicationListItem[];
+  t: Record<string, unknown>;
+  locale?: string;
 }) {
+  const applications = t.applications as Record<string, unknown>;
   const [withdrawState, setWithdrawState] = useState<
     Record<string, "working" | "done" | "failed">
   >({});
@@ -34,6 +52,19 @@ export function ApplicationHistory({
 
   const historyItems = items.filter((item) => withdrawState[item.id] !== "done");
 
+  const formatDateLocale = (value: string): string => {
+    try {
+      const intlLocale = locale === "am" ? "am-ET" : locale === "om" ? "om-ET" : "en-US";
+      return new Intl.DateTimeFormat(intlLocale, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }).format(new Date(value));
+    } catch {
+      return value;
+    }
+  };
+
   if (historyItems.length === 0 && Object.keys(withdrawState).length === 0) {
     return (
       <div
@@ -44,17 +75,16 @@ export function ApplicationHistory({
           <BuildingIcon className="h-7 w-7" />
         </span>
         <h2 className="mt-5 text-xl font-bold text-foreground">
-          No applications yet
+          {String(applications.emptyHeading)}
         </h2>
         <p className="mt-2 max-w-md text-sm leading-6 text-muted">
-          You have not applied to any jobs yet. Browse open roles to get
-          started.
+          {String(applications.emptyBody)}
         </p>
         <Link
           href="/jobs"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Browse jobs
+          {String(applications.browseJobs)}
         </Link>
       </div>
     );
@@ -86,18 +116,22 @@ export function ApplicationHistory({
                   {item.organizationName ?? "Unknown organization"}
                 </p>
               </div>
-              <ApplicationStatusBadge status={item.status} className="shrink-0" />
+              <ApplicationStatusBadge
+                status={item.status}
+                label={getStatusLabel(item.status, (key: string) => resolveLabel(key, t) as string)}
+                className="shrink-0"
+              />
             </div>
 
             <div className="mt-3 text-xs text-subtle">
               <span className="inline-flex items-center gap-1.5">
                 <CalendarIcon className="h-3.5 w-3.5" />
-                Applied {formatDate(item.createdAt)}
+                {(applications.appliedDate as (d: string) => string)(formatDateLocale(item.createdAt))}
               </span>
               {item.status === "WITHDRAWN" && (
                 <span className="ml-3 inline-flex items-center gap-1.5">
                   <CalendarIcon className="h-3.5 w-3.5" />
-                  Withdrawn {formatDate(item.updatedAt)}
+                  {(applications.withdrawnDate as (d: string) => string)(formatDateLocale(item.updatedAt))}
                 </span>
               )}
             </div>
@@ -107,7 +141,7 @@ export function ApplicationHistory({
                 href={`/applications/${item.id}`}
                 className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                View application
+                {String(applications.viewApplication)}
                 <ArrowRightIcon className="h-4 w-4" />
               </Link>
 
@@ -115,7 +149,7 @@ export function ApplicationHistory({
                 <div className="flex items-center gap-3">
                   {state === "failed" && (
                     <span className="text-xs font-medium text-destructive">
-                      Could not withdraw. Please try again.
+                      {String(applications.withdrawFailed)}
                     </span>
                   )}
                   <button
@@ -124,7 +158,7 @@ export function ApplicationHistory({
                     disabled={pending || state === "working"}
                     className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:bg-surface-raised hover:text-foreground focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    {state === "working" ? "Withdrawing…" : "Withdraw"}
+                    {state === "working" ? String(applications.withdrawingCta) : String(applications.withdrawCta)}
                   </button>
                 </div>
               )}
@@ -133,8 +167,8 @@ export function ApplicationHistory({
             {isTerminal && (
               <p className="mt-2 text-xs text-subtle">
                 {item.status === "REJECTED"
-                  ? "This application has been closed as rejected."
-                  : "This application has been closed."}
+                  ? String(applications.closedRejected)
+                  : String(applications.closedWithdrawn)}
               </p>
             )}
           </li>
@@ -142,14 +176,4 @@ export function ApplicationHistory({
       })}
     </ul>
   );
-}
-
-function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }

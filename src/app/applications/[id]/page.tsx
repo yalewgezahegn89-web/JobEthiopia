@@ -10,7 +10,7 @@ import {
 } from "@/lib/applications/dal";
 import { ApplicationWithdraw } from "@/components/applications/withdraw-button";
 import { ResumeForm } from "@/components/applications/resume-form";
-import { ApplicationStatusBadge } from "@/components/applications/status-badge";
+import { ApplicationStatusBadge, getStatusLabel } from "@/components/applications/status-badge";
 import { ApplicationStatusProgress } from "@/components/applications/status-progress";
 import { getOwnedCandidateResume } from "@/lib/resume/dal";
 import { Breadcrumb } from "@/components/public/breadcrumb";
@@ -20,39 +20,60 @@ import {
   CheckIcon,
   ArrowRightIcon,
 } from "@/components/public/icons";
-import { getI18n } from "@/lib/i18n/server";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Application | JobEthiopia",
-  description: "Your application details on JobEthiopia.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getI18n();
+  return {
+    title: t.applications.detail.pageTitle,
+    description: t.applications.detail.metaDescription,
+  };
+}
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function formatDateTime(value: Date): string {
+function formatDateTime(value: Date, locale: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return `${date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })} · ${date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  })}`;
+  try {
+    const intlLocale = locale === "am" ? "am-ET" : locale === "om" ? "om-ET" : "en-US";
+    return `${new Intl.DateTimeFormat(intlLocale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(date)} · ${new Intl.DateTimeFormat(intlLocale, {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date)}`;
+  } catch {
+    return "";
+  }
 }
 
-function actionLabel(action: string): string {
+function resolveLabel(key: string, t: Record<string, unknown>): string {
+  const parts = key.split(".");
+  let obj: unknown = t;
+  for (const p of parts) {
+    if (obj && typeof obj === "object" && p in obj) {
+      obj = (obj as Record<string, unknown>)[p];
+    } else {
+      return key;
+    }
+  }
+  return typeof obj === "string" ? obj : key;
+}
+
+function actionLabel(action: string, t: Record<string, unknown>): string {
   switch (action) {
     case "APPLICATION_SUBMITTED":
-      return "Application submitted";
+      return resolveLabel("applications.detail.submittedAction", t);
     case "APPLICATION_WITHDRAWN":
-      return "Application withdrawn";
+      return resolveLabel("applications.detail.withdrawnAction", t);
     case "APPLICATION_STATUS_CHANGED":
-      return "Status updated";
+      return resolveLabel("applications.detail.statusChangedAction", t);
     default:
       return action;
   }
@@ -60,11 +81,16 @@ function actionLabel(action: string): string {
 
 function historyDetail(
   entry: { action: string; previousStatus: string | null; newStatus: string | null },
+  t: Record<string, unknown>,
 ): string | null {
   if (entry.previousStatus && entry.newStatus) {
-    return `${entry.previousStatus} → ${entry.newStatus}`;
+    const prevLabel = getStatusLabel(entry.previousStatus as ApplicationStatus, (key: string) => resolveLabel(key, t));
+    const newLabel = getStatusLabel(entry.newStatus as ApplicationStatus, (key: string) => resolveLabel(key, t));
+    return `${prevLabel} → ${newLabel}`;
   }
-  if (entry.newStatus) return entry.newStatus;
+  if (entry.newStatus) {
+    return getStatusLabel(entry.newStatus as ApplicationStatus, (key: string) => resolveLabel(key, t));
+  }
   return null;
 }
 
@@ -147,6 +173,7 @@ export default async function ApplicationDetailPage({
 }) {
   const { id } = await params;
   const t = await getI18n();
+  const locale = await getCurrentLocale();
 
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -174,8 +201,8 @@ export default async function ApplicationDetailPage({
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10">
       <Breadcrumb
         items={[
-          { label: "Home", href: "/" },
-          { label: "My Applications", href: "/applications" },
+          { label: t.common.home, href: "/" },
+          { label: t.applications.breadcrumbMyApplications, href: "/applications" },
           { label: detail.jobTitle },
         ]}
         t={t}
@@ -191,7 +218,7 @@ export default async function ApplicationDetailPage({
               </span>
               <div className="min-w-0">
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
-                  Job application
+                  {t.applications.detail.breadcrumbJobApplication}
                 </p>
                 <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
                   {detail.jobTitle}
@@ -202,26 +229,30 @@ export default async function ApplicationDetailPage({
                 </p>
               </div>
             </div>
-            <ApplicationStatusBadge status={status} className="shrink-0 text-sm" />
+            <ApplicationStatusBadge
+              status={status}
+              label={getStatusLabel(status, (key: string) => resolveLabel(key, t as unknown as Record<string, unknown>))}
+              className="shrink-0 text-sm"
+            />
           </div>
 
           <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-xs font-medium uppercase tracking-wide text-subtle">
-                Submitted
+                {t.applications.detail.submittedLabel}
               </dt>
               <dd className="mt-0.5 inline-flex items-center gap-1.5 font-medium text-foreground">
                 <CalendarIcon className="h-4 w-4 text-subtle" />
-                {formatDateTime(detail.createdAt)}
+                {formatDateTime(detail.createdAt, locale)}
               </dd>
             </div>
             <div>
               <dt className="text-xs font-medium uppercase tracking-wide text-subtle">
-                Last updated
+                {t.applications.detail.lastUpdatedLabel}
               </dt>
               <dd className="mt-0.5 inline-flex items-center gap-1.5 font-medium text-foreground">
                 <CalendarIcon className="h-4 w-4 text-subtle" />
-                {formatDateTime(detail.updatedAt)}
+                {formatDateTime(detail.updatedAt, locale)}
               </dd>
             </div>
           </dl>
@@ -233,10 +264,13 @@ export default async function ApplicationDetailPage({
           id="status-heading"
           className="text-base font-semibold tracking-tight text-foreground"
         >
-          Status
+          {t.applications.detail.statusHeading}
         </h2>
         <div className="mt-3">
-          <ApplicationStatusProgress status={status} />
+          <ApplicationStatusProgress
+            status={status}
+            t={(key: string) => resolveLabel(key, t as unknown as Record<string, unknown>)}
+          />
         </div>
       </section>
 
@@ -246,14 +280,14 @@ export default async function ApplicationDetailPage({
             id="history-heading"
             className="text-base font-semibold tracking-tight text-foreground"
           >
-            Application history
+            {t.applications.detail.historyHeading}
           </h2>
           <ol
             className="mt-4 space-y-0"
             aria-label="Application history"
           >
             {history.map((entry, index) => {
-              const detailText = historyDetail(entry);
+              const detailText = historyDetail(entry, t);
               const isLast = index === history.length - 1;
               return (
                 <li key={`${entry.action}-${index}`} className="relative flex gap-4">
@@ -266,13 +300,13 @@ export default async function ApplicationDetailPage({
                   <TimelineMarker action={entry.action} />
                   <div className="pb-6">
                     <p className="text-sm font-semibold text-foreground">
-                      {actionLabel(entry.action)}
+                      {actionLabel(entry.action, t)}
                     </p>
                     {detailText && (
                       <p className="mt-0.5 text-sm text-muted">{detailText}</p>
                     )}
                     <p className="mt-1 text-xs text-subtle">
-                      {formatDateTime(entry.timestamp)}
+                      {formatDateTime(entry.timestamp, locale)}
                     </p>
                   </div>
                 </li>
@@ -288,7 +322,7 @@ export default async function ApplicationDetailPage({
             id="cover-letter-heading"
             className="text-base font-semibold tracking-tight text-foreground"
           >
-            Cover letter
+            {t.applications.detail.coverLetterHeading}
           </h2>
           <div className="mt-3 rounded-xl border border-border bg-surface px-5 py-4 shadow-sm">
             <p className="whitespace-pre-line text-sm leading-7 text-foreground">
@@ -303,7 +337,7 @@ export default async function ApplicationDetailPage({
           id="resume-heading"
           className="text-base font-semibold tracking-tight text-foreground"
         >
-          Resume
+          {t.applications.detail.resumeHeading}
         </h2>
         <div className="mt-3 rounded-xl border border-border bg-surface px-5 py-4 shadow-sm">
           <ResumeForm
@@ -326,13 +360,13 @@ export default async function ApplicationDetailPage({
         className="mt-8 flex flex-wrap items-center gap-3 border-t border-border pt-6"
       >
         <h2 id="application-actions-heading" className="sr-only">
-          Application actions
+          {t.applications.detail.actionsHeading}
         </h2>
         <Link
           href={`/jobs/${detail.jobId}`}
           className="focus-visible:outline-2 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          View job
+          {t.applications.detail.viewJobCta}
           <ArrowRightIcon className="h-4 w-4" />
         </Link>
         {canWithdraw && <ApplicationWithdraw applicationId={detail.id} />}

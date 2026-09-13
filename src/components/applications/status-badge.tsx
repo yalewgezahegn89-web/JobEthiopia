@@ -44,17 +44,38 @@ export const APPLICATION_STATUS_META: Record<
   },
 };
 
+type I18nT = (key: string) => string;
+
+export function getStatusLabel(status: ApplicationStatus, t?: I18nT): string {
+  if (t) {
+    return t(`applications.status.${status}`);
+  }
+  return APPLICATION_STATUS_META[status].label;
+}
+
+export function getStatusDescription(
+  status: ApplicationStatus,
+  t?: I18nT,
+): string {
+  if (t) {
+    return t(`applications.status.description${status.charAt(0)}${status.slice(1).toLowerCase()}`);
+  }
+  return APPLICATION_STATUS_META[status].description;
+}
+
 export function ApplicationStatusBadge({
   status,
   className = "",
+  label,
 }: {
   status: ApplicationStatus;
   className?: string;
+  label?: string;
 }) {
   const meta = APPLICATION_STATUS_META[status];
   return (
     <Badge variant={meta.variant} className={className}>
-      {meta.label}
+      {label ?? meta.label}
     </Badge>
   );
 }

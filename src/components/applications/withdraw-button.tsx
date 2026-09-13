@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useI18n } from "@/lib/i18n/client";
 
 type WithdrawState = "idle" | "working" | "done" | "failed";
 
@@ -9,6 +10,7 @@ export function ApplicationWithdraw({
 }: {
   applicationId: string;
 }) {
+  const { t } = useI18n();
   const [state, setState] = useState<WithdrawState>("idle");
   const [pending, startTransition] = useTransition();
 
@@ -33,7 +35,7 @@ export function ApplicationWithdraw({
   if (state === "done") {
     return (
       <span className="inline-flex items-center justify-center rounded-full bg-success-light px-4 py-2 text-sm font-semibold text-success">
-        Application withdrawn
+        {t.applications.withdrawCta}
       </span>
     );
   }
@@ -46,11 +48,11 @@ export function ApplicationWithdraw({
         disabled={pending || state === "working"}
         className="inline-flex items-center justify-center rounded-lg border border-destructive px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive-light disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        {state === "working" ? "Withdrawing…" : "Withdraw"}
+        {state === "working" ? t.applications.withdrawingCta : t.applications.withdrawCta}
       </button>
       {state === "failed" && (
         <span className="text-sm font-medium text-destructive" role="alert">
-          Could not withdraw. Please try again.
+          {t.applications.withdrawFailed}
         </span>
       )}
     </div>

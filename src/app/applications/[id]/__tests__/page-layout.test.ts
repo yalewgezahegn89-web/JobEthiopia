@@ -57,7 +57,7 @@ vi.mock("@/components/applications/resume-form", () => ({
 
 vi.mock("@/lib/i18n/server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
-  return { ...actual, getI18n: async () => dictionaries.en };
+  return { ...actual, getI18n: async () => dictionaries.en, getCurrentLocale: async () => "en" };
 });
 
 import ApplicationDetailPage from "@/app/applications/[id]/page";

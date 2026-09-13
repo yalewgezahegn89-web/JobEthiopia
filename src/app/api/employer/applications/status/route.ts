@@ -13,6 +13,7 @@ import { checkBodySize } from "@/lib/apiUtils";
 import { bulkApplicationStatusChangeSchema } from "@/lib/validations/applicationStatus";
 import { changeEmployerApplicationStatuses } from "@/lib/employer/applications";
 import { dispatchApplicationStatusNotification } from "@/lib/email";
+import { notifyApplicationStatusChanged } from "@/lib/notifications/events";
 import { logInfo, logWarn, logError } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
@@ -149,6 +150,7 @@ export async function PATCH(request: Request) {
     const recipients = await db
       .select({
         applicationId: applications.id,
+        candidateUserId: applications.candidateUserId,
         candidateEmail: users.email,
         candidateName: users.name,
         jobTitle: jobs.title,
@@ -171,6 +173,13 @@ export async function PATCH(request: Request) {
           newStatus: status,
         });
       }
+
+      await notifyApplicationStatusChanged({
+        candidateUserId: r.candidateUserId,
+        applicationId: r.applicationId,
+        jobTitle: r.jobTitle,
+        newStatus: status,
+      });
     }
   } catch {
     // Notification failure must not affect the committed response.

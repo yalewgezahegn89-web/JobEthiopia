@@ -7,14 +7,17 @@ import { listApplicationsForCandidate } from "@/lib/applications/dal";
 import { ApplicationHistory } from "@/components/applications/history";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { BuildingIcon } from "@/components/public/icons";
-import { getI18n } from "@/lib/i18n/server";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "My Applications | JobEthiopia",
-  description: "Your job applications on JobEthiopia.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getI18n();
+  return {
+    title: t.applications.pageTitle,
+    description: t.applications.metaDescription,
+  };
+}
 
 export default async function ApplicationsPage() {
   const user = await getCurrentUser();
@@ -23,6 +26,7 @@ export default async function ApplicationsPage() {
     redirect("/jobs");
   }
   const t = await getI18n();
+  const locale = await getCurrentLocale();
 
   let items: Awaited<ReturnType<typeof listApplicationsForCandidate>>["items"] = [];
   let loadError = false;
@@ -39,19 +43,19 @@ export default async function ApplicationsPage() {
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:py-10">
       <Breadcrumb
-        items={[{ label: "Home", href: "/" }, { label: "My Applications" }]}
+        items={[{ label: t.common.home, href: "/" }, { label: t.applications.breadcrumbMyApplications }]}
         t={t}
       />
 
       <header className="mt-4 max-w-3xl">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
-          Candidate workspace
+          {t.applications.workspaceLabel}
         </p>
         <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          My Applications
+          {t.applications.heading}
         </h1>
         <p className="mt-2 text-base leading-7 text-muted">
-          Applications you have submitted and their current status.
+          {t.applications.subtitle}
         </p>
       </header>
 
@@ -61,14 +65,13 @@ export default async function ApplicationsPage() {
             <BuildingIcon className="h-7 w-7" />
           </span>
           <p className="mt-4 text-muted">
-            We could not load your applications right now. Please try again
-            shortly.
+            {t.applications.loadError}
           </p>
           <Link
             href="/applications"
             className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            Retry
+            {t.applications.retryCta}
           </Link>
         </div>
       ) : (
@@ -76,12 +79,11 @@ export default async function ApplicationsPage() {
           {!loadError && applicationCount > 0 && (
             <p className="mt-6 inline-flex items-center gap-2 rounded-full bg-primary-light px-3 py-1 text-xs font-semibold text-primary">
               <BuildingIcon className="h-3.5 w-3.5" />
-              {applicationCount} tracked application
-              {applicationCount === 1 ? "" : "s"}
+              {t.applications.trackedCount(applicationCount)}
             </p>
           )}
 
-          <ApplicationHistory items={items} />
+          <ApplicationHistory items={items} t={t} locale={locale} />
         </>
       )}
     </div>
