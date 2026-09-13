@@ -11,7 +11,8 @@ import {
   type PublicJobSummary,
 } from "@/lib/jobs/public";
 import { selectRelatedJobs } from "@/lib/jobs/related";
-import { getI18n } from "@/lib/i18n/server";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import type { Locale } from "@/lib/i18n/locale";
 import type { Messages } from "@/lib/i18n/dictionary";
 import { getCurrentUser } from "@/lib/auth/context";
 import { isJobSaved } from "@/lib/savedJobs/dal";
@@ -23,6 +24,7 @@ import { SaveButton } from "@/components/saved-jobs/save-button";
 import JobCard from "@/components/job-card";
 import { Badge } from "@/components/ui/badge";
 import { BrandMark } from "@/components/ui/brand-mark";
+import AdSlot from "@/components/ads/ad-slot";
 
 export const dynamic = "force-dynamic";
 
@@ -178,6 +180,13 @@ export default async function JobPage({
 }) {
   const { id } = await params;
   const t = await getI18n();
+
+  let locale: Locale = "en";
+  try {
+    locale = await getCurrentLocale();
+  } catch {
+    locale = "en";
+  }
 
   let job: PublicJobDetail | null = null;
   let loadError = false;
@@ -347,6 +356,13 @@ export default async function JobPage({
               </section>
 
               <KeyFacts job={job} t={t} closing={closing} />
+
+              <AdSlot
+                placementId="job-detail-sidebar"
+                pathname={`/jobs/${job.id}`}
+                locale={locale}
+                t={t}
+              />
             </div>
           </aside>
         </div>

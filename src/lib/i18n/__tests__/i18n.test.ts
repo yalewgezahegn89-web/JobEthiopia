@@ -50,6 +50,8 @@ const TOP_LEVEL_KEYS = [
   "notFound",
   "footer",
   "adminAnalytics",
+  "adminAds",
+  "ads",
   "cv",
 ] as const;
 

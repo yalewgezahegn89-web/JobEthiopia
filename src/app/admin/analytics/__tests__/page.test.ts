@@ -48,6 +48,7 @@ const EMPTY_SUMMARY = {
     registrations: { total: 0, daily: [] },
   },
   moderation: { jobPublished: 0, jobRejected: 0, jobReverified: 0 },
+  monetization: { impressions: 0, clicks: 0 },
   platform: {
     publishedJobs: 0,
     pendingReviewJobs: 0,
@@ -90,6 +91,11 @@ const T = {
     failingSources: "Failing",
     latestIngestion: "Latest run",
   },
+  adminAds: {
+    monetizationTitle: "Monetization",
+    impressions: "Ad impressions",
+    clicks: "Ad clicks",
+  },
 };
 
 beforeEach(() => {
@@ -121,6 +127,19 @@ describe("AdminAnalyticsPage", () => {
     expect(html).toContain("Analytics");
     expect(html).toContain("Job discovery");
     expect(mocks.mockGetSummary).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the monetization section with ad metrics", async () => {
+    mocks.mockGetSummary.mockResolvedValue({
+      ...EMPTY_SUMMARY,
+      monetization: { impressions: 125, clicks: 9 },
+    });
+    const html = renderToStaticMarkup(await AdminAnalyticsPage());
+    expect(html).toContain("Monetization");
+    expect(html).toContain("Ad impressions");
+    expect(html).toContain("125");
+    expect(html).toContain("Ad clicks");
+    expect(html).toContain("9");
   });
 
   it("renders an error state when the summary query fails", async () => {

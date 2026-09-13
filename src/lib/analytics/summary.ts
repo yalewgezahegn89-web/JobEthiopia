@@ -72,6 +72,10 @@ export type AnalyticsSummary = {
     jobRejected: number;
     jobReverified: number;
   };
+  monetization: {
+    impressions: number;
+    clicks: number;
+  };
   platform: {
     publishedJobs: number;
     pendingReviewJobs: number;
@@ -152,6 +156,33 @@ function parseLatestIngestion(row: {
     failed: Number(meta.failed ?? 0),
     durationMs: typeof meta.durationMs === "number" ? meta.durationMs : null,
   };
+}
+
+/**
+ * Monetization counts (ad impressions/clicks) over the 30-day window, sourced
+ * from the same analytics_events allowlist used by capture.
+ */
+export async function getMonetizationCounts(
+  now: Date = new Date(),
+): Promise<{ impressions: number; clicks: number }> {
+  const totalFrom = daysAgo(TOTAL_WINDOW_DAYS, now);
+  const [impressions, clicks] = await Promise.all([
+    countWhere(
+      analyticsEvents,
+      and(
+        eq(analyticsEvents.event, "ad_impression"),
+        gte(analyticsEvents.createdAt, totalFrom),
+      ),
+    ),
+    countWhere(
+      analyticsEvents,
+      and(
+        eq(analyticsEvents.event, "ad_click"),
+        gte(analyticsEvents.createdAt, totalFrom),
+      ),
+    ),
+  ]);
+  return { impressions, clicks };
 }
 
 export async function getAnalyticsSummary(
@@ -284,6 +315,8 @@ export async function getAnalyticsSummary(
     columns: { metadata: true, targetId: true, createdAt: true },
   });
 
+  const monetization = await getMonetizationCounts(now);
+
   return {
     window: {
       totalDays: TOTAL_WINDOW_DAYS,
@@ -313,6 +346,7 @@ export async function getAnalyticsSummary(
       jobRejected,
       jobReverified,
     },
+    monetization,
     platform: {
       publishedJobs,
       pendingReviewJobs,

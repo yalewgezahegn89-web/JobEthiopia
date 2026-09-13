@@ -96,7 +96,8 @@ export default function AnalyticsDashboard({
   summary: AnalyticsSummary;
   t: Messages;
 }) {
-  const { discovery, engagement, moderation, platform, window } = summary;
+  const { discovery, engagement, moderation, platform, window, monetization } =
+    summary;
 
   const hasDiscovery =
     discovery.totals.job_viewed > 0 ||
@@ -222,6 +223,22 @@ export default function AnalyticsDashboard({
             total={engagement.registrations.total}
             series={engagement.registrations.daily}
           />
+        </div>
+      </section>
+
+      <section aria-labelledby="analytics-monetization-heading">
+        <h2
+          id="analytics-monetization-heading"
+          className="text-lg font-semibold text-foreground"
+        >
+          {t.adminAds.monetizationTitle}
+        </h2>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <StatCard
+            label={t.adminAds.impressions}
+            value={monetization.impressions}
+          />
+          <StatCard label={t.adminAds.clicks} value={monetization.clicks} />
         </div>
       </section>
 

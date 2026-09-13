@@ -337,6 +337,14 @@ export const om = {
     loadError:
       "Yeroo ammaa qorannoo deetaa baachuu hin dandeenye. Maaloo yeroo gabaabaa booda itti deebi'ii yaalaa.",
   },
+  ads: {
+    label: "Beeksisa",
+  },
+  adminAds: {
+    monetizationTitle: "Galii",
+    impressions: "Ilaallii beeksisaa",
+    clicks: "Tuqaalee beeksisaa",
+  },
 cv: {
     eyebrow: "Meʼeegawwan aangoo / siivii",
     title: "Siivi Koo",

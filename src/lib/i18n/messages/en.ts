@@ -343,6 +343,14 @@ export const en = {
     loadError:
       "We could not load analytics right now. Please try again shortly.",
   },
+  ads: {
+    label: "Advertisement",
+  },
+  adminAds: {
+    monetizationTitle: "Monetization",
+    impressions: "Ad impressions",
+    clicks: "Ad clicks",
+  },
   cv: {
     eyebrow: "Career / CV tools",
     title: "My CV",

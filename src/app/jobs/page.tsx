@@ -9,7 +9,9 @@ import { fetchCategories } from "@/lib/categories/public";
 import { fetchProfessions } from "@/lib/professions/public";
 import { fetchLocations } from "@/lib/locations/public";
 import JobCard from "@/components/job-card";
-import { getI18n } from "@/lib/i18n/server";
+import AdSlot from "@/components/ads/ad-slot";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import type { Locale } from "@/lib/i18n/locale";
 import type { Messages } from "@/lib/i18n/dictionary";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +52,13 @@ export default async function JobsPage({
 }) {
   const t = await getI18n();
   const params = await searchParams;
+
+  let locale: Locale = "en";
+  try {
+    locale = await getCurrentLocale();
+  } catch {
+    locale = "en";
+  }
 
   const q = firstValue(params.q) ?? "";
   const categoryId = firstValue(params.categoryId);
@@ -189,6 +198,13 @@ export default async function JobsPage({
           </Link>
         )}
       </div>
+
+      <AdSlot
+        placementId="jobs-list-top"
+        pathname="/jobs"
+        locale={locale}
+        t={t}
+      />
 
       {items.length === 0 ? (
         <div className="mt-6">

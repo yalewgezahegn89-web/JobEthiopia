@@ -335,6 +335,14 @@ export const am = {
     loadError:
       "አሁን የመረጃ ትንተና መጫን አልተቻለም። እባክዎ በአጭር ጊዜ ውስጥ እንደገና ይሞክሩ።",
   },
+  ads: {
+    label: "ማስታወቂያ",
+  },
+  adminAds: {
+    monetizationTitle: "ገቢ",
+    impressions: "የማስታወቂያ እይታዎች",
+    clicks: "የማስታወቂያ ጠቅታዎች",
+  },
   cv: {
     eyebrow: "የሙያ / የሲቪ መሳሪያዎች",
     title: "የኔ ሲቪዬ",
