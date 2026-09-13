@@ -116,6 +116,8 @@ vi.mock("../../../db/schema/jobs", () => ({
     createdAt: "jobs.createdAt",
     updatedAt: "jobs.updatedAt",
     lastVerifiedAt: "jobs.lastVerifiedAt",
+    salaryMin: "jobs.salaryMin",
+    salaryMax: "jobs.salaryMax",
   },
 }));
 
@@ -329,6 +331,61 @@ describe("GET /api/jobs", () => {
 
       expect(response.status).toBe(400);
       expect(data.error).toContain("locationId");
+    });
+
+    it("invalid sort returns 400", async () => {
+      const request = makeJobListRequest({ sort: "alphabetical" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("sort");
+    });
+
+    it("negative salaryMin returns 400", async () => {
+      const request = makeJobListRequest({ salaryMin: "-1" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("salaryMin");
+    });
+
+    it("negative salaryMax returns 400", async () => {
+      const request = makeJobListRequest({ salaryMax: "-1" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("salaryMax");
+    });
+
+    it("non-numeric salary returns 400", async () => {
+      const request = makeJobListRequest({ salaryMin: "expensive" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("salaryMin");
+    });
+
+    it("salaryMin greater than salaryMax returns 400", async () => {
+      const request = makeJobListRequest({
+        salaryMin: "10000",
+        salaryMax: "5000",
+      });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(data.error).toContain("salaryMin");
+    });
+
+    it("zero salary is allowed", async () => {
+      const request = makeJobListRequest({ salaryMin: "0" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
     });
   });
 
@@ -703,6 +760,142 @@ describe("GET /api/jobs", () => {
       expect(response.status).toBe(200);
       expect(data.items).toHaveLength(0);
       expect(data.pagination.total).toBe(0);
+    });
+  });
+
+  describe("sort modes", () => {
+    function orderedBy(callIndex = 0): unknown {
+      return mockJobsFindMany.mock.calls[callIndex][0].orderBy;
+    }
+
+    it("newest is the default when no keyword is present", async () => {
+      const request = makeJobListRequest();
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const orderBy = orderedBy();
+      expect(sqlContains(orderBy, "jobs.createdAt")).toBe(true);
+      expect(sqlContains(orderBy, "CASE")).toBe(false);
+      expect(sqlContains(orderBy, "ILIKE")).toBe(false);
+    });
+
+    it("relevance is the default sorting when a keyword is present", async () => {
+      const request = makeJobListRequest({ q: "nurse" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const orderBy = orderedBy();
+      expect(sqlContains(orderBy, "CASE")).toBe(true);
+      expect(sqlContains(orderBy, "LOWER")).toBe(true);
+      expect(sqlContains(orderBy, "ILIKE")).toBe(true);
+      expect(sqlContains(orderBy, "jobs.createdAt")).toBe(true);
+    });
+
+    it("sort=relevance without a keyword falls back to newest", async () => {
+      const request = makeJobListRequest({ sort: "relevance" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const orderBy = orderedBy();
+      expect(sqlContains(orderBy, "CASE")).toBe(false);
+      expect(sqlContains(orderBy, "jobs.createdAt")).toBe(true);
+    });
+
+    it("sort=newest is honored explicitly", async () => {
+      const request = makeJobListRequest({ q: "nurse", sort: "newest" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const orderBy = orderedBy();
+      expect(sqlContains(orderBy, "CASE")).toBe(false);
+      expect(sqlContains(orderBy, "jobs.createdAt")).toBe(true);
+    });
+
+    it("sort=deadline orders NULLS LAST", async () => {
+      const request = makeJobListRequest({ sort: "deadline" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const orderBy = orderedBy();
+      expect(sqlContains(orderBy, "jobs.deadline")).toBe(true);
+      expect(sqlContains(orderBy, "NULLS LAST")).toBe(true);
+    });
+
+    it("sort=deadline keeps a deterministic createdAt tie-break", async () => {
+      const request = makeJobListRequest({ q: "nurse", sort: "deadline" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const orderBy = orderedBy();
+      expect(sqlContains(orderBy, "jobs.deadline")).toBe(true);
+      expect(sqlContains(orderBy, "NULLS LAST")).toBe(true);
+      expect(sqlContains(orderBy, "jobs.createdAt")).toBe(true);
+    });
+
+    it("an explicit relevance sort with a keyword yields the same ranking shape as the default", async () => {
+      const request = makeJobListRequest({ q: "hospital", sort: "relevance" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const orderBy = orderedBy();
+      expect(sqlContains(orderBy, "CASE")).toBe(true);
+    });
+  });
+
+  describe("salary filters", () => {
+    it("salaryMin is applied using the upper bound of the job range", async () => {
+      const request = makeJobListRequest({ salaryMin: "5000" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(mockJobsFindMany).toHaveBeenCalled();
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, "jobs.salaryMax")).toBe(true);
+      expect(sqlContains(findManyWhere, "jobs.salaryMin")).toBe(false);
+    });
+
+    it("salaryMax is applied using the lower bound of the job range", async () => {
+      const request = makeJobListRequest({ salaryMax: "10000" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, "jobs.salaryMin")).toBe(true);
+      expect(sqlContains(findManyWhere, "jobs.salaryMax")).toBe(false);
+    });
+
+    it("both bounds are combined", async () => {
+      const request = makeJobListRequest({
+        salaryMin: "5000",
+        salaryMax: "10000",
+      });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, "jobs.salaryMin")).toBe(true);
+      expect(sqlContains(findManyWhere, "jobs.salaryMax")).toBe(true);
+    });
+
+    it("salary values are sent as parameters, not inlined", async () => {
+      const request = makeJobListRequest({ salaryMin: "5000" });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, "5000")).toBe(false);
+    });
+
+    it("salary restrictions still depend on the eligibility gate", async () => {
+      const request = makeJobListRequest({
+        salaryMin: "5000",
+        status: "PUBLISHED",
+      });
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      const findManyWhere = mockJobsFindMany.mock.calls[0][0].where;
+      expect(sqlContains(findManyWhere, "PUBLISHED")).toBe(true);
     });
   });
 

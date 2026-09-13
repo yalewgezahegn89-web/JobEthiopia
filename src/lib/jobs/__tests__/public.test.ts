@@ -232,6 +232,35 @@ describe("fetchJobs URL construction", () => {
     expect(url).toContain("limit=10");
   });
 
+  it("sends sort as a query parameter", async () => {
+    const fetcher = makeFetcher(jsonResponse({ items: [], pagination: {} }));
+    await fetchJobs({ sort: "deadline" }, { baseUrl: BASE_URL, fetcher });
+
+    expect(calledUrl(fetcher)).toContain("sort=deadline");
+  });
+
+  it("sends salaryMin and salaryMax as query parameters", async () => {
+    const fetcher = makeFetcher(jsonResponse({ items: [], pagination: {} }));
+    await fetchJobs(
+      { salaryMin: 5000, salaryMax: 10000 },
+      { baseUrl: BASE_URL, fetcher },
+    );
+
+    const url = calledUrl(fetcher);
+    expect(url).toContain("salaryMin=5000");
+    expect(url).toContain("salaryMax=10000");
+  });
+
+  it("omits sort and salary when not provided", async () => {
+    const fetcher = makeFetcher(jsonResponse({ items: [], pagination: {} }));
+    await fetchJobs({}, { baseUrl: BASE_URL, fetcher });
+
+    const url = calledUrl(fetcher);
+    expect(url).not.toContain("sort=");
+    expect(url).not.toContain("salaryMin=");
+    expect(url).not.toContain("salaryMax=");
+  });
+
   it("uses APP_BASE_URL when baseUrl is not provided", async () => {
     const previous = process.env.APP_BASE_URL;
     process.env.APP_BASE_URL = "https://jobs.et";

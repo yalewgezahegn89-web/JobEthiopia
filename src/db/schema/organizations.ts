@@ -7,6 +7,7 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { organizationStatusEnum } from "./enums";
 import { locations } from "./locations";
 import { users } from "./users";
@@ -43,5 +44,7 @@ export const organizations = pgTable(
     index("organizations_status_idx").on(t.status),
     index("organizations_location_id_idx").on(t.locationId),
     uniqueIndex("organizations_slug_unique").on(t.slug),
+    index("organizations_name_trgm_idx") // Phase 8 Batch 2: keyword name lookup
+      .using("gin", sql`${t.name} gin_trgm_ops`),
   ]
 );

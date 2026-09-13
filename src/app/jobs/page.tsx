@@ -3,11 +3,14 @@ import Link from "next/link";
 import {
   fetchJobs,
   type PublicJobList,
-  type PublicJobSummary,
 } from "@/lib/jobs/public";
 import { fetchCategories } from "@/lib/categories/public";
 import { fetchProfessions } from "@/lib/professions/public";
 import { fetchLocations } from "@/lib/locations/public";
+import {
+  EMPLOYMENT_TYPE_OPTIONS,
+  formatEmploymentType,
+} from "@/lib/jobs/employmentTypes";
 import JobCard from "@/components/job-card";
 import AdSlot from "@/components/ads/ad-slot";
 import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
@@ -36,13 +39,27 @@ function toPositiveInteger(value: string | undefined, fallback: number): number 
   return Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : fallback;
 }
 
+function toSalaryNumber(value: string | undefined): number | undefined {
+  if (value === undefined || value === "") return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
 type FilterOption = { id: string; name: string };
 
-function uniqueEmploymentTypes(items: PublicJobSummary[]): string[] {
-  const values = items
-    .map((item) => item.employmentType)
-    .filter((value): value is string => Boolean(value));
-  return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+type JobListSort = "relevance" | "newest" | "deadline";
+
+const JOB_SORT_OPTIONS: JobListSort[] = [
+  "relevance",
+  "newest",
+  "deadline",
+];
+
+function toJobSort(value: string | undefined): JobListSort | undefined {
+  if (!value) return undefined;
+  return JOB_SORT_OPTIONS.includes(value as JobListSort)
+    ? (value as JobListSort)
+    : undefined;
 }
 
 export default async function JobsPage({
@@ -65,6 +82,9 @@ export default async function JobsPage({
   const professionId = firstValue(params.professionId);
   const locationId = firstValue(params.locationId);
   const employmentType = firstValue(params.employmentType);
+  const sort = toJobSort(firstValue(params.sort));
+  const salaryMin = toSalaryNumber(firstValue(params.salaryMin));
+  const salaryMax = toSalaryNumber(firstValue(params.salaryMax));
   const page = toPositiveInteger(firstValue(params.page), 1);
 
   let result: PublicJobList | null = null;
@@ -78,6 +98,9 @@ export default async function JobsPage({
         professionId,
         locationId,
         employmentType,
+        sort,
+        salaryMin,
+        salaryMax,
         page,
         limit: 20,
       }).catch(() => null),
@@ -125,10 +148,16 @@ export default async function JobsPage({
   const locations = (locationsResult?.items ?? [])
     .map((l) => ({ id: l.id, name: l.name }))
     .sort((a, b) => a.name.localeCompare(b.name));
-  const employmentTypes = uniqueEmploymentTypes(items);
+  const employmentTypes = EMPLOYMENT_TYPE_OPTIONS;
 
   const hasFilters = Boolean(
-    q || categoryId || professionId || locationId || employmentType,
+    q ||
+      categoryId ||
+      professionId ||
+      locationId ||
+      employmentType ||
+      salaryMin !== undefined ||
+      salaryMax !== undefined,
   );
 
   function hrefWith(
@@ -141,6 +170,9 @@ export default async function JobsPage({
       professionId,
       locationId,
       employmentType,
+      sort,
+      salaryMin,
+      salaryMax,
       page: paramsToSet.page,
       ...paramsToSet,
     };
@@ -151,6 +183,11 @@ export default async function JobsPage({
     if (merged.locationId) query.set("locationId", String(merged.locationId));
     if (merged.employmentType)
       query.set("employmentType", String(merged.employmentType));
+    if (merged.sort) query.set("sort", String(merged.sort));
+    if (merged.salaryMin !== undefined)
+      query.set("salaryMin", String(merged.salaryMin));
+    if (merged.salaryMax !== undefined)
+      query.set("salaryMax", String(merged.salaryMax));
     if (merged.page) query.set("page", String(merged.page));
     return `?${query.toString()}`;
   }
@@ -184,6 +221,9 @@ export default async function JobsPage({
           professionId={professionId}
           locationId={locationId}
           employmentType={employmentType}
+          sort={sort}
+          salaryMin={salaryMin}
+          salaryMax={salaryMax}
         />
       </div>
 
@@ -280,6 +320,9 @@ function SearchForm({
   professionId,
   locationId,
   employmentType,
+  sort,
+  salaryMin,
+  salaryMax,
 }: {
   t: Messages;
   q: string;
@@ -291,6 +334,9 @@ function SearchForm({
   professionId?: string;
   locationId?: string;
   employmentType?: string;
+  sort?: JobListSort;
+  salaryMin?: number;
+  salaryMax?: number;
 }) {
   return (
     <form
@@ -348,9 +394,25 @@ function SearchForm({
       </div>
 
       <div className="border-t border-border-subtle pt-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">
-          {t.search.filters}
-        </p>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">
+            {t.search.filters}
+          </p>
+          <div className="w-full sm:w-56">
+            <SelectField
+              id="sort"
+              name="sort"
+              label={t.search.sort}
+              value={sort ?? ""}
+              options={[
+                { value: "relevance", label: t.search.sortRelevance },
+                { value: "newest", label: t.search.sortNewest },
+                { value: "deadline", label: t.search.sortDeadline },
+              ]}
+              anyLabel={t.search.sortNewest}
+            />
+          </div>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <SelectField
             id="categoryId"
@@ -386,13 +448,56 @@ function SearchForm({
             value={employmentType ?? ""}
             options={employmentTypes.map((value) => ({
               value,
-              label: value.replace("_", " "),
+              label: formatEmploymentType(value),
             }))}
             anyLabel={t.search.any}
+          />
+          <SalaryInput
+            id="salaryMin"
+            name="salaryMin"
+            label={t.search.salaryMin}
+            value={salaryMin !== undefined ? String(salaryMin) : ""}
+          />
+          <SalaryInput
+            id="salaryMax"
+            name="salaryMax"
+            label={t.search.salaryMax}
+            value={salaryMax !== undefined ? String(salaryMax) : ""}
           />
         </div>
       </div>
     </form>
+  );
+}
+
+function SalaryInput({
+  id,
+  name,
+  label,
+  value,
+}: {
+  id: string;
+  name: string;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div>
+      <label htmlFor={id} className="mb-1.5 block text-sm font-semibold">
+        {label}
+      </label>
+      <input
+        id={id}
+        name={name}
+        type="number"
+        min="0"
+        step="any"
+        inputMode="decimal"
+        defaultValue={value}
+        placeholder="0"
+        className="w-full rounded-lg border border-border bg-surface-raised px-3 py-2.5 text-sm text-foreground placeholder:text-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      />
+    </div>
   );
 }
 

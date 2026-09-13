@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { desc, and, or, ilike, inArray, eq, sql, type SQL } from "drizzle-orm";
+import { and, ilike, inArray, eq, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { organizations } from "@/db/schema/organizations";
@@ -14,6 +14,16 @@ import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize, escapeLikePattern } from "@/lib/apiUtils";
 import { buildPublicJobEligibilityConditions } from "@/lib/jobs/eligibility";
+import {
+  isPgTrgmAvailable,
+} from "@/lib/search/trgm";
+import {
+  buildJobListOrder,
+  buildKeywordMatchCondition,
+  buildSalaryConditions,
+  type JobListSort,
+  type SearchTier,
+} from "@/lib/search/jobSearch";
 import {
   trackDiscoveryEvent,
   classifyJobListEvent,
@@ -95,6 +105,9 @@ export async function GET(request: Request) {
     professionId: searchParams.get("professionId") ?? undefined,
     locationId: searchParams.get("locationId") ?? undefined,
     q: searchParams.get("q") ?? undefined,
+    sort: searchParams.get("sort") ?? undefined,
+    salaryMin: searchParams.get("salaryMin") ?? undefined,
+    salaryMax: searchParams.get("salaryMax") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -112,6 +125,9 @@ export async function GET(request: Request) {
     professionId,
     locationId,
     q,
+    sort,
+    salaryMin,
+    salaryMax,
   } = parsed.data;
   const offset = (page - 1) * limit;
 
@@ -127,6 +143,10 @@ export async function GET(request: Request) {
       });
       organizationNameIds = matches.map((match) => match.id);
     }
+
+    const tier: SearchTier = keyword
+      ? ((await isPgTrgmAvailable()) ? "trgm" : "substring")
+      : "substring";
 
     const now = new Date();
     const conditions: (SQL | undefined)[] =
@@ -147,25 +167,23 @@ export async function GET(request: Request) {
       conditions.push(eq(jobs.locationId, locationId));
     }
     if (keyword) {
-      const escapedKeyword = escapeLikePattern(keyword);
-      const pattern = `%${escapedKeyword}%`;
-      const titleOrDescription = or(
-        ilike(jobs.title, pattern),
-        ilike(jobs.description, pattern),
+      conditions.push(
+        buildKeywordMatchCondition({
+          q: keyword,
+          organizationNameIds,
+          tier,
+        }),
       );
-      if (organizationNameIds.length > 0) {
-        conditions.push(
-          or(
-            titleOrDescription,
-            inArray(jobs.organizationId, organizationNameIds),
-          ),
-        );
-      } else {
-        conditions.push(titleOrDescription);
-      }
     }
+    conditions.push(...buildSalaryConditions(salaryMin, salaryMax));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const requestedSort = (sort as JobListSort | undefined) ?? null;
+    const effectiveSort: JobListSort =
+      !keyword && requestedSort === "relevance"
+        ? "newest"
+        : (requestedSort ?? (keyword ? "relevance" : "newest"));
 
     const [countResult, rows] = await Promise.all([
       db
@@ -174,7 +192,11 @@ export async function GET(request: Request) {
         .where(where),
       db.query.jobs.findMany({
         where,
-        orderBy: [desc(jobs.createdAt)],
+        orderBy: buildJobListOrder(effectiveSort, {
+          q: keyword ?? "",
+          organizationIds: organizationNameIds,
+          trgm: tier === "trgm",
+        }),
         limit,
         offset,
         columns: {

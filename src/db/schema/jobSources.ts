@@ -38,5 +38,9 @@ export const jobSources = pgTable(
     index("job_sources_job_id_idx").on(t.jobId),
     index("job_sources_source_id_idx").on(t.sourceId),
     unique("job_sources_source_external_id_unique").on(t.sourceId, t.externalId),
+    index("job_sources_raw_hash_idx") // Phase 8 Batch 2: Level 3 dedup lookup
+      .on(t.rawHash),
+    index("job_sources_source_id_url_idx") // Phase 8 Batch 2: Level 2 dedup lookup
+      .on(t.sourceId, t.sourceUrl),
   ]
 );

@@ -28,6 +28,9 @@ export type PublicJobQuery = {
   organizationId?: string;
   status?: string;
   employmentType?: string;
+  sort?: "relevance" | "newest" | "deadline";
+  salaryMin?: number;
+  salaryMax?: number;
   page?: number;
   limit?: number;
 };
@@ -392,6 +395,15 @@ export async function fetchJobs(
   }
   if (query.employmentType) {
     params.set("employmentType", query.employmentType);
+  }
+  if (query.sort) {
+    params.set("sort", query.sort);
+  }
+  if (query.salaryMin !== undefined) {
+    params.set("salaryMin", String(query.salaryMin));
+  }
+  if (query.salaryMax !== undefined) {
+    params.set("salaryMax", String(query.salaryMax));
   }
 
   const url = new URL("/api/jobs", baseUrl);

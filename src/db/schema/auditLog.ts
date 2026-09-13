@@ -27,5 +27,7 @@ export const auditLog = pgTable(
     index("audit_log_actor_user_id_idx").on(t.actorUserId),
     index("audit_log_action_idx").on(t.action),
     index("audit_log_created_at_idx").on(t.createdAt),
+    index("audit_log_target_type_id_idx") // Phase 8 Batch 2: target-scoped history
+      .on(t.targetType, t.targetId),
   ]
 );
