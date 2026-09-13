@@ -36,6 +36,9 @@ jobs:
 
           MAINTENANCE_URL="${MAINTENANCE_TARGET_URL%/}/api/internal/maintenance/run"
 
+          # --fail-with-body: any non-2xx (e.g. 401, 500, 502) exits non-zero
+          # and the workflow fails. Network errors/empty responses fail via
+          # set -o pipefail. jq rejects a malformed (non-object) 2xx body.
           curl \
             --silent \
             --show-error \
@@ -46,4 +49,5 @@ jobs:
             --retry-delay 30 \
             --retry-on-http-error 429,500,502,503,504 \
             --header "x-maintenance-key: ${MAINTENANCE_API_KEY}" \
-            "${MAINTENANCE_URL}"
+            "${MAINTENANCE_URL}" \
+            | jq -e 'type == "object"' >/dev/null

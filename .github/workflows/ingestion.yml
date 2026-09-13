@@ -21,6 +21,7 @@ jobs:
         env:
           MAINTENANCE_TARGET_URL: "${{ vars.MAINTENANCE_TARGET_URL }}"
           MAINTENANCE_API_KEY: "${{ secrets.MAINTENANCE_API_KEY }}"
+          INTERNAL_INGESTION_API_KEY: "${{ secrets.INTERNAL_INGESTION_API_KEY }}"
         run: |
           set -euo pipefail
 
@@ -29,13 +30,21 @@ jobs:
             exit 1
           fi
 
-          if [ -z "${MAINTENANCE_API_KEY}" ]; then
-            echo "MAINTENANCE_API_KEY is not configured."
+          # Route-dedicated secret when set, otherwise the shared maintenance
+          # key. This lets operators adopt per-route keys without a
+          # coordinated env change.
+          INGESTION_KEY="${INTERNAL_INGESTION_API_KEY:-${MAINTENANCE_API_KEY}}"
+
+          if [ -z "${INGESTION_KEY}" ]; then
+            echo "No ingestion key configured: set INTERNAL_INGESTION_API_KEY or MAINTENANCE_API_KEY."
             exit 1
           fi
 
           INGESTION_URL="${MAINTENANCE_TARGET_URL%/}/api/internal/ingestion/run"
 
+          # --fail-with-body: any non-2xx (e.g. 401, 500, 502) exits non-zero
+          # and the workflow fails. Network errors/empty responses fail via
+          # set -o pipefail. jq rejects a malformed (non-object) 2xx body.
           curl \
             --silent \
             --show-error \
@@ -45,5 +54,6 @@ jobs:
             --retry 3 \
             --retry-delay 30 \
             --retry-on-http-error 429,500,502,503,504 \
-            --header "x-maintenance-key: ${MAINTENANCE_API_KEY}" \
-            "${INGESTION_URL}"
+            --header "x-maintenance-key: ${INGESTION_KEY}" \
+            "${INGESTION_URL}" \
+            | jq -e 'type == "object"' >/dev/null

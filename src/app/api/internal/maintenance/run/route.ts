@@ -1,48 +1,22 @@
 import { NextResponse } from "next/server";
-import { timingSafeEqual } from "node:crypto";
 import { runMaintenance } from "@/lib/maintenance/run";
 import { writeAuditLog } from "@/lib/auth/audit";
-import { logInfo, logError, logWarn } from "@/lib/observability/logger";
+import { checkInternalRouteKey } from "@/lib/auth/internalKey";
+import { reportError } from "@/lib/observability/errors";
+import { logInfo } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-function checkMaintenanceKey(request: Request): Response | null {
-  const configuredKey = process.env.MAINTENANCE_API_KEY;
-
-  if (!configuredKey) {
-    return jsonError("Server configuration error", 500);
-  }
-
-  const providedKey = request.headers.get("x-maintenance-key") ?? "";
-
-  if (!providedKey) {
-    return jsonError("Unauthorized", 401);
-  }
-
-  const bufA = Buffer.from(providedKey, "utf8");
-  const bufB = Buffer.from(configuredKey, "utf8");
-
-  if (bufA.length !== bufB.length || !timingSafeEqual(bufA, bufB)) {
-    return jsonError("Unauthorized", 401);
-  }
-
-  return null;
-}
-
 export async function POST(request: Request) {
-  const authError = checkMaintenanceKey(request);
-  if (authError) {
-    logWarn("internal_route_auth_rejected", {
-      route: "/api/internal/maintenance/run",
-      method: "POST",
-      status: authError.status,
-      errorCode:
-        authError.status === 401 ? "AUTH_FAILED" : "AUTH_CONFIG_MISSING",
-    });
-    return authError;
+  const authResult = await checkInternalRouteKey(request, {
+    route: "/api/internal/maintenance/run",
+    keyEnvVar: "MAINTENANCE_API_KEY",
+  });
+  if (!authResult.ok) {
+    return jsonError(authResult.message, authResult.status);
   }
 
   const start = performance.now();
@@ -93,15 +67,14 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(result);
-  } catch {
+  } catch (error: unknown) {
     const durationMs = Math.round(performance.now() - start);
-    logError("maintenance_failed", {
+    reportError("maintenance_failed", error, {
       requestId,
       route: "/api/internal/maintenance/run",
       method: "POST",
       status: 500,
       durationMs,
-      errorCode: "INTERNAL_ERROR",
     });
     return jsonError("Internal server error", 500);
   }

@@ -21,6 +21,8 @@
 | Variable | Purpose | Required | Secret |
 |---|---|---|---|
 | `TRUSTED_CLIENT_IP_HEADER` | Header name overwritten by a trusted reverse proxy with the real client IP (e.g. `x-real-ip`). Only set when a proxy is in use. | No | No |
+| `INTERNAL_INGESTION_API_KEY` | Route-dedicated key for the internal ingestion endpoint (sent as `x-maintenance-key`). Falls back to `MAINTENANCE_API_KEY` when unset. | No | Yes |
+| `INTERNAL_JOB_ALERTS_API_KEY` | Route-dedicated key for the internal job-alert digest endpoint (sent as `x-maintenance-key`). Falls back to `MAINTENANCE_API_KEY` when unset. | No | Yes |
 
 ### Bootstrap-Only
 
@@ -52,10 +54,11 @@ These are only used when manually running the first-admin bootstrap command. The
 - HTTPS is **required** in production. Secure/session cookies depend on
   `NODE_ENV=production`.
 - **TLS edge responsibility:** the application layer emits CSP (nonce-based),
-  `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy`. The
-  reverse proxy / TLS terminator / CDN is responsible for enforcing HTTPS,
-  **Strict-Transport-Security (HSTS)**, and **Permissions-Policy**; these are
-  deliberately not emitted by the application.
+  and (Phase 7 Batch 12) the **Strict-Transport-Security (HSTS)** header via
+  `next.config.ts`. The reverse proxy / TLS terminator / CDN must enforce the
+  actual **HTTPS redirect** (HTTP→HTTPS); **Permissions-Policy** is also an
+  edge responsibility. If you terminate TLS at the edge, ensure an HTTP→HTTPS
+  redirect and that the edge does not strip the app-emitted headers.
 - API keys must be stored in the hosting platform's secret/env system, never in code.
 - `TRUSTED_CLIENT_IP_HEADER` must be configured **only** when a trusted reverse
   proxy sanitizes/overwrites that header with the real client IP. It is never
@@ -157,12 +160,19 @@ This populates development data. Do **not** run this against a production databa
 
 ## Health Check
 
-`GET /api/health` returns:
+Three unauthenticated, GET-only endpoints differentiate liveness from
+readiness. All responses contain no database internals and no error details:
 
-- `200` with `{"status":"ok"}` when the database is reachable.
-- `503` with `{"status":"error"}` when the database is unreachable.
+| Endpoint | Question | Response |
+|---|---|---|
+| `GET /api/health/live` | Is the process capable of responding? | `200 {"status":"ok"}` — no dependency is touched |
+| `GET /api/health/ready` | Can the app serve database-dependent traffic? | `200 {"status":"ok"}` when the DB answers `SELECT 1` within 3s; otherwise `503 {"status":"error"}` |
+| `GET /api/health` | Backwards-compatible readiness alias (same as `/ready`) | `200 {"status":"ok"}` / `503 {"status":"error"}` |
 
-No authentication is required. This endpoint is suitable for uptime and readiness monitoring. It contains no internal diagnostic details.
+Use `/live` for process/instance liveness probes and `/ready` (or `/health`)
+for uptime/readiness monitoring. A readiness failure is the deployment's
+"do not route traffic here" signal; it is safe to hit when the database is
+unavailable.
 
 ## Observability
 
@@ -262,8 +272,10 @@ POST /api/internal/maintenance/run
 Headers: x-maintenance-key: <MAINTENANCE_API_KEY>
 ```
 
-- Authenticated only by the `MAINTENANCE_API_KEY` header; returns `401` on a
-  missing/mismatched key.
+- Authenticated by the `x-maintenance-key` header (configured as
+  `MAINTENANCE_API_KEY`); returns `401` on a missing/mismatched key. See
+  [Internal automation endpoints](#internal-automation-endpoints) for optional
+  per-route keys.
 - **Not idempotent-safe to run concurrently — schedule a single instance**
   (e.g. once daily, cron `0 3 * * *` UTC) and avoid overlapping runs. A run
   already in progress guard is **not** enforced, so do not overlap it.
@@ -286,7 +298,7 @@ Production maintenance is automated via
   (e.g. `https://jobs.example.com`), without the maintenance path. The workflow
   appends `/api/internal/maintenance/run` to it.
 
-**Schedule:** `03:00 UTC` daily.
+**Schedule:** `0 3 * * *` — `03:00 UTC` daily.
 
 **Important:** GitHub scheduled workflows run from the repository's **default
 branch**. The workflow must therefore be merged into `main` before scheduled
@@ -324,6 +336,105 @@ Maintenance`).
 **Operational smoke test:** run the workflow manually (via `workflow_dispatch`)
 after every production deployment to confirm the endpoint answers with the JSON
 summary.
+
+## Internal Automation Endpoints
+
+Three cron-driven internal endpoints share one authentication contract and must
+never be publicly reachable (they are POST-only and rate-limited):
+
+| Endpoint | Workflow | Schedule (UTC) |
+|---|---|---|
+| `POST /api/internal/maintenance/run` | [`.github/workflows/maintenance.yml`](./.github/workflows/maintenance.yml) | `0 3 * * *` — daily 03:00 |
+| `POST /api/internal/ingestion/run` | [`.github/workflows/ingestion.yml`](./.github/workflows/ingestion.yml) | `30 3 * * *` — daily 03:30 (after maintenance) |
+| `POST /api/internal/job-alerts/daily` | [`.github/workflows/job-alerts.yml`](./.github/workflows/job-alerts.yml) | `0 4 * * *` — daily 04:00 (after ingestion) |
+
+**Authentication:** all three verify the `x-maintenance-key` header in constant
+time. Key resolution is rollout-safe:
+
+1. Route-dedicated key when configured —
+   `INTERNAL_INGESTION_API_KEY` (ingestion), `INTERNAL_JOB_ALERTS_API_KEY`
+   (job alerts), or `MAINTENANCE_API_KEY` (maintenance).
+2. Otherwise the shared `MAINTENANCE_API_KEY` fallback.
+
+Until the dedicated keys are set in an environment, every route accepts
+`MAINTENANCE_API_KEY` exactly as it did before. To adopt per-route keys, set the
+dedicated secret in both the deploy environment and the GitHub workflow secret,
+keeping the shared key as a temporary fallback until the rotate-by-route is
+complete.
+
+**Failure behavior (all workflows):** any non-2xx (401/500/…) fails the workflow
+step. Retries (`429,500,502,503,504`, 3 attempts, 30s apart) apply to
+maintenance and ingestion (idempotent, dedup- and claim-guarded); the job-alerts
+digest does NOT retry because it sends email — the claim-before-send guard means
+a later manual rerun is safe. A malformed 2xx body and a network/timeout failure
+also fail the job so a missed run is never silently swallowed. All workflows use
+`concurrency` groups so runs never overlap.
+
+**Manual rerun:** each workflow is triggerable on demand via `workflow_dispatch`
+(Actions → "Run workflow"). Ingestion additionally supports
+`POST /api/internal/ingestion/run?sourceId=<id>` to run a single source.
+
+## Ingestion (Automated Core)
+
+Production ingestion is scheduled by
+[`.github/workflows/ingestion.yml`](./.github/workflows/ingestion.yml) at
+`03:30 UTC` daily. It invokes `POST /api/internal/ingestion/run`, which sweeps
+sources whose `check_frequency_minutes` interval is due, applies the four-level
+dedup ladder, auto-creates entities and locations, and publishes only through
+the moderation-first gate.
+
+- **Repository configuration** — interval/git: **Secret** `MAINTENANCE_API_KEY`
+  (and optionally `INTERNAL_INGESTION_API_KEY`); **Variable**
+  `MAINTENANCE_TARGET_URL`.
+- **Concurrency:** `group: ingestion-production`,
+  `cancel-in-progress: false` (one run at a time).
+- **Expected success:** the endpoint returns
+  `{"checked":n,"succeeded":n,"failed":n,"skipped":n}`.
+- **Manual single-source run:** `POST /api/internal/ingestion/run?sourceId=<uuid>`
+  with the same `x-maintenance-key` header.
+
+## Job Alerts (Daily Digest)
+
+Production digest dispatch is scheduled by
+[`.github/workflows/job-alerts.yml`](./.github/workflows/job-alerts.yml) at
+`04:00 UTC` daily (after ingestion so the digest includes that morning's new
+jobs). It invokes `POST /api/internal/job-alerts/daily`, which sweeps
+ACTIVE/DAILY alerts, matches eligible public jobs via the shared eligibility
+helper, collects matching job IDs, and claims each alert before sending to make
+concurrent/repeated runs safe.
+
+- **Repository configuration** — **Secret** `MAINTENANCE_API_KEY` (and
+  optionally `INTERNAL_JOB_ALERTS_API_KEY`); **Variable**
+  `MAINTENANCE_TARGET_URL`.
+- **Email:** requires `RESEND_API_KEY`/`EMAIL_FROM` in the deployment
+  environment (see [Password Reset / Email](#password-reset--email)); without
+  them the digest runs and reports `emailsSent: 0` (noop transport).
+- **Expected success:** the endpoint returns
+  `{"alertsProcessed":n,"sent":n,"skippedNoEmail":n,"failed":n,...}`.
+
+## Operations Requirements
+
+Pre-launch operator actions that are **not** code changes:
+
+- **Rotate the staging database credential.** A local `/.env.staging.txt`
+  containing a staging `DATABASE_URL` once existed in the working tree (Phase 8
+  Batch 1 removed it). In the platform where that credential was configured,
+  **rotate the password** so the old value is dead. Never store real
+  credentials in repository files; `.env*` files are git-ignored and
+  `/.env.staging.txt` is explicitly blocked.
+- **Configure a real email provider.** Production requires `RESEND_API_KEY` and
+  `EMAIL_FROM` from a verified domain, otherwise password-reset and
+  application/alerts emails silently no-op.
+- **Enable PITR and test a restore** before go-live (§ Database Backup & PITR).
+- **Error tracking / monitoring.** The application logs structured JSON to
+  stdout/stderr with `x-request-id` correlation. Configure platform log
+  capture, an alert on `level:"error"` events (e.g. `*_failed` events from the
+  internal endpoints), and uptime checks on `/api/health` and
+  `/api/health/ready`. A pluggable error service (Sentry/OTel) is a deliberate
+  Phase 8 deferral; `src/lib/observability/errors.ts` is the single seam.
+- **Cron alerting.** Workflows now fail loudly on any non-2xx/network error;
+  configure GitHub notifications (default branch) so a failed run pages the
+  operator.
 
 ## Vercel Readiness
 
@@ -372,11 +483,16 @@ Run these after every production deployment and after a PITR restore:
 
 **Infra & config**
 - [ ] `GET /api/health` returns `200 {"status":"ok"}`.
+- [ ] `GET /api/health/live` returns `200 {"status":"ok"}` without touching the
+      database; `GET /api/health/ready` returns `200` when the DB is reachable
+      and `503 {"status":"error"}` during a DB-down drill.
 - [ ] `APP_BASE_URL` is the real HTTPS origin and resolves; `/sitemap.xml` and
       `/robots.txt` use it (no `localhost`); page `metadata` canonical URLs use it.
 - [ ] HTTPS enforced at the edge (HTTP→HTTPS redirect), HSTS + Permissions-Policy
-      present (edge responsibility), and app-emitted CSP / X-Content-Type-Options
-      / X-Frame-Options / Referrer-Policy headers present on responses.
+      present (HSTS is emitted by the app via `next.config.ts`; the HTTP→HTTPS
+      redirect and Permissions-Policy are edge responsibilities), and app-emitted
+      CSP / X-Content-Type-Options / X-Frame-Options / Referrer-Policy / HSTS
+      headers present on responses.
 - [ ] `TRUSTED_CLIENT_IP_HEADER` (if set) reflects the real client IP and
       rate-limit headers/buckets behave per-client.
 - [ ] Log aggregation working; entries have `x-request-id` correlation IDs and
@@ -392,6 +508,13 @@ Run these after every production deployment and after a PITR restore:
 **Ingestion**
 - [ ] Job ingestion endpoints accept a request with a valid `x-api-key` and
       reject a bad/missing one with `401`.
+- [ ] `POST /api/internal/ingestion/run` with a valid `x-maintenance-key` returns
+      the JSON summary; wrong key → `401`.
+
+**Job alerts**
+- [ ] `POST /api/internal/job-alerts/daily` with a valid `x-maintenance-key`
+      returns the digest summary (no-op email counts allowed when email is
+      unconfigured); wrong key → `401`.
 
 **Maintenance**
 - [ ] `POST /api/internal/maintenance/run` with `x-maintenance-key` runs without
