@@ -28,6 +28,14 @@ export type CandidateMatchProfile = {
   preferredEmploymentTypes: string[];
   /** Normalized (lowercased, trimmed) CV skill names. */
   skills: string[];
+  /** Canonical skill IDs resolved from the candidate's CV skills. */
+  skillIds: string[];
+};
+
+/** A structured skill requirement on a job posting. */
+export type JobSkillRequirement = {
+  skillId: string;
+  isRequired: boolean;
 };
 
 /** The job-side fields scoring needs, denormalized by the DAL. */
@@ -44,6 +52,8 @@ export type JobMatchData = {
   /** Lowercased title + description + requirements + education requirements. */
   searchableText: string;
   postedAt: string | null;
+  /** Structured skill requirements (empty array = no structured skills, use text fallback). */
+  jobSkills: JobSkillRequirement[];
 };
 
 export const MATCH_FACTORS = [

@@ -150,9 +150,9 @@ export function containsSkill(text: string, skill: string): boolean {
 }
 
 /**
- * Skill overlap: scans normalized CV skills against the job text. Score is
- * capped at 1 once 3+ skills match; up to 5 matched names are surfaced for the
- * explanation.
+ * Skill overlap: for jobs with structured skill requirements, scores based on
+ * required/preferred skill matches using canonical skill IDs. For jobs without
+ * structured skills, falls back to word-boundary text matching.
  */
 export function skillsFactor(
   candidate: CandidateMatchProfile,
@@ -160,12 +160,62 @@ export function skillsFactor(
 ): MatchFactor {
   const weight = MATCH_WEIGHTS.skills;
   const detail: Record<string, string | number | string[]> = {};
-  if (candidate.skills.length === 0) {
+
+  if (candidate.skills.length === 0 && candidate.skillIds.length === 0) {
     detail.reason = "no-skills";
     detail.matchedSkills = [];
     detail.matchedCount = 0;
     return { key: "skills", weight, score: 0, detail };
   }
+
+  // Structured skill matching (when job has declared skills)
+  if (job.jobSkills.length > 0) {
+    const required = job.jobSkills.filter((js) => js.isRequired);
+    const preferred = job.jobSkills.filter((js) => !js.isRequired);
+
+    const candidateSkillIdSet = new Set(candidate.skillIds);
+    const candidateNameSet = new Set(candidate.skills);
+
+    const matchedRequired = required.filter(
+      (js) =>
+        candidateSkillIdSet.has(js.skillId) ||
+        candidateNameSet.has(js.skillId),
+    );
+    const matchedPreferred = preferred.filter(
+      (js) =>
+        candidateSkillIdSet.has(js.skillId) ||
+        candidateNameSet.has(js.skillId),
+    );
+
+    let score: number;
+    if (required.length > 0) {
+      score = matchedRequired.length / required.length;
+      if (preferred.length > 0) {
+        score = score * 0.8 + (matchedPreferred.length / preferred.length) * 0.2;
+      }
+    } else if (preferred.length > 0) {
+      score = matchedPreferred.length / preferred.length;
+    } else {
+      score = 0;
+    }
+
+    const matchedNames = [
+      ...matchedRequired.map((js) => js.skillId),
+      ...matchedPreferred.map((js) => js.skillId),
+    ].slice(0, 5);
+
+    detail.reason = required.length > 0 ? "structured-required" : "structured-preferred";
+    detail.matchedRequired = matchedRequired.length;
+    detail.totalRequired = required.length;
+    detail.matchedPreferred = matchedPreferred.length;
+    detail.totalPreferred = preferred.length;
+    detail.matchedSkills = matchedNames;
+    detail.matchedCount = matchedNames.length;
+
+    return { key: "skills", weight, score: round4(clamp01(score)), detail };
+  }
+
+  // Fallback: text-based matching (backward compatible)
   if (!job.searchableText) {
     detail.reason = "no-job-text";
     detail.matchedSkills = [];

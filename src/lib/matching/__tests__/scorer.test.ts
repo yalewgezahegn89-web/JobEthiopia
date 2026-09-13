@@ -21,6 +21,7 @@ function candidate(overrides: Partial<CandidateMatchProfile> = {}): CandidateMat
     preferredProfessionIds: [],
     preferredEmploymentTypes: [],
     skills: [],
+    skillIds: [],
     ...overrides,
   };
 }
@@ -38,6 +39,7 @@ function job(overrides: Partial<JobMatchData> = {}): JobMatchData {
     employmentType: null,
     searchableText: "accountant prepare financial statements",
     postedAt: "2026-09-01T00:00:00.000Z",
+    jobSkills: [],
     ...overrides,
   };
 }
@@ -290,5 +292,91 @@ describe("scoreJobMatch", () => {
   it("refuses to exceed 1 even if factor inputs are odd", () => {
     const match = scoreJobMatch(candidate(), job(), new Date("2026-09-10T00:00:00.000Z"));
     expect(match.total).toBeLessThanOrEqual(1 + BEFORE);
+  });
+});
+
+describe("skillsFactor with structured job skills", () => {
+  it("returns 0 when candidate has no skills", () => {
+    const factor = skillsFactor(candidate(), job({ jobSkills: [{ skillId: "s1", isRequired: true }] }));
+    expect(factor.score).toBe(0);
+    expect(factor.detail.reason).toBe("no-skills");
+  });
+
+  it("scores required skill matches proportionally", () => {
+    const c = candidate({ skillIds: ["s1", "s2"], skills: [] });
+    const j = job({
+      jobSkills: [
+        { skillId: "s1", isRequired: true },
+        { skillId: "s2", isRequired: true },
+        { skillId: "s3", isRequired: true },
+      ],
+    });
+    const factor = skillsFactor(c, j);
+    expect(factor.score).toBeCloseTo(2 / 3, 4);
+    expect(factor.detail.matchedRequired).toBe(2);
+    expect(factor.detail.totalRequired).toBe(3);
+  });
+
+  it("scores all required skills matched as 1.0", () => {
+    const c = candidate({ skillIds: ["s1", "s2", "s3"], skills: [] });
+    const j = job({
+      jobSkills: [
+        { skillId: "s1", isRequired: true },
+        { skillId: "s2", isRequired: true },
+        { skillId: "s3", isRequired: true },
+      ],
+    });
+    const factor = skillsFactor(c, j);
+    expect(factor.score).toBe(1);
+  });
+
+  it("combines required and preferred with 0.8/0.2 weighting", () => {
+    const c = candidate({ skillIds: ["s1", "s4"], skills: [] });
+    const j = job({
+      jobSkills: [
+        { skillId: "s1", isRequired: true },
+        { skillId: "s2", isRequired: true },
+        { skillId: "s4", isRequired: false },
+        { skillId: "s5", isRequired: false },
+      ],
+    });
+    const factor = skillsFactor(c, j);
+    // required: 1/2 = 0.5, preferred: 1/2 = 0.5
+    // combined: 0.5 * 0.8 + 0.5 * 0.2 = 0.4 + 0.1 = 0.5
+    expect(factor.score).toBeCloseTo(0.5, 4);
+  });
+
+  it("scores only preferred when no required skills", () => {
+    const c = candidate({ skillIds: ["s4"], skills: [] });
+    const j = job({
+      jobSkills: [
+        { skillId: "s4", isRequired: false },
+        { skillId: "s5", isRequired: false },
+      ],
+    });
+    const factor = skillsFactor(c, j);
+    expect(factor.score).toBeCloseTo(0.5, 4);
+  });
+
+  it("matches candidate name-based skills against structured job skills", () => {
+    const c = candidate({ skills: ["react", "node"], skillIds: [] });
+    const j = job({
+      jobSkills: [
+        { skillId: "react", isRequired: true },
+        { skillId: "node", isRequired: true },
+      ],
+    });
+    const factor = skillsFactor(c, j);
+    expect(factor.score).toBe(1);
+  });
+
+  it("falls back to text matching when job has no structured skills", () => {
+    const c = candidate({ skills: ["react"], skillIds: [] });
+    const j = job({
+      jobSkills: [],
+      searchableText: "react developer needed",
+    });
+    const factor = skillsFactor(c, j);
+    expect(factor.score).toBeCloseTo(1 / 3, 4);
   });
 });

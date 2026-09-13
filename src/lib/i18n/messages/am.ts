@@ -524,7 +524,15 @@ export const am = {
     reasonExperienceOpen: "ለሁሉም ደረጃዎች ክፍት",
     reasonEmployment: "ከሚመርጡት የቅጥር ዓይነት ጋር ይዛመዳል",
     reasonSkills: (n: number) => `ከክህሎቶችዎ ${n} ጋር ይዛመዳል`,
+    reasonSkillsRequired: (matched: number, total: number) => `ከ Required ${total} ክህሎቶች ${matched} ጋር ይዛመዳል`,
+    reasonSkillsPreferred: (n: number) => `ከPreferred ${n} ክህሎቶች ጋር ይዛመዳል`,
     reasonFreshness: "በቅርቡ ተለጠፈ",
+    feedbackRelevant: "ተስ茬",
+
+    feedbackNotRelevant: "ተስ茬 አይደለም",
+    feedbackHide: "ይህን ምክር ደብቅ",
+    feedbackHidden: "ከምክሮች ደብቧል",
+    feedbackThankYou: "ለግብ رائع አመሰግናለሁ",
   },
   notifications: {
     title: "ማሳወቂያዎች",

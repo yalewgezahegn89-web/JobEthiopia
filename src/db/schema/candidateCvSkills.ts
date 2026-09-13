@@ -1,5 +1,6 @@
 import { pgTable, uuid, text, timestamp, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { candidateCvs } from "./candidateCvs";
+import { skills } from "./skills";
 
 export const candidateCvSkills = pgTable(
   "candidate_cv_skills",
@@ -8,6 +9,7 @@ export const candidateCvSkills = pgTable(
     cvId: uuid("cv_id")
       .notNull()
       .references(() => candidateCvs.id, { onDelete: "cascade" }),
+    skillId: uuid("skill_id").references(() => skills.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     level: text("level"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -20,6 +22,7 @@ export const candidateCvSkills = pgTable(
   },
   (t) => [
     index("candidate_cv_skills_cv_id_idx").on(t.cvId),
+    index("candidate_cv_skills_skill_id_idx").on(t.skillId),
     uniqueIndex("candidate_cv_skills_cv_id_name_unique").on(t.cvId, t.name),
   ]
 );

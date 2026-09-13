@@ -12,12 +12,13 @@ import { analyticsEvents } from "@/db/schema/analyticsEvents";
 import { logWarn, logError } from "@/lib/observability/logger";
 import { toLocale, type Locale } from "@/lib/i18n/locale";
 
-export const MATCH_EVENTS = ["match_recommendations_viewed"] as const;
+export const MATCH_EVENTS = ["match_recommendations_viewed", "match_feedback_submitted"] as const;
 
 export type MatchEventName = (typeof MATCH_EVENTS)[number];
 
 const METADATA_KEYS: Record<MatchEventName, readonly string[]> = {
   match_recommendations_viewed: ["resultCount"],
+  match_feedback_submitted: ["feedbackType"],
 };
 
 export function isMatchEvent(value: unknown): value is MatchEventName {
@@ -44,6 +45,11 @@ export function sanitizeMatchMetadata(
     if (key === "resultCount") {
       if (typeof value === "number" && Number.isFinite(value)) {
         output[key] = Math.min(1000, Math.max(0, Math.floor(value)));
+      }
+    }
+    if (key === "feedbackType") {
+      if (typeof value === "string" && ["relevant", "not_relevant", "hidden"].includes(value)) {
+        output[key] = value;
       }
     }
   }

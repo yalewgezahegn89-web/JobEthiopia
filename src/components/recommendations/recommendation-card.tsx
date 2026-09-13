@@ -1,11 +1,13 @@
 /**
  * Recommendation card for the candidate recommendations page.
  *
- * Composes the shared `JobCard` with a match-score header and an expandable
- * "why it matches" list built from the pure factor details. Pure, server-safe;
- * no client scripts. The reasons helper is exported for direct testing.
+ * Composes the shared `JobCard` with a match-score header, an expandable
+ * "why it matches" list built from the pure factor details, and a feedback
+ * sub-component. Pure, server-safe; no client scripts except the feedback
+ * client component. The reasons helper is exported for direct testing.
  */
 import JobCard from "@/components/job-card";
+import { RecommendationFeedback } from "./recommendation-feedback";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 import type { RecommendationItem } from "@/lib/matching/dal";
 import type { MatchFactor } from "@/lib/matching/types";
@@ -57,11 +59,28 @@ export function buildRecommendationReasons(
         }
         break;
       case "skills": {
-        const matched = Array.isArray(detail.matchedSkills)
-          ? (detail.matchedSkills as string[])
-          : [];
-        if (matched.length > 0) {
-          reasons.push(t.recommendations.reasonSkills(matched.length));
+        const matchedCount = typeof detail.matchedCount === "number" ? detail.matchedCount : 0;
+        if (matchedCount === 0) break;
+
+        // Structured skill explanation (required + preferred breakdown)
+        if (
+          detail.reason === "structured-required" ||
+          detail.reason === "structured-preferred"
+        ) {
+          const totalRequired = typeof detail.totalRequired === "number" ? detail.totalRequired : 0;
+          const matchedRequired = typeof detail.matchedRequired === "number" ? detail.matchedRequired : 0;
+          const totalPreferred = typeof detail.totalPreferred === "number" ? detail.totalPreferred : 0;
+          const matchedPreferred = typeof detail.matchedPreferred === "number" ? detail.matchedPreferred : 0;
+
+          if (totalRequired > 0) {
+            reasons.push(t.recommendations.reasonSkillsRequired(matchedRequired, totalRequired));
+          }
+          if (totalPreferred > 0 && matchedPreferred > 0) {
+            reasons.push(t.recommendations.reasonSkillsPreferred(matchedPreferred));
+          }
+        } else {
+          // Fallback text-based explanation
+          reasons.push(t.recommendations.reasonSkills(matchedCount));
         }
         break;
       }
@@ -117,6 +136,9 @@ export default function RecommendationCard({
         )}
       </div>
       <JobCard job={item.job} t={t} />
+      <div className="mt-3 flex justify-end">
+        <RecommendationFeedback jobId={item.job.id} t={t} />
+      </div>
     </section>
   );
 }

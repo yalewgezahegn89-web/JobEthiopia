@@ -60,8 +60,8 @@ describe("isMatchEvent", () => {
     expect(isMatchEvent(42)).toBe(false);
   });
 
-  it("keeps the allowlist focused on the recommendation view", () => {
-    expect(MATCH_EVENTS).toEqual(["match_recommendations_viewed"]);
+  it("keeps the allowlist focused on recommendation events", () => {
+    expect(MATCH_EVENTS).toEqual(["match_recommendations_viewed", "match_feedback_submitted"]);
   });
 });
 

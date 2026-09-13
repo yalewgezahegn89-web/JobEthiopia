@@ -319,6 +319,28 @@ export function middleware(request: NextRequest) {
       }
     }
 
+    // Recommendation feedback — dedicated per-IP bucket (10 / 60s)
+    if (
+      /^\/api\/recommendations\/[0-9a-f-]+\/feedback$/i.test(targetPathname) &&
+      method === "POST"
+    ) {
+      const result = checkRateLimit(
+        buildRateLimitKey("applications", clientIp),
+        APPLICATIONS,
+      );
+      if (!result.allowed) {
+        logRejected(429, pathname, "applications");
+        return applyRequestId(
+          applyCsp(
+            rateLimited(result.retryAfterSeconds!),
+            cspHeaderName,
+            cspValue,
+          ),
+          requestId,
+        );
+      }
+    }
+
     // Bulk employer application status change — dedicated per-IP bucket
     // (5 / 60s) because a single request can fan out up to 50 candidate emails.
     if (

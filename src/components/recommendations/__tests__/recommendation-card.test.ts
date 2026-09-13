@@ -12,6 +12,10 @@ vi.mock("@/components/job-card", () => ({
   default: () => createElement("div", { "data-testid": "job-card-stub" }),
 }));
 
+vi.mock("@/components/recommendations/recommendation-feedback", () => ({
+  RecommendationFeedback: () => createElement("div", { "data-testid": "feedback-stub" }),
+}));
+
 import {
   RecommendationCard,
   buildRecommendationReasons,
@@ -86,7 +90,7 @@ describe("buildRecommendationReasons", () => {
         factor("location", 1, { reason: "exact" }),
         factor("experience", 1, { reason: "matched" }),
         factor("employmentType", 1, { reason: "matched" }),
-        factor("skills", 1, { matchedSkills: ["SQL"], reason: "matched" }),
+        factor("skills", 1, { matchedSkills: ["SQL"], matchedCount: 1, reason: "matched" }),
         factor("freshness", 1, { reason: "recent" }),
       ],
       en,
@@ -139,5 +143,58 @@ describe("RecommendationCard", () => {
       }),
     );
     expect(html.toLowerCase()).not.toContain("why");
+  });
+
+  it("renders the feedback component", () => {
+    const html = renderToStaticMarkup(
+      createElement(RecommendationCard, {
+        item: item(),
+        t: en,
+      }),
+    );
+    expect(html).toContain('data-testid="feedback-stub"');
+  });
+});
+
+describe("buildRecommendationReasons with structured skills", () => {
+  it("explains required skill matches with count and total", () => {
+    const reasons = buildRecommendationReasons(
+      [
+        factor("skills", 0.8, {
+          reason: "structured-required",
+          matchedRequired: 3,
+          totalRequired: 4,
+          matchedPreferred: 0,
+          totalPreferred: 0,
+          matchedSkills: [],
+          matchedCount: 3,
+        }),
+      ],
+      en,
+    );
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toContain("3");
+    expect(reasons[0]).toContain("4");
+    expect(reasons[0]).toContain("required");
+  });
+
+  it("explains preferred skill matches separately", () => {
+    const reasons = buildRecommendationReasons(
+      [
+        factor("skills", 0.6, {
+          reason: "structured-required",
+          matchedRequired: 2,
+          totalRequired: 2,
+          matchedPreferred: 1,
+          totalPreferred: 2,
+          matchedSkills: [],
+          matchedCount: 3,
+        }),
+      ],
+      en,
+    );
+    expect(reasons).toHaveLength(2);
+    expect(reasons[0]).toContain("required");
+    expect(reasons[1]).toContain("preferred");
   });
 });

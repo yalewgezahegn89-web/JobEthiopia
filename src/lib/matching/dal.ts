@@ -29,14 +29,17 @@ import { candidateCvSkills } from "@/db/schema/candidateCvSkills";
 import { jobAlerts } from "@/db/schema/jobAlerts";
 import { savedJobs } from "@/db/schema/savedJobs";
 import { applications } from "@/db/schema/applications";
+import { recommendationFeedback } from "@/db/schema/recommendationFeedback";
 import { buildPublicJobEligibilityConditions } from "@/lib/jobs/eligibility";
 import { formatDate, formatSalary, type PublicJobSummary } from "@/lib/jobs/public";
+import { loadJobSkillsForJobs, resolveCanonicalSkills } from "@/lib/skills/dal";
 import {
   MAX_RECOMMENDATIONS,
   MIN_RECOMMEND_SCORE,
   RECOMMENDATION_POOL_LIMIT,
   type CandidateMatchProfile,
   type JobMatchData,
+  type JobSkillRequirement,
   type MatchFactor,
 } from "./types";
 import { scoreJobMatch } from "./scorer";
@@ -70,7 +73,7 @@ function buildSearchableText(...parts: (string | null | undefined)[]): string {
 async function loadCandidateProfile(
   candidateId: string,
 ): Promise<{ profile: CandidateMatchProfile; excludedJobIds: string[] }> {
-  const [profileRow, alertRows, savedJobIds, appliedJobIds, cv] = await Promise.all([
+  const [profileRow, alertRows, savedJobIds, appliedJobIds, cv, hiddenJobRows] = await Promise.all([
     db.query.candidateProfiles.findFirst({
       where: eq(candidateProfiles.candidateId, candidateId),
       columns: { locationId: true, totalExperienceYears: true },
@@ -98,6 +101,16 @@ async function loadCandidateProfile(
       where: eq(candidateCvs.candidateId, candidateId),
       columns: { id: true },
     }),
+    db
+      .select({ jobId: recommendationFeedback.jobId })
+      .from(recommendationFeedback)
+      .where(
+        and(
+          eq(recommendationFeedback.userId, candidateId),
+          eq(recommendationFeedback.feedbackType, "hidden"),
+        ),
+      )
+      .limit(500),
   ]);
 
   const categorySet = new Set<string>();
@@ -143,18 +156,31 @@ async function loadCandidateProfile(
   }
 
   let skills: string[] = [];
+  let skillIds: string[] = [];
   if (cv) {
     const skillRows = await db
-      .select({ name: candidateCvSkills.name })
+      .select({ name: candidateCvSkills.name, skillId: candidateCvSkills.skillId })
       .from(candidateCvSkills)
       .where(eq(candidateCvSkills.cvId, cv.id));
-    skills = [
-      ...new Set(
-        skillRows
-          .map((row) => row.name.trim().toLowerCase())
-          .filter(Boolean),
-      ),
-    ];
+    const normalizedSkills = new Set<string>();
+    const canonicalIds = new Set<string>();
+    for (const row of skillRows) {
+      const normalized = row.name.trim().toLowerCase();
+      if (normalized) normalizedSkills.add(normalized);
+      if (row.skillId) canonicalIds.add(row.skillId);
+    }
+    skills = [...normalizedSkills];
+    skillIds = [...canonicalIds];
+
+    // Also resolve via taxonomy for skills without direct skillId link
+    if (skillIds.length < skills.length) {
+      const unresolved = skills.filter(() => true); // all normalized names
+      const resolved = await resolveCanonicalSkills(unresolved);
+      for (const canonical of resolved.values()) {
+        if (canonical) canonicalIds.add(canonical.id);
+      }
+      skillIds = [...canonicalIds];
+    }
   }
 
   const candidateLocationId = profileRow?.locationId ?? alertLocationId;
@@ -167,6 +193,10 @@ async function loadCandidateProfile(
     candidateLocationParentId = loc?.parentId ?? null;
   }
 
+  // Merge hidden job IDs into exclusion set
+  const hiddenJobIds = hiddenJobRows.map((row) => row.jobId);
+  const allExcluded = [...new Set([...uniquePreferenceJobIds, ...hiddenJobIds])];
+
   return {
     profile: {
       locationId: candidateLocationId,
@@ -176,10 +206,9 @@ async function loadCandidateProfile(
       preferredProfessionIds: [...professionSet],
       preferredEmploymentTypes: [...employmentTypeSet],
       skills,
+      skillIds,
     },
-    // Saved/applied job ids double as the exclusion set for ranking, so the
-    // journey rows are queried once and reused instead of read again below.
-    excludedJobIds: uniquePreferenceJobIds,
+    excludedJobIds: allExcluded,
   };
 }
 
@@ -294,6 +323,10 @@ export async function getCandidateRecommendations(
     .orderBy(desc(jobs.createdAt))
     .limit(RECOMMENDATION_POOL_LIMIT);
 
+  // Batch-load structured skills for all pool jobs (single query, no N+1)
+  const poolJobIds = pool.map((row) => row.id);
+  const jobSkillsMap = await loadJobSkillsForJobs(poolJobIds);
+
   const ranked: {
     item: Omit<RecommendationItem, "factors">;
     factors: MatchFactor[];
@@ -301,6 +334,10 @@ export async function getCandidateRecommendations(
   }[] = [];
 
   for (const row of pool) {
+    const structuredSkills: JobSkillRequirement[] = (jobSkillsMap.get(row.id) ?? []).map(
+      (js) => ({ skillId: js.skillId, isRequired: js.isRequired }),
+    );
+
     const jobData: JobMatchData = {
       id: row.id,
       title: row.title,
@@ -318,6 +355,7 @@ export async function getCandidateRecommendations(
         row.educationRequirements,
       ),
       postedAt: row.postedAt ? row.postedAt.toISOString() : null,
+      jobSkills: structuredSkills,
     };
     const match = scoreJobMatch(candidate, jobData, now);
     if (match.total < MIN_RECOMMEND_SCORE) continue;

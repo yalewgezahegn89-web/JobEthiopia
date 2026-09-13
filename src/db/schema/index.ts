@@ -49,3 +49,7 @@ export { candidateCvEducations } from "./candidateCvEducations";
 export { candidateCvSkills } from "./candidateCvSkills";
 export { candidateCvCertifications } from "./candidateCvCertifications";
 export { notifications } from "./notifications";
+export { skills } from "./skills";
+export { skillAliases } from "./skillAliases";
+export { jobSkills } from "./jobSkills";
+export { recommendationFeedback } from "./recommendationFeedback";
