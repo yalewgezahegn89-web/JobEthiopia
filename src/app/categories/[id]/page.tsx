@@ -90,15 +90,15 @@ export default async function CategoryPage({
   if (loadError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold">Category details</h1>
+        <h1 className="text-2xl font-bold">{t.publicDetail.categoryTitle}</h1>
         <p className="mt-4 text-muted">
-          We could not load this category right now. Please try again shortly.
+          {t.publicDetail.categoryLoadError}
         </p>
         <Link
           href="/categories"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Back to Categories
+          {t.publicDetail.categoryBack}
         </Link>
       </div>
     );
@@ -126,8 +126,8 @@ export default async function CategoryPage({
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
       <Breadcrumb
         items={[
-          { label: "Home", href: "/" },
-          { label: "Categories", href: "/categories" },
+          { label: t.publicDetail.categoryBreadcrumbHome, href: "/" },
+          { label: t.publicDetail.categoryBreadcrumbCategories, href: "/categories" },
           { label: category.name },
         ]}
         t={t}
@@ -150,7 +150,7 @@ export default async function CategoryPage({
             href={`/jobs?categoryId=${encodeURIComponent(category.id)}`}
             className="focus-visible:outline-2 mt-4 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            Browse all jobs in this category
+            {t.publicDetail.categoryBrowseAll}
           </Link>
         </div>
       </header>
@@ -159,27 +159,26 @@ export default async function CategoryPage({
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
-              Latest in {category.name}
+              {t.publicDetail.categoryLatestPrefix} {category.name}
             </p>
             <h2
               id="category-jobs-heading"
               className="text-xl font-semibold tracking-tight text-foreground"
             >
-              Jobs in {category.name}
+              {t.publicDetail.categoryJobsHeading(category.name)}
             </h2>
           </div>
           <Link
             href={`/jobs?categoryId=${encodeURIComponent(category.id)}`}
             className="focus-visible:outline-2 hidden shrink-0 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary sm:inline-flex"
           >
-            View all jobs
+            {t.publicDetail.categoryViewAll}
           </Link>
         </div>
 
         {jobsLoadError ? (
           <p className="mt-4 text-muted">
-            We could not load jobs in this category right now. Please try again
-            shortly.
+            {t.publicDetail.categoryJobsLoadError}
           </p>
         ) : categoryJobs.length === 0 ? (
           <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-6 py-14 text-center">
@@ -187,16 +186,16 @@ export default async function CategoryPage({
               <TagIcon className="h-7 w-7" />
             </span>
             <h3 className="mt-4 text-lg font-semibold text-foreground">
-              No jobs right now
+              {t.publicDetail.categoryNoJobs}
             </h3>
             <p className="mt-1 text-sm text-muted">
-              There are no published jobs in this category at the moment.
+              {t.publicDetail.categoryNoJobsBody}
             </p>
             <Link
               href="/jobs"
               className="focus-visible:outline-2 mt-5 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              Browse all jobs
+              {t.publicDetail.categoryBrowseJobs}
             </Link>
           </div>
         ) : (

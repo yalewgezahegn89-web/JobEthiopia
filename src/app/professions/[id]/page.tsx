@@ -91,16 +91,15 @@ export default async function ProfessionPage({
   if (loadError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold">Profession details</h1>
+        <h1 className="text-2xl font-bold">{t.publicDetail.professionTitle}</h1>
         <p className="mt-4 text-muted">
-          We could not load this profession right now. Please try again
-          shortly.
+          {t.publicDetail.professionLoadError}
         </p>
         <Link
           href="/professions"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Back to Professions
+          {t.publicDetail.professionBack}
         </Link>
       </div>
     );
@@ -140,8 +139,8 @@ export default async function ProfessionPage({
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
       <Breadcrumb
         items={[
-          { label: "Home", href: "/" },
-          { label: "Professions", href: "/professions" },
+          { label: t.publicDetail.professionBreadcrumbHome, href: "/" },
+          { label: t.publicDetail.professionBreadcrumbProfessions, href: "/professions" },
           { label: profession.name },
         ]}
         t={t}
@@ -166,14 +165,14 @@ export default async function ProfessionPage({
                 href={`/categories/${category.id}`}
                 className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 text-xs font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                Part of {category.name}
+                {t.publicDetail.professionPartOf} {category.name}
               </Link>
             )}
             <Link
               href={`/jobs?professionId=${encodeURIComponent(profession.id)}`}
               className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              Browse all jobs in this profession
+              {t.publicDetail.professionBrowseAll}
             </Link>
           </div>
         </div>
@@ -183,27 +182,26 @@ export default async function ProfessionPage({
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
-              Latest in {profession.name}
+              {t.publicDetail.professionLatestPrefix} {profession.name}
             </p>
             <h2
               id="profession-jobs-heading"
               className="text-xl font-semibold tracking-tight text-foreground"
             >
-              Jobs in {profession.name}
+              {t.publicDetail.professionJobsHeading(profession.name)}
             </h2>
           </div>
           <Link
             href={`/jobs?professionId=${encodeURIComponent(profession.id)}`}
             className="focus-visible:outline-2 hidden shrink-0 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary sm:inline-flex"
           >
-            View all jobs
+            {t.publicDetail.professionViewAll}
           </Link>
         </div>
 
         {jobsLoadError ? (
           <p className="mt-4 text-muted">
-            We could not load jobs in this profession right now. Please try
-            again shortly.
+            {t.publicDetail.professionJobsLoadError}
           </p>
         ) : professionJobs.length === 0 ? (
           <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-6 py-14 text-center">
@@ -211,16 +209,16 @@ export default async function ProfessionPage({
               <UserIcon className="h-7 w-7" />
             </span>
             <h3 className="mt-4 text-lg font-semibold text-foreground">
-              No open jobs in this profession
+              {t.publicDetail.professionNoJobs}
             </h3>
             <p className="mt-1 text-sm text-muted">
-              There are no published jobs in this profession at the moment.
+              {t.publicDetail.professionNoJobsBody}
             </p>
             <Link
               href="/jobs"
               className="focus-visible:outline-2 mt-5 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              Browse all jobs
+              {t.publicDetail.professionBrowseJobs}
             </Link>
           </div>
         ) : (

@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { updateProfileAction, type ProfileActionResult } from "@/app/profile/actions";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
 type LocationOption = {
   id: string;
@@ -17,6 +18,7 @@ type ProfileFormProps = {
   totalExperienceYears: number | null;
   education: string | null;
   locations: LocationOption[];
+  t: Dictionary;
 };
 
 const INITIAL_STATE: ProfileActionResult = { ok: false };
@@ -38,6 +40,7 @@ export function ProfileForm({
   totalExperienceYears,
   education,
   locations,
+  t,
 }: ProfileFormProps) {
   const [state, formAction, isPending] = useActionState<
     ProfileActionResult,
@@ -48,11 +51,11 @@ export function ProfileForm({
     <form action={formAction} className="space-y-6">
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wider text-primary">
-          Basic information
+          {t.profile.form.basicHeading}
         </h3>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <div>
-            <label htmlFor="profile-name" className={labelClass}>Name</label>
+            <label htmlFor="profile-name" className={labelClass}>{t.profile.form.nameLabel}</label>
             <input
               id="profile-name"
               type="text"
@@ -62,11 +65,11 @@ export function ProfileForm({
               className={readonlyClass}
             />
             <p className="mt-1 text-xs text-subtle">
-              Your name comes from your account and cannot be changed here.
+              {t.profile.form.nameHint}
             </p>
           </div>
           <div>
-            <label htmlFor="profile-email" className={labelClass}>Email</label>
+            <label htmlFor="profile-email" className={labelClass}>{t.profile.form.emailLabel}</label>
             <input
               id="profile-email"
               type="email"
@@ -76,7 +79,7 @@ export function ProfileForm({
               className={readonlyClass}
             />
             <p className="mt-1 text-xs text-subtle">
-              Your sign-in email cannot be changed here.
+              {t.profile.form.emailHint}
             </p>
           </div>
           <div>
@@ -84,14 +87,14 @@ export function ProfileForm({
               htmlFor="phone"
               className="block text-sm font-medium text-foreground"
             >
-              Phone
+              {t.profile.form.phoneLabel}
             </label>
             <input
               id="phone"
               name="phone"
               type="tel"
               defaultValue={phone ?? ""}
-              placeholder="e.g. +251 911 234 567"
+              placeholder={t.profile.form.phonePlaceholder}
               className={inputClass}
             />
             {state.fieldErrors?.phone ? (
@@ -105,7 +108,7 @@ export function ProfileForm({
               htmlFor="locationId"
               className="block text-sm font-medium text-foreground"
             >
-              Location
+              {t.profile.form.locationLabel}
             </label>
             <select
               id="locationId"
@@ -113,7 +116,7 @@ export function ProfileForm({
               defaultValue={locationId ?? ""}
               className={inputClass}
             >
-              <option value="">Select a location</option>
+              <option value="">{t.profile.form.locationPlaceholder}</option>
               {locations.map((loc) => (
                 <option key={loc.id} value={loc.id}>
                   {loc.name}
@@ -131,7 +134,7 @@ export function ProfileForm({
 
       <div className="border-t border-border-subtle pt-6">
         <h3 className="text-xs font-semibold uppercase tracking-wider text-primary">
-          Professional information
+          {t.profile.form.professionalHeading}
         </h3>
         <div className="mt-4 space-y-4">
           <div>
@@ -139,7 +142,7 @@ export function ProfileForm({
               htmlFor="professionalSummary"
               className="block text-sm font-medium text-foreground"
             >
-              Professional summary
+              {t.profile.form.summaryLabel}
             </label>
             <textarea
               id="professionalSummary"
@@ -147,7 +150,7 @@ export function ProfileForm({
               rows={4}
               defaultValue={professionalSummary ?? ""}
               maxLength={1000}
-              placeholder="A short summary of who you are and what you do."
+              placeholder={t.profile.form.summaryPlaceholder}
               className={inputClass}
             />
             {state.fieldErrors?.professionalSummary ? (
@@ -163,7 +166,7 @@ export function ProfileForm({
                 htmlFor="totalExperienceYears"
                 className="block text-sm font-medium text-foreground"
               >
-                Total experience (years)
+                {t.profile.form.experienceLabel}
               </label>
               <input
                 id="totalExperienceYears"
@@ -186,7 +189,7 @@ export function ProfileForm({
                 htmlFor="education"
                 className="block text-sm font-medium text-foreground"
               >
-                Education
+                {t.profile.form.educationLabel}
               </label>
               <input
                 id="education"
@@ -194,7 +197,7 @@ export function ProfileForm({
                 type="text"
                 defaultValue={education ?? ""}
                 maxLength={200}
-                placeholder="e.g. BSc in Computer Science"
+                placeholder={t.profile.form.educationPlaceholder}
                 className={inputClass}
               />
               {state.fieldErrors?.education ? (
@@ -214,7 +217,7 @@ export function ProfileForm({
       ) : null}
       {state.ok ? (
         <p role="status" className="text-sm font-medium text-success">
-          Profile saved successfully.
+          {t.profile.form.savedSuccess}
         </p>
       ) : null}
 
@@ -223,7 +226,7 @@ export function ProfileForm({
         disabled={isPending}
         className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? "Saving…" : "Save Profile"}
+        {isPending ? t.profile.form.saving : t.profile.form.saveCta}
       </button>
     </form>
   );

@@ -103,7 +103,7 @@ export default async function LocationsPage({
 
       <div className="mt-4 flex items-center gap-2 text-sm text-muted">
         <GlobeIcon className="h-4 w-4 text-primary" />
-        <span>Countries, regions, cities, and districts</span>
+        <span>{t.publicDetail.locationHierarchyLabel}</span>
       </div>
 
       {items.length === 0 ? (

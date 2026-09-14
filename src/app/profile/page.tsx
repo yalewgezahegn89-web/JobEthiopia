@@ -9,6 +9,7 @@ import { isStaffRole } from "@/lib/auth/roles";
 import { getCandidateProfile } from "@/lib/candidateProfile/dal";
 import { ProfileForm } from "@/components/profile/profile-form";
 import { UserIcon, ArrowRightIcon } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 import ChangePasswordForm from "./change-password/change-password-form";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,8 @@ export default async function ProfilePage() {
   if (user.role !== "CANDIDATE" || isStaffRole(user.role)) {
     redirect("/jobs");
   }
+
+  const t = await getI18n();
 
   let profile;
   let loadError = false;
@@ -68,15 +71,13 @@ export default async function ProfilePage() {
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10">
       <header>
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
-          Candidate workspace
+          {t.profile.workspaceLabel}
         </p>
         <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          My Profile
+          {t.profile.heading}
         </h1>
         <p className="mt-2 max-w-2xl text-base leading-7 text-muted">
-          Keep your details up to date so employers can learn more about you.
-          Only employers reviewing an application you submit can see this
-          information.
+          {t.profile.subtitle}
         </p>
       </header>
 
@@ -90,39 +91,39 @@ export default async function ProfilePage() {
           </p>
           <p className="flex items-center gap-1.5 truncate text-sm text-muted">
             <UserIcon className="h-4 w-4 text-subtle" />
-            {user.email ?? "No email on file"}
+            {user.email ?? t.profile.noEmail}
           </p>
         </div>
       </div>
 
       <nav
-        aria-label="Candidate shortcuts"
+        aria-label={t.profile.shortcutsLabel}
         className="mt-4 flex flex-wrap items-center gap-2 text-sm"
       >
         <Link
           href="/applications"
           className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          My Applications
+          {t.nav.myApplications}
         </Link>
         <Link
           href="/jobs"
           className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 font-semibold text-muted hover:bg-surface-raised/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Browse Jobs
+          {t.nav.jobs}
         </Link>
         <Link
           href="/saved-jobs"
           className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 font-semibold text-muted hover:bg-surface-raised/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Saved Jobs
+          {t.nav.savedJobs}
         </Link>
         <form action="/logout" method="POST">
           <button
             type="submit"
             className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1 font-semibold text-muted hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            Sign out
+            {t.profile.signOut}
           </button>
         </form>
       </nav>
@@ -134,10 +135,10 @@ export default async function ProfilePage() {
         <div className="h-1.5 w-full bg-primary" aria-hidden="true" />
         <div className="p-6">
           <h2 id="profile-heading" className="text-xl font-bold tracking-tight text-foreground">
-            Profile
+            {t.profile.profileHeading}
           </h2>
           <p className="mt-1 text-sm text-muted">
-            Basic and professional details shown to employers you apply to.
+            {t.profile.profileSubtitle}
           </p>
 
           {loadError || locationLoadError ? (
@@ -146,14 +147,13 @@ export default async function ProfilePage() {
               className="mt-6 rounded-xl border border-dashed border-border bg-surface px-6 py-10 text-center"
             >
               <p className="text-muted">
-                We could not load your profile right now. Please try again
-                shortly.
+                {t.profile.loadError}
               </p>
               <Link
                 href="/profile"
                 className="focus-visible:outline-2 mt-4 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
-                Retry
+                {t.common.retry}
               </Link>
             </div>
           ) : (
@@ -167,6 +167,7 @@ export default async function ProfilePage() {
                 totalExperienceYears={profile?.totalExperienceYears ?? null}
                 education={profile?.education ?? null}
                 locations={locationOptions}
+                t={t}
               />
             </div>
           )}
@@ -180,16 +181,16 @@ export default async function ProfilePage() {
         <div className="h-1.5 w-full bg-accent" aria-hidden="true" />
         <div className="p-6">
           <h2 id="security-heading" className="text-xl font-bold tracking-tight text-foreground">
-            Security
+            {t.profile.securityHeading}
           </h2>
           <h3 className="mt-3 text-base font-semibold tracking-tight text-foreground">
-            Change password
+            {t.profile.changePasswordHeading}
           </h3>
           <p className="mt-1 text-sm text-muted">
-            Update your password to keep your account secure.
+            {t.profile.securitySubtitle}
           </p>
           <div className="mt-4">
-            <ChangePasswordForm />
+            <ChangePasswordForm t={t} />
           </div>
         </div>
       </section>
@@ -201,10 +202,10 @@ export default async function ProfilePage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 id="account-heading" className="text-base font-semibold tracking-tight text-foreground">
-              Leaving so soon?
+              {t.profile.leavingHeading}
             </h2>
             <p className="mt-0.5 text-sm text-muted">
-              Sign out to end this session securely.
+              {t.profile.leavingSubtitle}
             </p>
           </div>
           <form action="/logout" method="POST">
@@ -212,7 +213,7 @@ export default async function ProfilePage() {
               type="submit"
               className="focus-visible:outline-2 inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-5 py-2.5 text-sm font-semibold text-muted transition-colors hover:bg-surface-raised hover:text-foreground focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              Sign out
+              {t.profile.signOut}
               <ArrowRightIcon className="h-4 w-4" />
             </button>
           </form>

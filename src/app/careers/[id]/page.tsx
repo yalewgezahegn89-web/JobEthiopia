@@ -101,15 +101,15 @@ export default async function CareerArticlePage({
   if (loadError) {
     return (
       <div className="mx-auto w-full max-w-3xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold">Career resource</h1>
+        <h1 className="text-2xl font-bold">{t.publicDetail.careerTitle}</h1>
         <p className="mt-4 text-muted">
-          We could not load this article right now. Please try again shortly.
+          {t.publicDetail.careerLoadError}
         </p>
         <Link
           href="/careers"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Back to Career Resources
+          {t.publicDetail.careerBack}
         </Link>
       </div>
     );
@@ -138,8 +138,8 @@ export default async function CareerArticlePage({
     <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:py-10">
       <Breadcrumb
         items={[
-          { label: "Home", href: "/" },
-          { label: "Career resources", href: "/careers" },
+          { label: t.publicDetail.careerBreadcrumbHome, href: "/" },
+          { label: t.publicDetail.careerBreadcrumbCareers, href: "/careers" },
           { label: article.title },
         ]}
         t={t}
@@ -162,7 +162,7 @@ export default async function CareerArticlePage({
           {article.publishedAt && (
             <p className="mt-3 inline-flex items-center gap-1.5 text-sm text-subtle">
               <CalendarIcon className="h-4 w-4" />
-              Published {article.publishedAt}
+              {t.publicDetail.careerPublishedPrefix} {article.publishedAt}
             </p>
           )}
         </header>
@@ -184,12 +184,12 @@ export default async function CareerArticlePage({
 
       {related.length > 0 && (
         <section aria-labelledby="related-heading" className="mt-10 border-t border-border pt-8">
-          <h2
-            id="related-heading"
-            className="text-lg font-semibold tracking-tight text-foreground"
-          >
-            More in {category}
-          </h2>
+            <h2
+              id="related-heading"
+              className="text-lg font-semibold tracking-tight text-foreground"
+            >
+              {t.publicDetail.careerMoreIn(category ?? "")}
+            </h2>
           <ul className="mt-4 grid gap-3 sm:grid-cols-2">
             {related.map((item) => (
               <li key={item.id}>
@@ -202,7 +202,7 @@ export default async function CareerArticlePage({
                   </h3>
                   {item.publishedAt && (
                     <p className="mt-1 text-xs text-subtle">
-                      Published {item.publishedAt}
+                      {t.publicDetail.careerPublishedPrefix} {item.publishedAt}
                     </p>
                   )}
                 </Link>
@@ -216,7 +216,7 @@ export default async function CareerArticlePage({
         href="/careers"
         className="focus-visible:outline-2 mt-10 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-6 py-3 text-base font-semibold text-foreground transition-colors hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary sm:w-auto"
       >
-        Browse all career resources
+        {t.publicDetail.careerBrowseAll}
         <ArrowRightIcon className="h-4 w-4" />
       </Link>
     </div>

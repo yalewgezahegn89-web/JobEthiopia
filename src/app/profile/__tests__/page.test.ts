@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { en } from "@/lib/i18n/messages/en";
 
 const mocks = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
@@ -26,6 +27,10 @@ vi.mock("@/lib/auth/context", () => ({
 
 vi.mock("@/lib/candidateProfile/dal", () => ({
   getCandidateProfile: (...args: unknown[]) => mocks.mockGetProfile(...args),
+}));
+
+vi.mock("@/lib/i18n/server", () => ({
+  getI18n: async () => en,
 }));
 
 vi.mock("@/db", () => ({

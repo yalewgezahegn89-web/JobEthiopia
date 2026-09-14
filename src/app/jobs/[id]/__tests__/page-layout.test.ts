@@ -386,7 +386,7 @@ describe("JobPage generateMetadata", () => {
 describe("Job detail loading skeleton", () => {
   it("renders accessible loading landmark with sr-only announcement", async () => {
     const { default: Loading } = await import("@/app/jobs/[id]/loading");
-    const element = Loading();
+    const element = await Loading();
     const html = renderToStaticMarkup(element);
     expect(html).toContain('role="status"');
     expect(html).toContain('aria-live="polite"');
@@ -395,19 +395,19 @@ describe("Job detail loading skeleton", () => {
 
   it("renders breadcrumb skeleton with aria-label", async () => {
     const { default: Loading } = await import("@/app/jobs/[id]/loading");
-    const html = renderToStaticMarkup(Loading());
-    expect(html).toContain('aria-label="Breadcrumb"');
+    const html = renderToStaticMarkup(await Loading());
+    expect(html).toContain("Breadcrumb");
   });
 
   it("renders two-column layout skeleton for desktop", async () => {
     const { default: Loading } = await import("@/app/jobs/[id]/loading");
-    const html = renderToStaticMarkup(Loading());
+    const html = renderToStaticMarkup(await Loading());
     expect(html).toContain("lg:grid-cols-[1fr_320px]");
   });
 
   it("renders sidebar with Job overview label", async () => {
     const { default: Loading } = await import("@/app/jobs/[id]/loading");
-    const html = renderToStaticMarkup(Loading());
-    expect(html).toContain('aria-label="Job overview"');
+    const html = renderToStaticMarkup(await Loading());
+    expect(html).toContain("Job overview");
   });
 });

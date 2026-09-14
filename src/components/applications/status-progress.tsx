@@ -89,7 +89,7 @@ export function ApplicationStatusProgress({
   return (
     <div className="rounded-xl border border-border bg-surface px-5 py-5">
       <p className="text-sm leading-6 text-muted">{description}</p>
-      <ol className="mt-4 flex items-start" aria-label="Application progress">
+      <ol className="mt-4 flex items-start" aria-label={t ? t("applications.status.heading") : "Application progress"}>
         {PROGRESS_STEPS.map((step, index) => {
           const isDone = index < activeIndex;
           const isCurrent = index === activeIndex;

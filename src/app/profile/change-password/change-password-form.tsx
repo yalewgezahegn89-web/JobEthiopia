@@ -3,12 +3,15 @@
 import { useActionState } from "react";
 import { changePasswordAction } from "./actions";
 import type { ChangePasswordActionState } from "./types";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
 export default function ChangePasswordForm({
   initialState: initial = {},
+  t,
 }: {
   initialState?: ChangePasswordActionState;
-} = {}) {
+  t: Dictionary;
+}) {
   const [state, formAction, isPending] = useActionState<
     ChangePasswordActionState,
     FormData
@@ -21,7 +24,7 @@ export default function ChangePasswordForm({
           htmlFor="currentPassword"
           className="block text-sm font-medium text-foreground"
         >
-          Current password
+          {t.changePassword.currentLabel}
         </label>
         <input
           id="currentPassword"
@@ -52,7 +55,7 @@ export default function ChangePasswordForm({
           htmlFor="newPassword"
           className="block text-sm font-medium text-foreground"
         >
-          New password
+          {t.changePassword.newLabel}
         </label>
         <input
           id="newPassword"
@@ -67,7 +70,7 @@ export default function ChangePasswordForm({
           className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground placeholder:text-subtle focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         <p className="mt-1.5 text-xs text-subtle">
-          Must be at least 8 characters.
+          {t.changePassword.newHint}
         </p>
         {state.fieldErrors?.newPassword ? (
           <p
@@ -85,7 +88,7 @@ export default function ChangePasswordForm({
           htmlFor="confirmPassword"
           className="block text-sm font-medium text-foreground"
         >
-          Confirm new password
+          {t.changePassword.confirmLabel}
         </label>
         <input
           id="confirmPassword"
@@ -128,7 +131,7 @@ export default function ChangePasswordForm({
         disabled={isPending}
         className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? "Changing…" : "Change password"}
+        {isPending ? t.changePassword.changing : t.changePassword.changeCta}
       </button>
     </form>
   );

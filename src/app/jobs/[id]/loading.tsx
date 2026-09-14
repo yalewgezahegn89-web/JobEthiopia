@@ -1,11 +1,14 @@
-export default function Loading() {
+import { getI18n } from "@/lib/i18n/server";
+
+export default async function Loading() {
+  const t = await getI18n();
   return (
     <div
       className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10"
       role="status"
       aria-live="polite"
     >
-      <nav aria-label="Breadcrumb" className="py-1">
+      <nav aria-label={t.loading.breadcrumbLabel} className="py-1">
         <div className="flex items-center gap-1.5 text-sm">
           <div className="h-3 w-10 animate-pulse rounded bg-surface-raised" />
           <span aria-hidden="true" className="text-subtle">/</span>
@@ -66,7 +69,7 @@ export default function Loading() {
           </section>
         </div>
 
-        <aside aria-label="Job overview" className="min-w-0 space-y-4">
+        <aside aria-label={t.loading.jobOverviewLabel} className="min-w-0 space-y-4">
           <div className="rounded-xl border border-border bg-surface p-5">
             <div className="h-4 w-32 animate-pulse rounded bg-surface-raised" />
             <div className="mt-4 h-12 w-full animate-pulse rounded-lg bg-surface-raised" />
@@ -95,7 +98,7 @@ export default function Loading() {
         </aside>
       </div>
 
-      <span className="sr-only">Loading job details…</span>
+      <span className="sr-only">{t.loading.jobDetails}</span>
     </div>
   );
 }

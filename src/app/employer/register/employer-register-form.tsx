@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { employerOnboardingAction } from "./actions";
 import type { EmployerOnboardingActionState } from "./types";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
 const initialState: EmployerOnboardingActionState = { error: null };
 
@@ -11,7 +12,7 @@ const inputClass =
 
 const labelClass = "block text-sm font-medium text-foreground";
 
-export default function EmployerRegisterForm() {
+export default function EmployerRegisterForm({ t }: { t: Dictionary }) {
   const [state, formAction, isPending] = useActionState<
     EmployerOnboardingActionState,
     FormData
@@ -21,7 +22,7 @@ export default function EmployerRegisterForm() {
     <form action={formAction} className="w-full max-w-sm space-y-4">
       <div>
         <label htmlFor="name" className={labelClass}>
-          Full name
+          {t.employerAuth.form.nameLabel}
         </label>
         <input
           id="name"
@@ -37,7 +38,7 @@ export default function EmployerRegisterForm() {
       </div>
       <div>
         <label htmlFor="email" className={labelClass}>
-          Email
+          {t.employerAuth.form.emailLabel}
         </label>
         <input
           id="email"
@@ -53,7 +54,7 @@ export default function EmployerRegisterForm() {
       </div>
       <div>
         <label htmlFor="password" className={labelClass}>
-          Password
+          {t.employerAuth.form.passwordLabel}
         </label>
         <input
           id="password"
@@ -69,7 +70,7 @@ export default function EmployerRegisterForm() {
       </div>
       <div>
         <label htmlFor="confirmPassword" className={labelClass}>
-          Confirm password
+          {t.employerAuth.form.confirmLabel}
         </label>
         <input
           id="confirmPassword"
@@ -88,7 +89,7 @@ export default function EmployerRegisterForm() {
 
       <div className="border-t border-border-subtle pt-4">
         <label htmlFor="organizationName" className={labelClass}>
-          Organization name
+          {t.employerAuth.form.organizationLabel}
         </label>
         <input
           id="organizationName"
@@ -105,7 +106,7 @@ export default function EmployerRegisterForm() {
       </div>
       <div>
         <label htmlFor="organizationSlug" className={labelClass}>
-          Organization slug
+          {t.employerAuth.form.slugLabel}
         </label>
         <input
           id="organizationSlug"
@@ -116,7 +117,7 @@ export default function EmployerRegisterForm() {
           className={inputClass}
         />
         <p className="mt-1 text-xs text-subtle">
-          Lowercase letters, numbers, and hyphens only.
+          {t.employerAuth.form.slugHint}
         </p>
         {state.fieldErrors?.organizationSlug ? (
           <p role="alert" className="mt-1.5 text-sm text-destructive">
@@ -126,7 +127,7 @@ export default function EmployerRegisterForm() {
       </div>
       <div>
         <label htmlFor="industry" className={labelClass}>
-          Industry
+          {t.employerAuth.form.industryLabel}
         </label>
         <input
           id="industry"
@@ -140,7 +141,7 @@ export default function EmployerRegisterForm() {
       </div>
       <div>
         <label htmlFor="websiteUrl" className={labelClass}>
-          Website URL
+          {t.employerAuth.form.websiteLabel}
         </label>
         <input
           id="websiteUrl"
@@ -154,7 +155,7 @@ export default function EmployerRegisterForm() {
       </div>
       <div>
         <label htmlFor="contactPhone" className={labelClass}>
-          Contact phone
+          {t.employerAuth.form.phoneLabel}
         </label>
         <input
           id="contactPhone"
@@ -180,7 +181,7 @@ export default function EmployerRegisterForm() {
         disabled={isPending}
         className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? "Submitting request…" : "Submit employer request"}
+        {isPending ? t.employerAuth.form.submitting : t.employerAuth.form.submitCta}
       </button>
     </form>
   );

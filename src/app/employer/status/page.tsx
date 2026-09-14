@@ -5,6 +5,7 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { employerOnboardingRequests } from "@/db/schema/employerOnboardingRequests";
 import { getCurrentUser } from "@/lib/auth/context";
+import { getI18n } from "@/lib/i18n/server";
 
 export const metadata: Metadata = {
   title: "Employer request status",
@@ -15,6 +16,8 @@ export default async function EmployerStatusPage() {
   if (!user) {
     redirect("/login");
   }
+
+  const t = await getI18n();
 
   let request;
   let loadError = false;
@@ -30,13 +33,12 @@ export default async function EmployerStatusPage() {
   if (loadError) {
     return (
       <section className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-16">
-        <h1 className="text-2xl font-semibold text-foreground">Request status</h1>
+        <h1 className="text-2xl font-semibold text-foreground">{t.employerAuth.statusHeading}</h1>
         <p className="max-w-md text-center text-muted">
-          We could not load your request status right now. Please try again
-          shortly.
+          {t.employerAuth.statusLoadError}
         </p>
         <Link href="/" className="text-sm text-muted underline">
-          Back to JobEthiopia
+          {t.employerAuth.statusBack}
         </Link>
       </section>
     );
@@ -45,15 +47,15 @@ export default async function EmployerStatusPage() {
   if (!request) {
     return (
       <section className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-16">
-        <h1 className="text-2xl font-semibold text-foreground">No employer request yet</h1>
+        <h1 className="text-2xl font-semibold text-foreground">{t.employerAuth.statusNoRequest}</h1>
         <p className="max-w-md text-center text-muted">
-          It looks like you have not submitted an employer onboarding request.
+          {t.employerAuth.statusNoRequestBody}
         </p>
         <Link
           href="/employer/register"
           className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Request an employer account
+          {t.employerAuth.statusRequestCta}
         </Link>
       </section>
     );
@@ -65,28 +67,26 @@ export default async function EmployerStatusPage() {
 
   return (
     <section className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-16">
-      <h1 className="text-2xl font-semibold text-foreground">Employer request status</h1>
+      <h1 className="text-2xl font-semibold text-foreground">{t.employerAuth.statusTitle}</h1>
       {request.status === "PENDING" ? (
         <>
           <p className="max-w-md text-center text-muted">
-            Your request for{" "}
-            <strong>{request.organizationName}</strong> is under review. Our
-            team will activate your employer account once it is approved.
+            {t.employerAuth.statusPendingBody(request.organizationName)}
           </p>
           <span className="rounded-full bg-warning-light px-3 py-1 text-sm font-semibold text-warning">
-            Pending review
+            {t.employerAuth.statusPendingLabel}
           </span>
         </>
       ) : (
         <>
           <p className="max-w-md text-center text-muted">
-            Your request to set up an employer account was not approved.
+            {t.employerAuth.statusRejectedBody}
           </p>
           <Link
             href="/employer/register"
             className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            Submit a new request
+            {t.employerAuth.statusNewRequestCta}
           </Link>
         </>
       )}

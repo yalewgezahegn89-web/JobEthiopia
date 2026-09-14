@@ -14,12 +14,6 @@ import { PinIcon } from "@/components/public/icons";
 
 export const dynamic = "force-dynamic";
 
-function truncateMetadata(value: string, maxLength: number): string {
-  const clean = value.replace(/\s+/g, " ").trim();
-  if (clean.length <= maxLength) return clean;
-  return clean.slice(0, maxLength - 3).trimEnd() + "...";
-}
-
 export async function generateMetadata({
   params,
 }: {
@@ -89,15 +83,15 @@ export default async function LocationPage({
   if (loadError) {
     return (
       <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
-        <h1 className="text-2xl font-bold">Location details</h1>
+        <h1 className="text-2xl font-bold">{t.publicDetail.locationTitle}</h1>
         <p className="mt-4 text-muted">
-          We could not load this location right now. Please try again shortly.
+          {t.publicDetail.locationLoadError}
         </p>
         <Link
           href="/locations"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Back to Locations
+          {t.publicDetail.locationBack}
         </Link>
       </div>
     );
@@ -140,8 +134,8 @@ export default async function LocationPage({
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
       <Breadcrumb
         items={[
-          { label: "Home", href: "/" },
-          { label: "Locations", href: "/locations" },
+          { label: t.publicDetail.locationBreadcrumbHome, href: "/" },
+          { label: t.publicDetail.locationBreadcrumbLocations, href: "/locations" },
           { label: location.name },
         ]}
         t={t}
@@ -160,7 +154,7 @@ export default async function LocationPage({
           </h1>
           {parent && (
             <p className="mt-2 text-sm text-muted">
-              Part of{" "}
+              {t.publicDetail.locationPartOf}{" "}
               <Link
                 href={`/locations/${parent.id}`}
                 className="font-semibold text-primary hover:text-primary-hover underline underline-offset-2"
@@ -174,7 +168,7 @@ export default async function LocationPage({
               href={`/jobs?locationId=${encodeURIComponent(location.id)}`}
               className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              Browse all jobs in this location
+              {t.publicDetail.locationBrowseAll}
             </Link>
           </div>
         </div>
@@ -184,7 +178,7 @@ export default async function LocationPage({
         <dl className="mt-6 inline-flex flex-wrap gap-x-8 gap-y-2 rounded-xl border border-border bg-surface px-5 py-4 text-sm">
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-subtle">
-              Latitude
+              {t.publicDetail.locationLatitude}
             </dt>
             <dd className="mt-0.5 font-medium text-foreground">
               {Number(location.latitude).toFixed(4)}
@@ -192,7 +186,7 @@ export default async function LocationPage({
           </div>
           <div>
             <dt className="text-xs font-medium uppercase tracking-wide text-subtle">
-              Longitude
+              {t.publicDetail.locationLongitude}
             </dt>
             <dd className="mt-0.5 font-medium text-foreground">
               {Number(location.longitude).toFixed(4)}
@@ -205,27 +199,26 @@ export default async function LocationPage({
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
-              Openings nearby
+              {t.publicDetail.locationOpenings}
             </p>
             <h2
               id="location-jobs-heading"
               className="text-xl font-semibold tracking-tight text-foreground"
             >
-              Jobs in {location.name}
+              {t.publicDetail.locationJobsHeading(location.name)}
             </h2>
           </div>
           <Link
             href={`/jobs?locationId=${encodeURIComponent(location.id)}`}
             className="focus-visible:outline-2 hidden shrink-0 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary sm:inline-flex"
           >
-            View all jobs
+            {t.publicDetail.locationViewAll}
           </Link>
         </div>
 
         {jobsLoadError ? (
           <p className="mt-4 text-muted">
-            We could not load jobs in this location right now. Please try again
-            shortly.
+            {t.publicDetail.locationJobsLoadError}
           </p>
         ) : locationJobs.length === 0 ? (
           <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-6 py-14 text-center">
@@ -233,16 +226,16 @@ export default async function LocationPage({
               <PinIcon className="h-7 w-7" />
             </span>
             <h3 className="mt-4 text-lg font-semibold text-foreground">
-              No open jobs in this location
+              {t.publicDetail.locationNoJobs}
             </h3>
             <p className="mt-1 text-sm text-muted">
-              There are no published jobs in this location at the moment.
+              {t.publicDetail.locationNoJobsBody}
             </p>
             <Link
               href="/jobs"
               className="focus-visible:outline-2 mt-5 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              Browse all jobs
+              {t.publicDetail.locationBrowseJobs}
             </Link>
           </div>
         ) : (

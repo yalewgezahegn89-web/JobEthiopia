@@ -1,4 +1,7 @@
-export default function Loading() {
+import { getI18n } from "@/lib/i18n/server";
+
+export default async function Loading() {
+  const t = await getI18n();
   return (
     <div
       className="mx-auto w-full max-w-7xl px-4 py-10 sm:py-12"
@@ -52,7 +55,7 @@ export default function Loading() {
         ))}
       </ul>
 
-      <span className="sr-only">Loading jobs…</span>
+      <span className="sr-only">{t.loading.jobs}</span>
     </div>
   );
 }
