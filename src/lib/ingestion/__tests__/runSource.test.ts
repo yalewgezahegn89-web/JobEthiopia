@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   mockRecordFailed: vi.fn(),
   mockIsDue: vi.fn(),
   mockGetAdapter: vi.fn(),
+  mockAutoDeactivate: vi.fn(),
 }));
 
 vi.mock("@/db", () => ({
@@ -38,6 +39,8 @@ vi.mock("@/lib/sources/health", () => ({
     mocks.mockRecordSuccess(...args),
   recordFailedCheck: (...args: unknown[]) => mocks.mockRecordFailed(...args),
   isSourceDueForCheck: (...args: unknown[]) => mocks.mockIsDue(...args),
+  autoDeactivateIfUnhealthy: (...args: unknown[]) =>
+    mocks.mockAutoDeactivate(...args),
 }));
 
 vi.mock("@/lib/sources/adapters", () => ({
@@ -77,6 +80,7 @@ beforeEach(() => {
   mocks.mockGetAdapter.mockReturnValue(successAdapter());
   mocks.mockRecordSuccess.mockResolvedValue({});
   mocks.mockRecordFailed.mockResolvedValue({});
+  mocks.mockAutoDeactivate.mockResolvedValue(false);
 });
 
 afterEach(() => {
@@ -120,6 +124,16 @@ describe("runSourceIngestion", () => {
     expect(result.reason).toBe("HTTP 503");
     expect(mocks.mockRecordFailed).toHaveBeenCalledWith(SOURCE_ID, "HTTP 503");
     expect(mocks.mockRecordSuccess).not.toHaveBeenCalled();
+  });
+
+  it("calls autoDeactivateIfUnhealthy after a failed check", async () => {
+    const adapter = successAdapter();
+    adapter.fetchJobs.mockResolvedValue({ success: false, error: "HTTP 503" });
+    mocks.mockGetAdapter.mockReturnValue(adapter);
+    mocks.mockAutoDeactivate.mockResolvedValue(true);
+
+    await runSourceIngestion(SOURCE_ID);
+    expect(mocks.mockAutoDeactivate).toHaveBeenCalledWith(SOURCE_ID);
   });
 
   it("records a successful check and returns SUCCEEDED for an empty feed", async () => {

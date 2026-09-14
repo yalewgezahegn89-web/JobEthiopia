@@ -6,15 +6,17 @@ vi.mock("../ingest", () => ({
 
 vi.mock("../../sources", () => ({
   recordSuccessfulCheck: vi.fn(),
+  recordFailedCheck: vi.fn(),
 }));
 
 import { ingestJobs } from "../batch";
 import { ingestJob } from "../ingest";
-import { recordSuccessfulCheck } from "../../sources";
+import { recordSuccessfulCheck, recordFailedCheck } from "../../sources";
 import type { RawJobInput } from "../types";
 
 const mockIngestJob = vi.mocked(ingestJob);
 const mockRecordSuccessfulCheck = vi.mocked(recordSuccessfulCheck);
+const mockRecordFailedCheck = vi.mocked(recordFailedCheck);
 
 const makeJob = (overrides: Partial<RawJobInput> = {}): RawJobInput => ({
   title: "Staff Nurse",
@@ -33,6 +35,14 @@ beforeEach(() => {
     lastError: null,
     checkFrequencyMinutes: null,
     consecutiveFailures: 0,
+  });
+  mockRecordFailedCheck.mockResolvedValue({
+    sourceId: "source-1",
+    lastSuccessfulCheck: null,
+    lastAttemptedCheck: new Date(),
+    lastError: null,
+    checkFrequencyMinutes: null,
+    consecutiveFailures: 1,
   });
 });
 
@@ -213,7 +223,7 @@ describe("ingestJobs", () => {
       expect(result.summary.created).toBe(2);
       expect(result.summary.failed).toBe(1);
       expect(result.items[1].error).toBe("DB failure");
-      expect(result.items[1].outcome).toBe("CREATED");
+      expect(result.items[1].outcome).toBe("FAILED");
       expect(result.items[1].jobId).toBeNull();
     });
 
@@ -335,9 +345,33 @@ describe("ingestJobs", () => {
       });
 
       expect(mockRecordSuccessfulCheck).toHaveBeenCalledWith("source-1");
+      expect(mockRecordFailedCheck).not.toHaveBeenCalled();
     });
 
-    it("calls recordSuccessfulCheck even when items fail", async () => {
+    it("calls recordSuccessfulCheck when some items succeed and some fail", async () => {
+      mockIngestJob
+        .mockResolvedValueOnce({
+          outcome: "CREATED",
+          jobId: "job-1",
+          jobSourceId: "js-1",
+          matchedJobId: null,
+          matchedJobSourceId: null,
+          duplicateLevel: null,
+          duplicateConfidence: null,
+          duplicateReason: null,
+        })
+        .mockRejectedValueOnce(new Error("failure"));
+
+      await ingestJobs({
+        sourceId: "source-1",
+        jobs: [makeJob(), makeJob()],
+      });
+
+      expect(mockRecordSuccessfulCheck).toHaveBeenCalledWith("source-1");
+      expect(mockRecordFailedCheck).not.toHaveBeenCalled();
+    });
+
+    it("calls recordFailedCheck when all items fail", async () => {
       mockIngestJob.mockRejectedValue(new Error("failure"));
 
       await ingestJobs({
@@ -345,7 +379,11 @@ describe("ingestJobs", () => {
         jobs: [makeJob()],
       });
 
-      expect(mockRecordSuccessfulCheck).toHaveBeenCalledWith("source-1");
+      expect(mockRecordFailedCheck).toHaveBeenCalledWith(
+        "source-1",
+        "All 1 items in batch failed to process",
+      );
+      expect(mockRecordSuccessfulCheck).not.toHaveBeenCalled();
     });
 
     it("calls recordSuccessfulCheck for empty batch", async () => {
@@ -355,6 +393,7 @@ describe("ingestJobs", () => {
       });
 
       expect(mockRecordSuccessfulCheck).toHaveBeenCalledWith("source-1");
+      expect(mockRecordFailedCheck).not.toHaveBeenCalled();
     });
   });
 });

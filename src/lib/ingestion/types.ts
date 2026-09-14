@@ -61,7 +61,8 @@ export type IngestionOutcome =
   | "DUPLICATE"
   | "UPDATED"
   | "LINKED"
-  | "POSSIBLE_DUPLICATE";
+  | "POSSIBLE_DUPLICATE"
+  | "FAILED";
 
 /**
  * Result returned by the ingestion orchestrator.

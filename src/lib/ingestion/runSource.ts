@@ -7,7 +7,9 @@ import {
   recordSuccessfulCheck,
   recordFailedCheck,
   isSourceDueForCheck,
+  autoDeactivateIfUnhealthy,
 } from "@/lib/sources/health";
+import { logInfo, logWarn } from "@/lib/observability/logger";
 
 const MAX_SOURCES_PER_RUN = 100;
 
@@ -68,6 +70,8 @@ async function recordFailedCheckSafe(
   } catch {
     // Health recording must never fail an ingestion run.
   }
+  // Auto-deactivate sources that exceed the failure threshold (best-effort).
+  await autoDeactivateIfUnhealthy(sourceId).catch(() => {});
 }
 
 async function recordSuccessfulCheckSafe(sourceId: string): Promise<void> {
@@ -145,6 +149,10 @@ export async function runSourceIngestion(
   } catch (err: unknown) {
     const message = errorMessage(err);
     await recordFailedCheckSafe(sourceId, message);
+    logWarn("ingestion_source_fetch_failed", {
+      sourceId,
+      reason: message,
+    });
     return {
       sourceId,
       status: "FAILED",
@@ -156,6 +164,10 @@ export async function runSourceIngestion(
 
   if (!fetch.success) {
     await recordFailedCheckSafe(sourceId, fetch.error);
+    logWarn("ingestion_source_fetch_failed", {
+      sourceId,
+      reason: fetch.error,
+    });
     return {
       sourceId,
       status: "FAILED",
@@ -178,6 +190,17 @@ export async function runSourceIngestion(
 
   try {
     const result = await ingestJobs({ sourceId, jobs: fetch.jobs });
+    logInfo("ingestion_source_completed", {
+      sourceId,
+      total: result.summary.total,
+      created: result.summary.created,
+      updated: result.summary.updated,
+      duplicate: result.summary.duplicate,
+      linked: result.summary.linked,
+      possibleDuplicate: result.summary.possibleDuplicate,
+      failed: result.summary.failed,
+      durationMs: elapsedMs(start),
+    });
     return {
       sourceId,
       status: "SUCCEEDED",
@@ -194,6 +217,11 @@ export async function runSourceIngestion(
   } catch (err: unknown) {
     const message = errorMessage(err);
     await recordFailedCheckSafe(sourceId, message);
+    logWarn("ingestion_source_failed", {
+      sourceId,
+      reason: message,
+      durationMs: elapsedMs(start),
+    });
     return {
       sourceId,
       status: "FAILED",
@@ -264,6 +292,13 @@ export async function runSourcesIngestion(): Promise<SourcesIngestionResult> {
       result.skipped += 1;
     }
   }
+
+  logInfo("ingestion_run_completed", {
+    checked: result.checked,
+    succeeded: result.succeeded,
+    failed: result.failed,
+    skipped: result.skipped,
+  });
 
   return result;
 }

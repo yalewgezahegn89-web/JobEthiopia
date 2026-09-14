@@ -63,8 +63,8 @@ const SALARY_PERIOD_MAP: Record<string, NormalizedSalary["salaryPeriod"]> = {
   hourly: "HOURLY",
   day: "DAILY",
   daily: "DAILY",
-  week: "MONTHLY",
-  weekly: "MONTHLY",
+  week: "OTHER",
+  weekly: "OTHER",
   month: "MONTHLY",
   monthly: "MONTHLY",
   year: "YEARLY",
@@ -193,4 +193,11 @@ export function normalizeLocation(input: string | null): string | null {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
   return result || null;
+}
+
+export function normalizeLocationName(name: string): string {
+  let result = name;
+  result = result.replace(/\s+/g, " ");
+  result = result.trim();
+  return result;
 }

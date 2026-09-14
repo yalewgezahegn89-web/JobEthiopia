@@ -4,6 +4,12 @@ import { sources } from "../../db/schema/sources";
 import type { SourceHealthStatus } from "./types";
 
 /**
+ * Threshold above which a source is automatically deactivated to prevent
+ * runaway ingestion cycles. Must be reactivated manually by an admin.
+ */
+export const AUTO_DEACTIVATE_THRESHOLD = 10;
+
+/**
  * Records a successful source check.
  *
  * **Writes** to the sources table:
@@ -179,4 +185,42 @@ export async function getSourceHealth(
     checkFrequencyMinutes: source.checkFrequencyMinutes,
     consecutiveFailures: source.consecutiveFailures,
   };
+}
+
+/**
+ * Automatically deactivates a source that has exceeded the consecutive
+ * failure threshold. This acts as a circuit breaker to prevent runaway
+ * ingestion cycles from a misconfigured or unreachable source.
+ *
+ * The source must be reactivated manually by an admin after the issue
+ * is resolved.
+ *
+ * Returns true if the source was deactivated, false if it was not.
+ * Never throws — auto-deactivation is best-effort.
+ */
+export async function autoDeactivateIfUnhealthy(
+  sourceId: string,
+): Promise<boolean> {
+  try {
+    const source = await db.query.sources.findFirst({
+      where: eq(sources.id, sourceId),
+      columns: {
+        isActive: true,
+        consecutiveFailures: true,
+      },
+    });
+
+    if (!source || !source.isActive) return false;
+
+    if (source.consecutiveFailures < AUTO_DEACTIVATE_THRESHOLD) return false;
+
+    await db
+      .update(sources)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(sources.id, sourceId));
+
+    return true;
+  } catch {
+    return false;
+  }
 }
