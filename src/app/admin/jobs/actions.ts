@@ -1,7 +1,7 @@
 "use server";
 
 /**
- * Admin job moderation server actions (Batch 51).
+ * Admin job moderation server actions (Batch 51, Batch 7 — Employer L1).
  *
  * Security order enforced in every action:
  *   1. Authenticate the session
@@ -17,10 +17,15 @@
  * client can never supply an actor id, a role, a status, or a timestamp.
  */
 import { redirect } from "next/navigation";
+import { eq } from "drizzle-orm";
 import { requireStaffAdmin } from "@/lib/auth/context";
 import { assertTrustedCsrfFromRequest, CsrfError } from "@/lib/auth/csrf";
 import { moderateJob, type ModerationAction } from "@/lib/admin/jobs";
 import { dispatchInstantAlertsForJob } from "@/lib/jobAlerts/delivery";
+import { notifyEmployerJobStatusChanged } from "@/lib/notifications/events";
+import { db } from "@/db";
+import { jobs } from "@/db/schema/jobs";
+import { organizationMembers } from "@/db/schema/organizationMembers";
 import {
   createCuratedJob,
   type CuratedJobDuplicateWarning,
@@ -98,6 +103,38 @@ export async function moderateJobAction(
       await dispatchInstantAlertsForJob(jobId);
     } catch {
       // Intentionally swallowed: publishing must not depend on alerts.
+    }
+  }
+
+  // Notify employer members about job moderation status changes
+  if (result?.ok && result.state?.toStatus) {
+    try {
+      const jobRow = await db
+        .select({
+          title: jobs.title,
+          organizationId: jobs.organizationId,
+        })
+        .from(jobs)
+        .where(eq(jobs.id, jobId))
+        .limit(1);
+
+      if (jobRow.length > 0 && jobRow[0].organizationId) {
+        const employerMembers = await db
+          .select({ userId: organizationMembers.userId })
+          .from(organizationMembers)
+          .where(eq(organizationMembers.organizationId, jobRow[0].organizationId));
+
+        for (const member of employerMembers) {
+          await notifyEmployerJobStatusChanged({
+            employerUserId: member.userId,
+            jobId,
+            jobTitle: jobRow[0].title,
+            newStatus: result.state.toStatus,
+          });
+        }
+      }
+    } catch {
+      // Employer notification failure must not affect the moderation response.
     }
   }
 

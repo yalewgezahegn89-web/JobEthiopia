@@ -6,9 +6,16 @@ import type { ClientNotification } from "./notification-list";
 type NotificationMessages = {
   typeApplicationStatusChanged: string;
   typeJobAlertMatch: string;
+  typeEmployerNewApplication: string;
+  typeEmployerApplicationWithdrawn: string;
+  typeEmployerJobStatusChanged: string;
   statusSubheading: (jobTitle: string, status: string) => string;
   alertMatchSubheading: (count: number, alertName: string) => string;
+  employerNewApplicationSubheading: (jobTitle: string, candidateName: string) => string;
+  employerApplicationWithdrawnSubheading: (jobTitle: string, candidateName: string) => string;
+  employerJobStatusSubheading: (jobTitle: string, status: string) => string;
   viewApplication: string;
+  viewJob: string;
   markRead: string;
   delete: string;
   unreadLabel: string;
@@ -48,6 +55,39 @@ function resolveNotificationDisplay(
       subheading: t.alertMatchSubheading(matchCount, alertName),
       href: item.actionUrl ?? undefined,
       linkLabel: t.viewApplication,
+    };
+  }
+
+  if (item.type === "employer_new_application") {
+    const jobTitle = String(data.jobTitle ?? "Job");
+    const candidateName = String(data.candidateName ?? "Candidate");
+    return {
+      title: t.typeEmployerNewApplication,
+      subheading: t.employerNewApplicationSubheading(jobTitle, candidateName),
+      href: item.actionUrl ?? undefined,
+      linkLabel: t.viewApplication,
+    };
+  }
+
+  if (item.type === "employer_application_withdrawn") {
+    const jobTitle = String(data.jobTitle ?? "Job");
+    const candidateName = String(data.candidateName ?? "Candidate");
+    return {
+      title: t.typeEmployerApplicationWithdrawn,
+      subheading: t.employerApplicationWithdrawnSubheading(jobTitle, candidateName),
+      href: item.actionUrl ?? undefined,
+      linkLabel: t.viewApplication,
+    };
+  }
+
+  if (item.type === "employer_job_status_changed") {
+    const jobTitle = String(data.jobTitle ?? "Job");
+    const status = String(data.status ?? "");
+    return {
+      title: t.typeEmployerJobStatusChanged,
+      subheading: t.employerJobStatusSubheading(jobTitle, status),
+      href: item.actionUrl ?? undefined,
+      linkLabel: t.viewJob,
     };
   }
 

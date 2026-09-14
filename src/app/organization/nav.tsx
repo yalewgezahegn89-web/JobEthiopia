@@ -12,6 +12,8 @@ const links = [
   { href: "/organization/jobs", label: "Jobs" },
   { href: "/organization/applications", label: "Applications" },
   { href: "/organization/team", label: "Team" },
+  { href: "/notifications", label: "Notifications" },
+  { href: "/organization/settings", label: "Settings" },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -21,7 +23,11 @@ function isActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function OrganizationNav() {
+export function OrganizationNav({
+  unreadNotificationCount = 0,
+}: {
+  unreadNotificationCount?: number;
+}) {
   const pathname = usePathname();
 
   return (
@@ -42,18 +48,25 @@ export function OrganizationNav() {
         <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto">
           {links.map((link) => {
             const active = isActive(pathname, link.href);
+            const isNotifications = link.href === "/notifications";
+            const showBadge = isNotifications && unreadNotificationCount > 0;
             return (
               <Link
                 key={link.href}
                 href={link.href}
                 aria-current={active ? "page" : undefined}
-                className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors duration-150 ${focusRing} ${
+                className={`relative shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors duration-150 ${focusRing} ${
                   active
                     ? "bg-primary-light text-primary"
                     : "text-muted hover:bg-surface-raised hover:text-foreground"
                 }`}
               >
                 {link.label}
+                {showBadge && (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-white">
+                    {unreadNotificationCount > 99 ? "99+" : unreadNotificationCount}
+                  </span>
+                )}
               </Link>
             );
           })}

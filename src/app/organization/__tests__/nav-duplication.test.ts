@@ -67,7 +67,7 @@ describe("Employer navigation (single surface)", () => {
   it("the layout is the sole renderer of OrganizationNav", () => {
     const layoutSource = readFileSync(join(ROOT, "layout.tsx"), "utf8");
     const occurrences =
-      (layoutSource.match(/<OrganizationNav\s*\/?>/g) ?? []).length;
+      (layoutSource.match(/<OrganizationNav[\s\S]*?\/?>/g) ?? []).length;
     expect(occurrences).toBe(1);
   });
 

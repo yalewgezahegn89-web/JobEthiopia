@@ -8,10 +8,12 @@ import { checkBodySize } from "@/lib/apiUtils";
 import { createApplicationSchema } from "@/lib/validations";
 import { createApplication } from "@/lib/applications/dal";
 import { dispatchApplicationSubmissionNotification } from "@/lib/email";
+import { notifyEmployerNewApplication } from "@/lib/notifications/events";
 import { db } from "@/db";
 import { applications } from "@/db/schema/applications";
 import { jobs } from "@/db/schema/jobs";
 import { organizations } from "@/db/schema/organizations";
+import { organizationMembers } from "@/db/schema/organizationMembers";
 import { users } from "@/db/schema/users";
 import { logInfo, logWarn, logError } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
@@ -107,6 +109,7 @@ export async function POST(request: Request) {
           candidateName: users.name,
           jobTitle: jobs.title,
           organizationName: organizations.name,
+          organizationId: jobs.organizationId,
         })
         .from(applications)
         .innerJoin(jobs, eq(jobs.id, applications.jobId))
@@ -123,6 +126,27 @@ export async function POST(request: Request) {
           applicationId: result.item.id,
           submittedAt: result.item.createdAt.toISOString(),
         });
+      }
+
+      // Notify all employer members of the organization about the new application
+      if (row.length > 0 && row[0].organizationId) {
+        try {
+          const employerMembers = await db
+            .select({ userId: organizationMembers.userId })
+            .from(organizationMembers)
+            .where(eq(organizationMembers.organizationId, row[0].organizationId));
+
+          for (const member of employerMembers) {
+            await notifyEmployerNewApplication({
+              employerUserId: member.userId,
+              applicationId: result.item.id,
+              jobTitle: row[0].jobTitle,
+              candidateName: row[0].candidateName ?? "Applicant",
+            });
+          }
+        } catch {
+          // Employer notification failure must not affect the 201 response.
+        }
       }
     } catch {
       // Confirmation email failure must not affect the 201 response.

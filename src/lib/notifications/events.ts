@@ -1,5 +1,5 @@
 /**
- * Notification event helpers (Batch 4 — Notifications Inbox).
+ * Notification event helpers (Batch 4 — Notifications Inbox, Batch 7 — Employer L1).
  *
  * Each function creates an in-app notification for a specific event.
  * All functions are best-effort and never throw — consistent with
@@ -65,5 +65,92 @@ export async function notifyJobAlertMatch(
       matchCount: input.matchCount,
     },
     actionUrl: "/saved-jobs",
+  });
+}
+
+// ─── Employer notification events (Batch 7) ───────────────────────────────
+
+export type EmployerNewApplicationNotification = {
+  employerUserId: string;
+  applicationId: string;
+  jobTitle: string;
+  candidateName: string;
+};
+
+/**
+ * Creates an in-app notification for an employer when a new application is
+ * received for one of their jobs.
+ */
+export async function notifyEmployerNewApplication(
+  input: EmployerNewApplicationNotification,
+): Promise<void> {
+  await createNotification({
+    userId: input.employerUserId,
+    type: "employer_new_application",
+    data: {
+      applicationId: input.applicationId,
+      jobTitle: input.jobTitle,
+      candidateName: input.candidateName,
+    },
+    actionUrl: `/organization/applications/${input.applicationId}`,
+  });
+}
+
+export type EmployerApplicationWithdrawnNotification = {
+  employerUserId: string;
+  applicationId: string;
+  jobTitle: string;
+  candidateName: string;
+};
+
+/**
+ * Creates an in-app notification for an employer when a candidate withdraws
+ * their application.
+ */
+export async function notifyEmployerApplicationWithdrawn(
+  input: EmployerApplicationWithdrawnNotification,
+): Promise<void> {
+  await createNotification({
+    userId: input.employerUserId,
+    type: "employer_application_withdrawn",
+    data: {
+      applicationId: input.applicationId,
+      jobTitle: input.jobTitle,
+      candidateName: input.candidateName,
+    },
+    actionUrl: `/organization/applications/${input.applicationId}`,
+  });
+}
+
+export type EmployerJobStatusNotification = {
+  employerUserId: string;
+  jobId: string;
+  jobTitle: string;
+  newStatus: string;
+};
+
+/**
+ * Creates an in-app notification for an employer when a job's moderation
+ * status changes (approved, rejected, etc.).
+ */
+export async function notifyEmployerJobStatusChanged(
+  input: EmployerJobStatusNotification,
+): Promise<void> {
+  const NOTIFYABLE_STATUSES = new Set([
+    "PUBLISHED",
+    "REJECTED",
+  ]);
+
+  if (!NOTIFYABLE_STATUSES.has(input.newStatus)) return;
+
+  await createNotification({
+    userId: input.employerUserId,
+    type: "employer_job_status_changed",
+    data: {
+      jobId: input.jobId,
+      jobTitle: input.jobTitle,
+      status: input.newStatus,
+    },
+    actionUrl: `/organization/jobs/${input.jobId}`,
   });
 }

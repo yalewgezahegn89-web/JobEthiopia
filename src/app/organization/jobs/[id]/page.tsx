@@ -1,6 +1,9 @@
 import { cookies } from "next/headers";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { eq, sql } from "drizzle-orm";
+import { db } from "@/db";
+import { applications } from "@/db/schema/applications";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 import { verifySession } from "@/lib/auth/session";
 import { getEmployerJob } from "@/lib/employer/jobs";
@@ -13,6 +16,7 @@ import {
   EditIcon,
   PinIcon,
   CalendarIcon,
+  UserIcon,
 } from "@/components/public/icons";
 import { getI18n } from "@/lib/i18n/server";
 
@@ -101,6 +105,28 @@ export default async function EmployerJobDetailPage({
     label: job.status.replace("_", " "),
     variant: "default" as const,
   };
+
+  // Fetch application counts for this job
+  let appCounts = { total: 0, SUBMITTED: 0, REVIEWING: 0, SHORTLISTED: 0, REJECTED: 0 };
+  try {
+    const rows = await db
+      .select({
+        status: applications.status,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(applications)
+      .where(eq(applications.jobId, id))
+      .groupBy(applications.status);
+
+    for (const row of rows) {
+      const status = row.status as keyof typeof appCounts;
+      if (status === "total" || !(status in appCounts)) continue;
+      appCounts[status] = row.count;
+      appCounts.total += row.count;
+    }
+  } catch {
+    // Application count fetch failure is non-critical
+  }
 
   const metadata: { label: string; value: string | null; icon?: React.ReactNode }[] = [
     { label: "Organization", value: job.organizationName, icon: <BuildingIcon className="h-4 w-4" /> },
@@ -192,6 +218,54 @@ export default async function EmployerJobDetailPage({
               </Link>
             )}
           </div>
+
+          {appCounts.total > 0 && (
+            <div className="mt-5 rounded-lg border border-border bg-surface-raised p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserIcon className="h-5 w-5 text-primary" />
+                  <h3 className="text-sm font-semibold text-foreground">
+                    Applications
+                  </h3>
+                </div>
+                <Link
+                  href={`/organization/applications?jobId=${job.id}`}
+                  className="focus-visible:outline-2 text-sm font-semibold text-primary hover:underline focus-visible:outline-offset-2 focus-visible:outline-primary"
+                >
+                  View all
+                </Link>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-3">
+                {appCounts.SUBMITTED > 0 && (
+                  <Link
+                    href={`/organization/applications?jobId=${job.id}&status=SUBMITTED`}
+                    className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 text-xs font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    {appCounts.SUBMITTED} to review
+                  </Link>
+                )}
+                {appCounts.REVIEWING > 0 && (
+                  <Link
+                    href={`/organization/applications?jobId=${job.id}&status=REVIEWING`}
+                    className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-warning-light px-3 py-1 text-xs font-semibold text-warning hover:bg-warning-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    {appCounts.REVIEWING} in review
+                  </Link>
+                )}
+                {appCounts.SHORTLISTED > 0 && (
+                  <Link
+                    href={`/organization/applications?jobId=${job.id}&status=SHORTLISTED`}
+                    className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-success-light px-3 py-1 text-xs font-semibold text-success hover:bg-success-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  >
+                    {appCounts.SHORTLISTED} shortlisted
+                  </Link>
+                )}
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
+                  {appCounts.total} total
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </header>
 

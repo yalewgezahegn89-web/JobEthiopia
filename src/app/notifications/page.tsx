@@ -40,7 +40,11 @@ export default async function NotificationsPage({
 
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.role !== "CANDIDATE") redirect("/jobs");
+  if (user.role !== "CANDIDATE" && user.role !== "ORGANIZATION_ADMIN") {
+    redirect("/jobs");
+  }
+
+  const isEmployer = user.role === "ORGANIZATION_ADMIN";
 
   const page = toPositiveInteger(firstValue(params.page), 1);
 
@@ -75,7 +79,7 @@ export default async function NotificationsPage({
 
       <header className="mt-4 max-w-3xl">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
-          Candidate workspace
+          {isEmployer ? "Employer workspace" : "Candidate workspace"}
         </p>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -91,18 +95,37 @@ export default async function NotificationsPage({
       </header>
 
       <div className="mt-5 inline-flex flex-wrap items-center gap-2 text-sm">
-        <Link
-          href="/jobs"
-          className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        >
-          Browse jobs
-        </Link>
-        <Link
-          href="/applications"
-          className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 font-semibold text-muted hover:bg-surface-raised/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
-        >
-          My Applications
-        </Link>
+        {isEmployer ? (
+          <>
+            <Link
+              href="/organization/jobs"
+              className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              View Jobs
+            </Link>
+            <Link
+              href="/organization/applications?status=SUBMITTED"
+              className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 font-semibold text-muted hover:bg-surface-raised/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Review Applications
+            </Link>
+          </>
+        ) : (
+          <>
+            <Link
+              href="/jobs"
+              className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              Browse jobs
+            </Link>
+            <Link
+              href="/applications"
+              className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 font-semibold text-muted hover:bg-surface-raised/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
+            >
+              My Applications
+            </Link>
+          </>
+        )}
       </div>
 
       {loadError ? (
@@ -132,10 +155,10 @@ export default async function NotificationsPage({
             {t.notifications.emptyBody}
           </p>
           <Link
-            href="/jobs"
+            href={isEmployer ? "/organization/jobs" : "/jobs"}
             className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            Browse jobs
+            {isEmployer ? "View Jobs" : "Browse jobs"}
           </Link>
         </div>
       ) : (
