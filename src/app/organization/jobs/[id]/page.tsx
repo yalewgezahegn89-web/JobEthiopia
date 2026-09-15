@@ -107,7 +107,7 @@ export default async function EmployerJobDetailPage({
   };
 
   // Fetch application counts for this job
-  let appCounts = { total: 0, SUBMITTED: 0, REVIEWING: 0, SHORTLISTED: 0, REJECTED: 0 };
+  const appCounts = { total: 0, SUBMITTED: 0, REVIEWING: 0, SHORTLISTED: 0, REJECTED: 0 };
   try {
     const rows = await db
       .select({
