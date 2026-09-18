@@ -12,7 +12,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
 import { recommendationFeedback } from "@/db/schema/recommendationFeedback";
-import { getCurrentUser } from "@/lib/auth/context";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { verifySession } from "@/lib/auth/session";
 import { trackMatchEvent } from "@/lib/analytics/matchingEvents";

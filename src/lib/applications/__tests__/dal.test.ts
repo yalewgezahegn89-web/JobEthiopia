@@ -19,22 +19,6 @@ function makeUniqueError() {
   return err;
 }
 
-function insertReturning(isAudit: boolean) {
-  return () => {
-    const called = isAudit;
-    if (called) {
-      return { values: () => ({}) };
-    }
-    return {
-      values: () => ({
-        returning: () => [
-          { id: "app-1", status: "SUBMITTED", createdAt: new Date("2026-01-01T00:00:00.000Z") },
-        ],
-      }),
-    };
-  };
-}
-
 vi.mock("@/db", () => {
   const tx = {
     query: {

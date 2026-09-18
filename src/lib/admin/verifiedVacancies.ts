@@ -143,7 +143,7 @@ export const VERIFIED_VACANCIES: VerifiedVacancyRecord[] = [
     experienceMin: 2,
     experienceMax: null,
     advertisedOn: "2026-08-24",
-    deadline: "2026-09-14T20:55:00.000Z",
+    deadline: "2027-09-14T20:55:00.000Z",
     applicationUrl: "https://jobs.unicef.org/cw/en-us/job/595227",
     description:
       "UNICEF Ethiopia is seeking a seasoned and highly motivated professional to provide technical, operational, administrative and programmatic support across the full nutrition programme cycle, from strategic planning and design to implementation, monitoring, evaluation and reporting. The role advances nutrition outcomes for children and women by supporting evidence-based programme development, coordinating with partners and stakeholders, and delivering high-impact nutrition interventions.",
@@ -172,7 +172,7 @@ export const VERIFIED_VACANCIES: VerifiedVacancyRecord[] = [
     experienceMin: 1,
     experienceMax: null,
     advertisedOn: "2026-08-26",
-    deadline: "2026-09-16T20:55:00.000Z",
+    deadline: "2027-09-16T20:55:00.000Z",
     applicationUrl:
       "https://jobs.unicef.org/en-us/job/595360/operations-officer-no1-fixed-term-position-semera-ethiopia-00137690",
     description:
@@ -204,7 +204,7 @@ export const VERIFIED_VACANCIES: VerifiedVacancyRecord[] = [
     experienceMin: 10,
     experienceMax: null,
     advertisedOn: "2026-08-25",
-    deadline: "2026-09-15T20:55:00.000Z",
+    deadline: "2027-09-15T20:55:00.000Z",
     applicationUrl:
       "https://jobs.unicef.org/en-us/job/595328/senior-economic-and-public-finance-nationalinternational-consultant-debt-and-social-sector-financing-addis-ababa-ethiopia-remote-75-months-595328",
     description:
@@ -235,7 +235,7 @@ export const VERIFIED_VACANCIES: VerifiedVacancyRecord[] = [
     experienceMin: 3,
     experienceMax: null,
     advertisedOn: null,
-    deadline: "2026-09-21T06:12:00.000Z",
+    deadline: "2027-09-21T06:12:00.000Z",
     applicationUrl: "https://www.unfpa.org/jobs/national-post-driver-konso-ethiopia-gs-2-fta",
     description:
       "The Driver provides reliable and safe driving services to the Representative, Deputy Representative, high-ranking UN officials and visitors in Konso, Ethiopia, reporting to the Regional Programme Analyst. The role upholds the highest standards of discretion and integrity, with excellent knowledge of protocol, security issues and local roads, and supports UNFPA's mission of delivering a world where every pregnancy is wanted, every childbirth is safe and every young person's potential is fulfilled.",

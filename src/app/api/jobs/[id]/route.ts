@@ -13,7 +13,7 @@ import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
 import { isPgUniqueViolation } from "@/lib/pgErrors";
-import { isJobStale, DEFAULT_STALE_MAX_AGE_DAYS } from "@/lib/jobs/public";
+import { isJobStale } from "@/lib/jobs/public";
 import { validateJobForPublish } from "@/lib/admin/jobs";
 import { trackDiscoveryEvent } from "@/lib/analytics/events";
 

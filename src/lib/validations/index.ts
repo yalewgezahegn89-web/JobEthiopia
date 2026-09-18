@@ -17,7 +17,6 @@ const EmploymentType = z.enum([
 ]);
 const SalaryPeriod = z.enum(["HOURLY", "DAILY", "MONTHLY", "YEARLY", "OTHER"]);
 const JobStatus = z.enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED", "EXPIRED", "REMOVED"]);
-const VerificationStatus = z.enum(["PENDING", "VERIFIED", "NEEDS_REVIEW", "INVALID"]);
 const ArticleStatus = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]);
 
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
