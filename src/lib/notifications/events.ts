@@ -154,3 +154,39 @@ export async function notifyEmployerJobStatusChanged(
     actionUrl: `/organization/jobs/${input.jobId}`,
   });
 }
+
+export type EmployerOnboardingApprovalNotification = {
+  userId: string;
+  organizationName: string;
+};
+
+/**
+ * Creates an in-app notification when a staff member approves an employer
+ * onboarding request. Points the new employer at their workspace.
+ */
+export async function notifyEmployerOnboardingApproved(
+  input: EmployerOnboardingApprovalNotification,
+): Promise<void> {
+  await createNotification({
+    userId: input.userId,
+    type: "employer_onboarding_approved",
+    data: { organizationName: input.organizationName },
+    actionUrl: "/organization",
+  });
+}
+
+/**
+ * Creates an in-app notification when a staff member rejects an employer
+ * onboarding request. Points the applicant back at their request status page
+ * where rejection feedback and the re-submission form live.
+ */
+export async function notifyEmployerOnboardingRejected(
+  input: EmployerOnboardingApprovalNotification,
+): Promise<void> {
+  await createNotification({
+    userId: input.userId,
+    type: "employer_onboarding_rejected",
+    data: { organizationName: input.organizationName },
+    actionUrl: "/employer/status",
+  });
+}

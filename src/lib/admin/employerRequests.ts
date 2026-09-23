@@ -21,6 +21,10 @@ import { organizations } from "@/db/schema/organizations";
 import { organizationMembers } from "@/db/schema/organizationMembers";
 import { auditLog } from "@/db/schema/auditLog";
 import { employerOnboardingRequests } from "@/db/schema/employerOnboardingRequests";
+import {
+  notifyEmployerOnboardingApproved,
+  notifyEmployerOnboardingRejected,
+} from "@/lib/notifications/events";
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -201,6 +205,9 @@ export async function approveEmployerOnboarding(
   }
 
   try {
+    let approvalNotify: { userId: string; organizationName: string } | null =
+      null;
+
     const result = await db.transaction(async (tx) => {
       const request = await tx.query.employerOnboardingRequests.findFirst({
         where: eq(employerOnboardingRequests.id, requestId),
@@ -218,6 +225,10 @@ export async function approveEmployerOnboarding(
         },
       });
       if (!request) return { ok: false as const, code: "NOT_FOUND" as const };
+      approvalNotify = {
+        userId: request.userId,
+        organizationName: request.organizationName,
+      };
       if (request.status !== "PENDING") {
         return { ok: false as const, code: "INVALID_STATE" as const };
       }
@@ -305,6 +316,15 @@ export async function approveEmployerOnboarding(
       return { ok: true as const, organizationId: org.id };
     });
 
+    if (result.ok && approvalNotify) {
+      try {
+        await notifyEmployerOnboardingApproved(approvalNotify);
+      } catch {
+        // best-effort, never throw: a notification failure must not
+        // surface as an approval error.
+      }
+    }
+
     return result;
   } catch {
     return { ok: false, code: "ERROR" };
@@ -330,8 +350,23 @@ export async function rejectEmployerOnboarding(
   }
 
   try {
+    let rejectionNotify: { userId: string; organizationName: string } | null =
+      null;
+
     const result = await db.transaction(async (tx) => {
       const now = new Date();
+
+      const request = await tx.query.employerOnboardingRequests.findFirst({
+        where: eq(employerOnboardingRequests.id, requestId),
+        columns: { id: true, userId: true, organizationName: true },
+      });
+      if (request) {
+        rejectionNotify = {
+          userId: request.userId,
+          organizationName: request.organizationName,
+        };
+      }
+
       const [claim] = await tx
         .update(employerOnboardingRequests)
         .set({
@@ -368,6 +403,15 @@ export async function rejectEmployerOnboarding(
 
       return { ok: true as const };
     });
+
+    if (result.ok && rejectionNotify) {
+      try {
+        await notifyEmployerOnboardingRejected(rejectionNotify);
+      } catch {
+        // best-effort, never throw: a notification failure must not
+        // surface as a rejection error.
+      }
+    }
 
     return result;
   } catch {

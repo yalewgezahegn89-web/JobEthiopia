@@ -57,6 +57,17 @@ export const om = {
     mobileNavLabel: "Baqqii moobaayilaa",
     navMenuLabel: "Tarree baqqii",
   },
+  employerNav: {
+    workspaceLabel: "Naannoo abbootii hojii",
+    dashboardHomeLabel: "Fuula durii abbootii hojii",
+    dashboard: "Daashboordii",
+    jobs: "Hojiilee",
+    applications: "Iyyannoo",
+    team: "Garee",
+    notifications: "Beeksisa",
+    settings: "Qindeessituu",
+    logout: "Ba'i",
+  },
   language: {
     label: "Afaan",
     switchTo: (code: string, name: string) => `Afaan gara ${name} jijjiiri`,
@@ -610,6 +621,11 @@ cv: {
     employerNewApplicationSubheading: (jobTitle: string, candidateName: string) => `${candidateName} "${jobTitle}" irratti iyyannoo kenne.`,
     employerApplicationWithdrawnSubheading: (jobTitle: string, candidateName: string) => `${candidateName} "${jobTitle}" irratti iyyannoon isaa haqe.`,
     employerJobStatusSubheading: (jobTitle: string, status: string) => `"${jobTitle}" hojii kee amma ${status} dha.`,
+    typeEmployerOnboardingApproved: "Barbaadsi abbootii hojii fudhatame",
+    typeEmployerOnboardingRejected: "Barbaadsi abbootii hojii didame",
+    employerOnboardingApprovedSubheading: (organizationName: string) => `Herrega abbootii hojii kee "${organizationName}" amma soo'uu dha.`,
+    employerOnboardingRejectedSubheading: (organizationName: string) => `Barbaadsi abbootii hojii kee "${organizationName}" hin fudhatamne.`,
+    viewWorkspace: "Iddoo hojii bani",
   },
   empty: {
     defaultHeading: "Amma waan mul'atu hin jiru",
@@ -765,6 +781,17 @@ cv: {
     statusPendingLabel: "Madaallii keessa jira",
     statusRejectedBody: "Herrega abbootii hojii erguu kee hin fedhii.",
     statusNewRequestCta: "Barbaadsi haaraa ergi",
+    statusRejectedReasonLabel: "Yaada madaallii",
+    resubmitHeading: "Barbaadsi fooyyaa'e ergi",
+    resubmitBody:
+      "Yaada armaan gadiitii bilchisiitii amma deebisitii ergi. Gareen keenya barbaadsii fooyyaa'e kee madaala.",
+    resubmitSubmitCta: "Barbaadsii amma deebisitii ergi",
+    resubmitErrorDuplicate:
+      "Slug dhaabbataa kana fayyadamaa jira. Maaloo kan biraa filadhu.",
+    resubmitErrorNotEligible:
+      "Barbaadsi kee amma deebisitii erguuf mijataa miti. Maaloo itti deebii yaali.",
+    resubmitErrorNeutral:
+      "Barbaadsii fooyyaa'e erguun hin danda'amne. Maaloo itti deebii yaali.",
     form: {
       nameLabel: "Maqaa guutuu",
       emailLabel: "Email",

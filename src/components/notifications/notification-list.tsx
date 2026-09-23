@@ -19,13 +19,18 @@ type NotificationMessages = {
   typeEmployerNewApplication: string;
   typeEmployerApplicationWithdrawn: string;
   typeEmployerJobStatusChanged: string;
+  typeEmployerOnboardingApproved: string;
+  typeEmployerOnboardingRejected: string;
   statusSubheading: (jobTitle: string, status: string) => string;
   alertMatchSubheading: (count: number, alertName: string) => string;
   employerNewApplicationSubheading: (jobTitle: string, candidateName: string) => string;
   employerApplicationWithdrawnSubheading: (jobTitle: string, candidateName: string) => string;
   employerJobStatusSubheading: (jobTitle: string, status: string) => string;
+  employerOnboardingApprovedSubheading: (organizationName: string) => string;
+  employerOnboardingRejectedSubheading: (organizationName: string) => string;
   viewApplication: string;
   viewJob: string;
+  viewWorkspace: string;
   markRead: string;
   delete: string;
   unreadLabel: string;

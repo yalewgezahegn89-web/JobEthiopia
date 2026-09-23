@@ -57,6 +57,17 @@ export const en = {
     mobileNavLabel: "Mobile navigation",
     navMenuLabel: "Navigation menu",
   },
+  employerNav: {
+    workspaceLabel: "Employer workspace",
+    dashboardHomeLabel: "Employer dashboard home",
+    dashboard: "Dashboard",
+    jobs: "Jobs",
+    applications: "Applications",
+    team: "Team",
+    notifications: "Notifications",
+    settings: "Settings",
+    logout: "Logout",
+  },
   language: {
     label: "Language",
     switchTo: (code: string, name: string) => `Switch language to ${name}`,
@@ -616,6 +627,11 @@ export const en = {
     employerNewApplicationSubheading: (jobTitle: string, candidateName: string) => `${candidateName} applied for "${jobTitle}".`,
     employerApplicationWithdrawnSubheading: (jobTitle: string, candidateName: string) => `${candidateName} withdrew their application for "${jobTitle}".`,
     employerJobStatusSubheading: (jobTitle: string, status: string) => `Your job "${jobTitle}" is now ${status.toLowerCase()}.`,
+    typeEmployerOnboardingApproved: "Employer request approved",
+    typeEmployerOnboardingRejected: "Employer request rejected",
+    employerOnboardingApprovedSubheading: (organizationName: string) => `Your employer account for "${organizationName}" is now active.`,
+    employerOnboardingRejectedSubheading: (organizationName: string) => `Your employer request for "${organizationName}" was not approved.`,
+    viewWorkspace: "Open workspace",
   },
   empty: {
     defaultHeading: "Nothing to show here yet",
@@ -777,6 +793,17 @@ export const en = {
     statusRejectedBody:
       "Your request to set up an employer account was not approved.",
     statusNewRequestCta: "Submit a new request",
+    statusRejectedReasonLabel: "Review feedback",
+    resubmitHeading: "Submit a revised request",
+    resubmitBody:
+      "Address the feedback below and resubmit. Our team will review your revised request.",
+    resubmitSubmitCta: "Resubmit request",
+    resubmitErrorDuplicate:
+      "That organization slug is already in use. Please choose another.",
+    resubmitErrorNotEligible:
+      "Your current request is not eligible for resubmission. Please try again.",
+    resubmitErrorNeutral:
+      "Unable to submit your revised request. Please try again.",
     form: {
       nameLabel: "Full name",
       emailLabel: "Email",

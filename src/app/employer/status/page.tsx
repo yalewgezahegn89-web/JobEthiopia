@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { employerOnboardingRequests } from "@/db/schema/employerOnboardingRequests";
 import { getCurrentUser } from "@/lib/auth/context";
 import { getI18n } from "@/lib/i18n/server";
+import { EmployerResubmitForm } from "./resubmit-form";
 
 export const metadata: Metadata = {
   title: "Employer request status",
@@ -82,12 +83,29 @@ export default async function EmployerStatusPage() {
           <p className="max-w-md text-center text-muted">
             {t.employerAuth.statusRejectedBody}
           </p>
-          <Link
-            href="/employer/register"
-            className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-          >
-            {t.employerAuth.statusNewRequestCta}
-          </Link>
+
+          {request.reviewNotes ? (
+            <div className="w-full max-w-md rounded-xl border border-border bg-surface p-5 text-left">
+              <h2 className="text-sm font-semibold text-foreground">
+                {t.employerAuth.statusRejectedReasonLabel}
+              </h2>
+              <p className="mt-1.5 text-sm leading-6 text-muted">
+                {request.reviewNotes}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="w-full max-w-md">
+            <h2 className="text-center text-base font-semibold tracking-tight text-foreground">
+              {t.employerAuth.resubmitHeading}
+            </h2>
+            <p className="mt-1 text-center text-sm text-muted">
+              {t.employerAuth.resubmitBody}
+            </p>
+            <div className="mt-4 flex justify-center">
+              <EmployerResubmitForm t={t} />
+            </div>
+          </div>
         </>
       )}
     </section>

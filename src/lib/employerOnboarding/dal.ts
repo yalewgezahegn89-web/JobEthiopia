@@ -5,7 +5,7 @@ import { employerOnboardingRequests } from "@/db/schema/employerOnboardingReques
 import { hashPassword } from "@/lib/auth/password";
 import { normalizeEmail } from "@/lib/auth/login";
 import { isPgUniqueViolation } from "@/lib/pgErrors";
-import { employerOnboardingSchema } from "./schema";
+import { employerOnboardingSchema, employerOnboardingResubmitSchema } from "./schema";
 
 /**
  * Employer self-service onboarding request DAL (Batch 97).
@@ -92,6 +92,95 @@ export async function submitEmployerOnboarding(
         userId: insertedUser.id,
         requestId: insertedRequest.id,
       };
+    });
+
+    return result;
+  } catch (err) {
+    if (isDuplicateError(err)) return { ok: false, code: "duplicate" };
+    return { ok: false, code: "error" };
+  }
+}
+
+const USER_UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export type ResubmitEmployerOnboardingResult =
+  | { ok: true; requestId: string }
+  | { ok: false; code: "invalid_input" | "not_eligible" | "duplicate" | "error" };
+
+/**
+ * Re-submits an employer onboarding request after a rejection (Phase 11).
+ *
+ * The existing user account is reused unchanged — no user insert, no password,
+ * no role change. Nothing can be promoted or invented client-side. Runs as a
+ * single transaction:
+ *   1. reads the user's LATEST request (createdAt desc)
+ *   2. only a REJECTED request may be resubmitted (PENDING/APPROVED resolve
+ *      to "not_eligible", so an already-pending or approved employer cannot
+ *      short-circuit the review queue)
+ *   3. inserts a fresh PENDING request row for the same userId
+ *   4. writes the EMPLOYER_ONBOARDING_REQUESTED audit event (PII-safe metadata)
+ *
+ * The database unique index on organization_slug is the concurrency guard for
+ * slug reuse; a unique violation rolls back the transaction and maps to an
+ * explicit, stable "duplicate" result.
+ */
+export async function resubmitEmployerOnboarding(
+  userId: string,
+  rawInput: unknown,
+): Promise<ResubmitEmployerOnboardingResult> {
+  if (!USER_UUID_REGEX.test(userId)) {
+    return { ok: false, code: "invalid_input" };
+  }
+
+  const parsed = employerOnboardingResubmitSchema.safeParse(rawInput);
+  if (!parsed.success) return { ok: false, code: "invalid_input" };
+
+  try {
+    const result = await db.transaction(async (tx) => {
+      const latest = await tx.query.employerOnboardingRequests.findFirst({
+        where: (table, { eq }) => eq(table.userId, userId),
+        orderBy: (table, { desc }) => [desc(table.createdAt)],
+        columns: { id: true, status: true },
+      });
+
+      if (!latest || latest.status !== "REJECTED") {
+        return { ok: false as const, code: "not_eligible" as const };
+      }
+
+      const {
+        organizationName,
+        organizationSlug,
+        industry,
+        description,
+        websiteUrl,
+        contactPhone,
+        locationId,
+      } = parsed.data;
+
+      const [insertedRequest] = await tx
+        .insert(employerOnboardingRequests)
+        .values({
+          userId,
+          organizationName,
+          organizationSlug,
+          industry: industry || null,
+          description: description || null,
+          websiteUrl: websiteUrl || null,
+          contactPhone: contactPhone || null,
+          locationId: locationId || null,
+        })
+        .returning({ id: employerOnboardingRequests.id });
+
+      await tx.insert(auditLog).values({
+        actorUserId: userId,
+        action: "EMPLOYER_ONBOARDING_REQUESTED",
+        targetType: "employer_onboarding_request",
+        targetId: insertedRequest.id,
+        metadata: {},
+      });
+
+      return { ok: true as const, requestId: insertedRequest.id };
     });
 
     return result;

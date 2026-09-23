@@ -11,6 +11,8 @@ vi.mock("@/lib/notifications/dal", () => ({
 import {
   notifyApplicationStatusChanged,
   notifyJobAlertMatch,
+  notifyEmployerOnboardingApproved,
+  notifyEmployerOnboardingRejected,
 } from "@/lib/notifications/events";
 
 beforeEach(() => {
@@ -140,6 +142,64 @@ describe("notifyJobAlertMatch", () => {
         userId: "u1",
         alertName: "My Alert",
         matchCount: 1,
+      }),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("notifyEmployerOnboardingApproved", () => {
+  it("creates an employer_onboarding_approved notification pointing at the workspace", async () => {
+    mocks.mockCreateNotification.mockResolvedValue({ id: "1" });
+
+    await notifyEmployerOnboardingApproved({
+      userId: "u1",
+      organizationName: "Almaz Coffee PLC",
+    });
+
+    expect(mocks.mockCreateNotification).toHaveBeenCalledWith({
+      userId: "u1",
+      type: "employer_onboarding_approved",
+      data: { organizationName: "Almaz Coffee PLC" },
+      actionUrl: "/organization",
+    });
+  });
+
+  it("does not throw on dal failure", async () => {
+    mocks.mockCreateNotification.mockResolvedValue(null);
+
+    await expect(
+      notifyEmployerOnboardingApproved({
+        userId: "u1",
+        organizationName: "Almaz Coffee PLC",
+      }),
+    ).resolves.toBeUndefined();
+  });
+});
+
+describe("notifyEmployerOnboardingRejected", () => {
+  it("creates an employer_onboarding_rejected notification pointing at the status page", async () => {
+    mocks.mockCreateNotification.mockResolvedValue({ id: "1" });
+
+    await notifyEmployerOnboardingRejected({
+      userId: "u1",
+      organizationName: "Almaz Coffee PLC",
+    });
+
+    expect(mocks.mockCreateNotification).toHaveBeenCalledWith({
+      userId: "u1",
+      type: "employer_onboarding_rejected",
+      data: { organizationName: "Almaz Coffee PLC" },
+      actionUrl: "/employer/status",
+    });
+  });
+
+  it("does not throw on dal failure", async () => {
+    mocks.mockCreateNotification.mockResolvedValue(null);
+
+    await expect(
+      notifyEmployerOnboardingRejected({
+        userId: "u1",
+        organizationName: "Almaz Coffee PLC",
       }),
     ).resolves.toBeUndefined();
   });

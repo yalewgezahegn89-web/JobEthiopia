@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { organizations } from "@/db/schema/organizations";
+import { auditLog } from "@/db/schema/auditLog";
 
 export type OrganizationSettings = {
   id: string;
@@ -58,14 +59,16 @@ export async function updateOrganizationSettings(
 ): Promise<UpdateOrganizationResult> {
   if (!organizationId) return { ok: false, code: "NOT_FOUND" };
 
-  // Verify the organization exists
+  // Verify the organization exists and is active
   const existing = await db
-    .select({ id: organizations.id })
+    .select({ id: organizations.id, status: organizations.status })
     .from(organizations)
     .where(eq(organizations.id, organizationId))
     .limit(1);
 
   if (existing.length === 0) return { ok: false, code: "NOT_FOUND" };
+
+  if (existing[0].status !== "ACTIVE") return { ok: false, code: "FORBIDDEN" };
 
   // Validate name if provided
   if (input.name !== undefined) {
@@ -96,6 +99,14 @@ export async function updateOrganizationSettings(
       });
 
     if (!updated) return { ok: false, code: "NOT_FOUND" };
+
+    await db.insert(auditLog).values({
+      actorUserId: userId,
+      action: "ORGANIZATION_SETTINGS_UPDATED",
+      targetType: "organization",
+      targetId: organizationId,
+      metadata: { fields: Object.keys(updateData).filter((k) => k !== "updatedAt") },
+    });
 
     return {
       ok: true,

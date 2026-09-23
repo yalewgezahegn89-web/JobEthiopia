@@ -61,6 +61,7 @@ const TOP_LEVEL_KEYS = [
   "changePassword",
   "publicDetail",
   "employerAuth",
+  "employerNav",
   "loading",
 ] as const;
 

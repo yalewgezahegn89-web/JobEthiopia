@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 type Status = "REVIEWING" | "SHORTLISTED" | "REJECTED";
 
@@ -15,6 +16,7 @@ export function StatusForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const router = useRouter();
 
   const showControls =
     currentStatus === "SUBMITTED" || currentStatus === "REVIEWING";
@@ -43,6 +45,7 @@ export function StatusForm({
       }
 
       setSuccess(true);
+      router.refresh();
     } catch {
       setError("An unexpected error occurred");
     } finally {

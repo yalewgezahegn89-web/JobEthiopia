@@ -51,11 +51,22 @@ export const am = {
     openMenu: "ዝርዝር ክፈት",
     menu: "ዝርዝር",
     account: "መለያ",
-    primaryNavLabel: "ዋና",
+primaryNavLabel: "ዋና",
     browseNavLabel: "ያስሱ",
     accountNavLabel: "መለያ",
     mobileNavLabel: "የሞባይል አሰሳ",
-    navMenuLabel: "የአሰሳ ዝርዝር",
+    navMenuLabel: "የአሰሳ ምናሌ",
+  },
+  employerNav: {
+    workspaceLabel: "የአሰሪ መስራት",
+    dashboardHomeLabel: "የአሰሪ ዳሽቦርድ መነሻ",
+    dashboard: "ዳሽቦርድ",
+    jobs: "ስራዎች",
+    applications: "ማመልከቻዎች",
+    team: "ቡድን",
+    notifications: "ማሳወቂያዎች",
+    settings: "ቅንብሮች",
+    logout: "ውጣ",
   },
   language: {
     label: "ቋንቋ",
@@ -608,6 +619,11 @@ export const am = {
     employerNewApplicationSubheading: (jobTitle: string, candidateName: string) => `${candidateName} በ "${jobTitle}" ላይ ማመልከቻ ቀርቧል።`,
     employerApplicationWithdrawnSubheading: (jobTitle: string, candidateName: string) => `${candidateName} በ "${jobTitle}" ላይ ማመልከቻውን ሰርተዋል።`,
     employerJobStatusSubheading: (jobTitle: string, status: string) => `"${jobTitle}" የስራዎ አሁን ${status} ነው።`,
+    typeEmployerOnboardingApproved: "የአሰሪ ጥያቄ ተቀብሏል",
+    typeEmployerOnboardingRejected: "የአሰሪ ጥያቄ ውድቅ ተደርጓል",
+    employerOnboardingApprovedSubheading: (organizationName: string) => `ለ"${organizationName}" የአሰሪ መለያዎ አሁን ንቁ ነው።`,
+    employerOnboardingRejectedSubheading: (organizationName: string) => `ለ"${organizationName}" የአሰሪ ጥያቄዎ አልተቀበለም።`,
+    viewWorkspace: "የስራ ቦታ ክፈት",
   },
   empty: {
     defaultHeading: "እስካሁን የሚታይ ነገር የለም",
@@ -763,6 +779,17 @@ export const am = {
     statusPendingLabel: "በግምገማ ላይ",
     statusRejectedBody: "የአሰሪ መለያ ማስተካከል ጥያቄ አልተቀበለም።",
     statusNewRequestCta: "አዲስ ጥያቄ ይላኩ",
+    statusRejectedReasonLabel: "የግምገማ አስተያየት",
+    resubmitHeading: "የተከለሰ ጥያቄ ይላኩ",
+    resubmitBody:
+      "ከዚህ በታች ያለውን አስተያየት ያስተካክሉ እና እንደገና ይላኩ። ቡድናችን የተከለሰውን ጥያቄዎን ይገመግማል።",
+    resubmitSubmitCta: "ጥያቄን እንደገና ይላኩ",
+    resubmitErrorDuplicate:
+      "ያ የድርጅት ስሎግ በአገልግሎት ላይ ነው። እባክዎ ሌላ ይምረጡ።",
+    resubmitErrorNotEligible:
+      "የአሁኑ ጥያቄዎ እንደገና ለመላክ ብቁ አይደለም። እባክዎ እንደገና ይሞክሩ።",
+    resubmitErrorNeutral:
+      "የተከለሰውን ጥያቄ መላክ አልተቻለም። እባክዎ እንደገና ይሞክሩ።",
     form: {
       nameLabel: "ሙሉ ስም",
       emailLabel: "ኢሜይል",
