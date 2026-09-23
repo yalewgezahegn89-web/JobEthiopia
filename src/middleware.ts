@@ -235,8 +235,12 @@ export function middleware(request: NextRequest) {
       }
     }
 
-    // Internal automated ingestion — rate-limited POST endpoint
-    if (targetPathname === "/api/internal/ingestion/run" && method === "POST") {
+    // Internal automated ingestion — rate-limited POST endpoints
+    if (
+      (targetPathname === "/api/internal/ingestion/run" ||
+        targetPathname === "/api/internal/ingestion/dry-run") &&
+      method === "POST"
+    ) {
       const result = checkRateLimit(
         buildRateLimitKey("ingestion-run", clientIp),
         INGESTION_RUN,

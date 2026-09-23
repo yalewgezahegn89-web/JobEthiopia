@@ -348,8 +348,13 @@ never be publicly reachable (they are POST-only and rate-limited):
 | `POST /api/internal/ingestion/run` | [`.github/workflows/ingestion.yml`](./.github/workflows/ingestion.yml) | `30 3 * * *` — daily 03:30 (after maintenance) |
 | `POST /api/internal/job-alerts/daily` | [`.github/workflows/job-alerts.yml`](./.github/workflows/job-alerts.yml) | `0 4 * * *` — daily 04:00 (after ingestion) |
 
-**Authentication:** all three verify the `x-maintenance-key` header in constant
-time. Key resolution is rollout-safe:
+`POST /api/internal/ingestion/dry-run?sourceId=<id>` is the on-demand (non-cron)
+sibling of the ingestion endpoint: it fetches a single source, validates and
+normalizes each item, and runs the read-only dedup cascade **without writing any
+rows** — it is the operator preview to run before enabling a new source.
+
+**Authentication:** all three cron endpoints (and the dry-run sibling) verify the
+`x-maintenance-key` header in constant time. Key resolution is rollout-safe:
 
 1. Route-dedicated key when configured —
    `INTERNAL_INGESTION_API_KEY` (ingestion), `INTERNAL_JOB_ALERTS_API_KEY`
@@ -372,7 +377,9 @@ also fail the job so a missed run is never silently swallowed. All workflows use
 
 **Manual rerun:** each workflow is triggerable on demand via `workflow_dispatch`
 (Actions → "Run workflow"). Ingestion additionally supports
-`POST /api/internal/ingestion/run?sourceId=<id>` to run a single source.
+`POST /api/internal/ingestion/run?sourceId=<id>` to run a single source, and
+`POST /api/internal/ingestion/dry-run?sourceId=<id>` to preview a source
+read-only before enabling it.
 
 ## Ingestion (Automated Core)
 
@@ -381,7 +388,10 @@ Production ingestion is scheduled by
 `03:30 UTC` daily. It invokes `POST /api/internal/ingestion/run`, which sweeps
 sources whose `check_frequency_minutes` interval is due, applies the four-level
 dedup ladder, auto-creates entities and locations, and publishes only through
-the moderation-first gate.
+the moderation-first gate. The sweep is bounded to the source types with an
+adapter (`API`/`FEED`); manual/website/employer sources are never polled. Jobs
+that are already published are never silently rewritten by automated ingestion —
+their content stays as the moderator approved it (see `updateJob`).
 
 - **Repository configuration** — interval/git: **Secret** `MAINTENANCE_API_KEY`
   (and optionally `INTERNAL_INGESTION_API_KEY`); **Variable**
@@ -510,6 +520,10 @@ Run these after every production deployment and after a PITR restore:
       reject a bad/missing one with `401`.
 - [ ] `POST /api/internal/ingestion/run` with a valid `x-maintenance-key` returns
       the JSON summary; wrong key → `401`.
+- [ ] `POST /api/internal/ingestion/dry-run?sourceId=<uuid>` with a valid
+      `x-maintenance-key` returns the read-only item analysis and writes nothing
+      (verify via an unchanged source-count/`job_sources` in staging);
+      missing/invalid `sourceId` → `400`.
 
 **Job alerts**
 - [ ] `POST /api/internal/job-alerts/daily` with a valid `x-maintenance-key`

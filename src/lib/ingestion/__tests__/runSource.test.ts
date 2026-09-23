@@ -45,6 +45,7 @@ vi.mock("@/lib/sources/health", () => ({
 
 vi.mock("@/lib/sources/adapters", () => ({
   getAdapterForSource: (...args: unknown[]) => mocks.mockGetAdapter(...args),
+  SUPPORTED_ADAPTER_SOURCE_TYPES: ["API", "FEED"],
 }));
 
 import {

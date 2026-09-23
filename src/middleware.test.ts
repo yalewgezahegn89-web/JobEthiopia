@@ -442,6 +442,32 @@ describe("middleware — rate limiting", () => {
       expect(result).toEqual({ passed: true });
       expect(mockJson).not.toHaveBeenCalled();
     });
+
+    it("shares the ingestion-run limit bucket with the dry-run endpoint", () => {
+      mockNext.mockReturnValue({ passed: true });
+      // First five dry-run calls on a fresh IP pass
+      for (let i = 0; i < 5; i++) {
+        const result = middleware(
+          fakeRequest({
+            pathname: "/api/internal/ingestion/dry-run",
+            method: "POST",
+            headers: { "x-forwarded-for": "13.0.0.9" },
+          }),
+        );
+        expect(result).toEqual({ passed: true });
+      }
+      mockJson.mockClear();
+      mockJson.mockReturnValue({ status: 429 });
+      // The sixth call (on the ingestion run path) shares the same bucket
+      middleware(
+        fakeRequest({
+          pathname: "/api/internal/ingestion/run",
+          method: "POST",
+          headers: { "x-forwarded-for": "13.0.0.9" },
+        }),
+      );
+      expect(mockJson).toHaveBeenCalled();
+    });
   });
 
   describe("shared default bucket", () => {

@@ -1,8 +1,9 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { sources } from "@/db/schema/sources";
 import { ingestJobs } from "@/lib/ingestion/batch";
 import { getAdapterForSource } from "@/lib/sources/adapters";
+import { SUPPORTED_ADAPTER_SOURCE_TYPES } from "@/lib/sources/adapters";
 import {
   recordSuccessfulCheck,
   recordFailedCheck,
@@ -259,7 +260,12 @@ export async function runSourcesIngestion(): Promise<SourcesIngestionResult> {
       checkFrequencyMinutes: sources.checkFrequencyMinutes,
     })
     .from(sources)
-    .where(eq(sources.isActive, true))
+    .where(
+      and(
+        eq(sources.isActive, true),
+        inArray(sources.sourceType, SUPPORTED_ADAPTER_SOURCE_TYPES),
+      ),
+    )
     .orderBy(asc(sources.lastSuccessfulCheck), sql`consecutive_failures DESC`)
     .limit(MAX_SOURCES_PER_RUN);
 

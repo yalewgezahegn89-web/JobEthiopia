@@ -117,9 +117,11 @@ export async function ingestJob(
 
       const storedHash = await getStoredHash(currentJobSourceId);
 
+      let outcome: IngestionResult["outcome"] = "UPDATED";
+
       if (contentChanged(storedHash, rawHash)) {
         // Content changed — update job with current source's data
-        await updateJob({
+        const contentApplied = await updateJob({
           jobId: duplicateResult.matchedJobId,
           jobSourceId: currentJobSourceId,
           normalizedTitle,
@@ -143,6 +145,7 @@ export async function ingestJob(
           applicationUrl: input.applicationUrl ?? null,
           rawHash,
         });
+        outcome = contentApplied ? "UPDATED" : "DUPLICATE";
       } else {
         // Content unchanged — refresh rawHash and lastSeenAt for current source
         await db
@@ -158,7 +161,7 @@ export async function ingestJob(
         .where(eq(jobs.id, duplicateResult.matchedJobId));
 
       return {
-        outcome: "UPDATED",
+        outcome,
         jobId: duplicateResult.matchedJobId,
         jobSourceId: currentJobSourceId,
         matchedJobId: duplicateResult.matchedJobId,
@@ -177,7 +180,7 @@ export async function ingestJob(
 
       if (contentChanged(storedHash, rawHash)) {
         // Content changed — update job in transaction
-        await updateJob({
+        const contentApplied = await updateJob({
           jobId: duplicateResult.matchedJobId!,
           jobSourceId: duplicateResult.matchedJobSourceId!,
           normalizedTitle,
@@ -209,7 +212,7 @@ export async function ingestJob(
           .where(eq(jobs.id, duplicateResult.matchedJobId!));
 
         return {
-          outcome: "UPDATED",
+          outcome: contentApplied ? "UPDATED" : "DUPLICATE",
           jobId: duplicateResult.matchedJobId,
           jobSourceId: duplicateResult.matchedJobSourceId,
           matchedJobId: duplicateResult.matchedJobId,
