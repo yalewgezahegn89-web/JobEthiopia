@@ -24,7 +24,7 @@ export default function JobCard({
   job: PublicJobSummary;
   t: Dictionary;
 }) {
-  const freshness = freshnessLabel(job.postedAt);
+  const freshness = freshnessLabel(job.postedAt, undefined, t.jobs);
   const closing = closingState(job.deadline, job.status);
   const isVerified = job.verificationStatus === "VERIFIED";
   const isClosing = closing === "CLOSING";

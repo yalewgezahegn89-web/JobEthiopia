@@ -15,6 +15,9 @@ export function ApplicationWithdraw({
   const [pending, startTransition] = useTransition();
 
   function withdraw() {
+    if (!window.confirm(t.applications.withdrawCta + "?")) {
+      return;
+    }
     startTransition(async () => {
       setState("working");
       try {

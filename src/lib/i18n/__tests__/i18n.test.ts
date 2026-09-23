@@ -44,6 +44,7 @@ const TOP_LEVEL_KEYS = [
   "professions",
   "locations",
   "apply",
+  "savedJobs",
   "applications",
   "jobAlerts",
   "empty",

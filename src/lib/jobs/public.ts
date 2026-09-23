@@ -201,6 +201,7 @@ export function daysSince(
 export function freshnessLabel(
   date: string | null,
   now?: Date,
+  t?: { freshnessToday: string; freshnessDaysAgo: (n: number) => string },
 ): string | null {
   const parsed = toDate(date, now);
   if (!parsed) {
@@ -209,6 +210,10 @@ export function freshnessLabel(
   const days = daysSince(date, now);
   if (days == null) {
     return null;
+  }
+  if (t) {
+    if (days === 0) return t.freshnessToday;
+    return t.freshnessDaysAgo(days);
   }
   if (days === 0) {
     return "Today";

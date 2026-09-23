@@ -1,26 +1,33 @@
 import type { CvAggregate } from "@/lib/cv/dal";
 
-const MONTHS = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
+const MONTHS_EN = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-export function formatYearMonth(value: string | null | undefined): string {
+const MONTHS_AM = [
+  "ጃን", "ፌብ", "ማር", "አፕ", "ሜይ", "ጁን",
+  "ጁላ", "ኦገ", "ሴፕ", "ኦክ", "ኖቬ", "ዲሴ",
+];
+
+const MONTHS_OM = [
+  "Ama", "Gur", "Bit", "Elb", "Cam", "Wax",
+  "Ado", "Hag", "Ful", "Onk", "Sad", "Mud",
+];
+
+function getMonths(locale?: string): string[] {
+  if (locale === "am") return MONTHS_AM;
+  if (locale === "om") return MONTHS_OM;
+  return MONTHS_EN;
+}
+
+export function formatYearMonth(value: string | null | undefined, locale?: string): string {
   if (!value) return "";
   const [year, month] = value.split("-");
   const m = Number(month);
   if (!year || !Number.isInteger(m) || m < 1 || m > 12) return value;
-  return `${MONTHS[m - 1]} ${year}`;
+  const months = getMonths(locale);
+  return `${months[m - 1]} ${year}`;
 }
 
 export type CvDocumentLabels = {
@@ -40,6 +47,7 @@ type CvDocumentProps = {
   email: string | null;
   cv: CvAggregate;
   labels: CvDocumentLabels;
+  locale?: string;
 };
 
 /**
@@ -50,7 +58,7 @@ type CvDocumentProps = {
  * never inject HTML. Section rendering is deterministic (entry order is the
  * createdAt order from the DAL).
  */
-export function CvDocument({ name, email, cv, labels }: CvDocumentProps) {
+export function CvDocument({ name, email, cv, labels, locale }: CvDocumentProps) {
   const { header } = cv;
   const contact: string[] = [];
   if (header.phone) contact.push(header.phone);
@@ -104,10 +112,10 @@ export function CvDocument({ name, email, cv, labels }: CvDocumentProps) {
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <h3 className="text-base font-semibold">{entry.role}</h3>
                   <p className="text-sm text-muted">
-                    {formatYearMonth(entry.startMonth)}
+                    {formatYearMonth(entry.startMonth, locale)}
                     {" – "}
                     {entry.endMonth
-                      ? formatYearMonth(entry.endMonth)
+                      ? formatYearMonth(entry.endMonth, locale)
                       : labels.present}
                   </p>
                 </div>
@@ -135,10 +143,10 @@ export function CvDocument({ name, email, cv, labels }: CvDocumentProps) {
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <h3 className="text-base font-semibold">{entry.qualification}</h3>
                   <p className="text-sm text-muted">
-                    {formatYearMonth(entry.startMonth)}
+                    {formatYearMonth(entry.startMonth, locale)}
                     {" – "}
                     {entry.endMonth
-                      ? formatYearMonth(entry.endMonth)
+                      ? formatYearMonth(entry.endMonth, locale)
                       : labels.present}
                   </p>
                 </div>
@@ -184,7 +192,7 @@ export function CvDocument({ name, email, cv, labels }: CvDocumentProps) {
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <h3 className="text-sm font-semibold">{cert.name}</h3>
                   <p className="text-sm text-muted">
-                    {formatYearMonth(cert.issuedMonth)}
+                    {formatYearMonth(cert.issuedMonth, locale)}
                   </p>
                 </div>
                 <p className="text-sm text-muted">{cert.issuer}</p>

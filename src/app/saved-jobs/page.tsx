@@ -11,11 +11,14 @@ import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Saved Jobs | JobEthiopia",
-  description: "Jobs you have saved on JobEthiopia.",
-  robots: "noindex, nofollow",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getI18n();
+  return {
+    title: t.savedJobs.pageTitle,
+    description: t.savedJobs.metaDescription,
+    robots: "noindex, nofollow",
+  };
+}
 
 type SearchParamsValue = string | string[] | undefined;
 type SearchParams = Record<string, SearchParamsValue>;
@@ -67,19 +70,19 @@ export default async function SavedJobsPage({
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:py-10">
       <Breadcrumb
-        items={[{ label: "Home", href: "/" }, { label: "Saved Jobs" }]}
+        items={[{ label: t.common.home, href: "/" }, { label: t.savedJobs.heading }]}
         t={t}
       />
 
       <header className="mt-4 max-w-3xl">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
-          Candidate workspace
+          {t.savedJobs.workspaceLabel}
         </p>
         <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-          Saved Jobs
+          {t.savedJobs.heading}
         </h1>
         <p className="mt-2 text-base leading-7 text-muted">
-          Jobs you have saved for later.
+          {t.savedJobs.subtitle}
         </p>
       </header>
 
@@ -88,13 +91,13 @@ export default async function SavedJobsPage({
           href="/jobs"
           className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Browse jobs
+          {t.savedJobs.browseJobs}
         </Link>
         <Link
           href="/applications"
           className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 font-semibold text-muted hover:bg-surface-raised/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          My Applications
+          {t.nav.myApplications}
         </Link>
       </div>
 
@@ -107,14 +110,13 @@ export default async function SavedJobsPage({
             <SaveIcon className="h-7 w-7" />
           </span>
           <p className="mt-4 text-muted">
-            We could not load your saved jobs right now. Please try again
-            shortly.
+            {t.savedJobs.loadError}
           </p>
           <Link
             href="/saved-jobs"
             className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            Retry
+            {t.savedJobs.retryCta}
           </Link>
         </div>
       ) : items.length === 0 ? (
@@ -126,16 +128,16 @@ export default async function SavedJobsPage({
             <SaveIcon className="h-7 w-7" />
           </span>
           <h2 className="mt-5 text-xl font-bold text-foreground">
-            Your saved jobs will appear here
+            {t.savedJobs.emptyHeading}
           </h2>
           <p className="mt-2 max-w-md text-sm leading-6 text-muted">
-            Save opportunities while you browse and come back to them later.
+            {t.savedJobs.emptyBody}
           </p>
           <Link
             href="/jobs"
             className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            Browse jobs
+            {t.savedJobs.browseJobs}
           </Link>
         </div>
       ) : (

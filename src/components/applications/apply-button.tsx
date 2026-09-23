@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useI18n } from "@/lib/i18n/client";
+import Link from "next/link";
 
 type ApplyState =
   | { kind: "idle" }
@@ -47,9 +48,18 @@ export function ApplyButton({ jobId, jobTitle }: { jobId: string; jobTitle: stri
 
   if (state.kind === "success") {
     return (
-      <span className="inline-block rounded-full bg-success-light px-6 py-3 text-base font-semibold text-success">
-        {t.apply.applicationSubmitted}
-      </span>
+      <div className="text-center">
+        <span className="inline-block rounded-full bg-success-light px-6 py-3 text-base font-semibold text-success">
+          {t.apply.applicationSubmitted}
+        </span>
+        <p className="mt-2 text-xs text-muted">{t.jobs.applicationSubmittedHint}</p>
+        <Link
+          href="/applications"
+          className="mt-3 inline-flex items-center text-sm font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          {t.jobs.viewApplicationCta}
+        </Link>
+      </div>
     );
   }
 

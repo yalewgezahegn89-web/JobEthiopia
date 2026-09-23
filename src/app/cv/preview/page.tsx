@@ -7,7 +7,7 @@ import { getOwnedCv } from "@/lib/cv/dal";
 import { recordCvPreviewAction } from "@/app/cv/actions";
 import { CvDocument, type CvDocumentLabels } from "@/components/cv/cv-document";
 import { PreviewToolbar } from "@/components/cv/preview-toolbar";
-import { getI18n } from "@/lib/i18n/server";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +19,7 @@ export const metadata: Metadata = {
 
 export default async function CvPreviewPage() {
   const t = await getI18n();
+  const locale = await getCurrentLocale();
 
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -97,7 +98,7 @@ export default async function CvPreviewPage() {
         <div className="mt-6 overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
           <div className="h-1.5 w-full bg-primary" aria-hidden="true" />
           <div className="p-6 sm:p-8">
-            <CvDocument name={user.name} email={user.email} cv={cv} labels={labels} />
+            <CvDocument name={user.name} email={user.email} cv={cv} labels={labels} locale={locale} />
           </div>
         </div>
       )}

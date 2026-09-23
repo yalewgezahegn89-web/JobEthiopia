@@ -9,6 +9,7 @@ import {
   CalendarIcon,
   SaveIcon,
 } from "@/components/public/icons";
+import { useI18n } from "@/lib/i18n/client";
 
 type SaveState =
   | { kind: "active" }
@@ -42,16 +43,16 @@ function saveStateVisual(state: SaveState): {
   }
 }
 
-function saveStateBadge(state: SaveState) {
+function saveStateBadge(state: SaveState, t: ReturnType<typeof import("@/lib/i18n/client").useI18n>["t"]) {
   switch (state.kind) {
     case "active":
-      return <Badge variant="success">Active</Badge>;
+      return <Badge variant="success">{t.savedJobs.statusActive}</Badge>;
     case "closing":
-      return <Badge variant="warning">Closing soon</Badge>;
+      return <Badge variant="warning">{t.savedJobs.statusClosingSoon}</Badge>;
     case "expired":
-      return <Badge variant="destructive">Expired</Badge>;
+      return <Badge variant="destructive">{t.savedJobs.statusExpired}</Badge>;
     case "removed":
-      return <Badge variant="default">No longer available</Badge>;
+      return <Badge variant="default">{t.savedJobs.statusRemoved}</Badge>;
   }
 }
 
@@ -63,10 +64,10 @@ function orgInitials(name: string | null | undefined): string {
   return (words[0][0] + words[1][0]).toUpperCase();
 }
 
-function formatDate(value: string): string {
+function formatDate(value: string, locale: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString(locale === "am" ? "am-ET" : locale === "om" ? "om-ET" : "en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -78,6 +79,7 @@ export function SavedJobList({
 }: {
   items: SavedJobListItem[];
 }) {
+  const { t, locale } = useI18n();
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set());
   const [pending, startTransition] = useTransition();
 
@@ -115,16 +117,16 @@ export function SavedJobList({
           <SaveIcon className="h-7 w-7" />
         </span>
         <h2 className="mt-5 text-xl font-bold text-foreground">
-          Your saved jobs will appear here
+          {t.savedJobs.emptyHeading}
         </h2>
         <p className="mt-2 max-w-md text-sm leading-6 text-muted">
-          Save opportunities while you browse and come back to them later.
+          {t.savedJobs.emptyBody}
         </p>
         <Link
           href="/jobs"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Browse jobs
+          {t.savedJobs.browseJobs}
         </Link>
       </div>
     );
@@ -162,7 +164,7 @@ export function SavedJobList({
                     }`}
                   >
                     <CalendarIcon className="h-3.5 w-3.5" />
-                    Saved {formatDate(item.savedAt)}
+                    {t.savedJobs.savedOn(formatDate(item.savedAt, locale))}
                   </span>
                 </div>
 
@@ -189,8 +191,8 @@ export function SavedJobList({
                   {item.deadline && (
                     <span className="inline-flex items-center gap-1.5">
                       <CalendarIcon className="h-4 w-4 text-subtle" />
-                      Deadline:{" "}
-                      <time>{formatDate(item.deadline)}</time>
+                      {t.savedJobs.deadlineLabel}{" "}
+                      <time>{formatDate(item.deadline, locale)}</time>
                     </span>
                   )}
                 </div>
@@ -205,14 +207,14 @@ export function SavedJobList({
                   }`}
                 >
                   <CalendarIcon className="h-3.5 w-3.5" />
-                  Saved {formatDate(item.savedAt)}
+                  {t.savedJobs.savedOn(formatDate(item.savedAt, locale))}
                 </span>
               </div>
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle px-6 py-3">
               <div className="flex flex-wrap items-center gap-1.5">
-                {saveStateBadge(state)}
+                {saveStateBadge(state, t)}
               </div>
               <button
                 type="button"
@@ -220,7 +222,7 @@ export function SavedJobList({
                 disabled={pending || removedIds.has(item.jobId)}
                 className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:bg-surface-raised hover:text-foreground focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Remove
+                {t.savedJobs.removeCta}
               </button>
             </div>
           </li>

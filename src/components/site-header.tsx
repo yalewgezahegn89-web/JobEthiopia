@@ -26,6 +26,7 @@ export default async function SiteHeader() {
 
 const candidateLinks = [
     { href: "/applications", label: t.nav.myApplications },
+    { href: "/notifications", label: t.nav.notifications },
     { href: "/saved-jobs", label: t.nav.savedJobs },
     { href: "/recommendations", label: t.nav.recommendations },
     { href: "/cv", label: t.nav.cv },

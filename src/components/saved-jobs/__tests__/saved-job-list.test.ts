@@ -1,11 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
+vi.mock("@/lib/i18n/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/client")>();
+  return {
+    ...actual,
+    useI18n: () => ({ locale: "en" as const, t: dictionaries.en }),
+  };
+});
+
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) =>
     createElement("a", { href }, children),
 }));
 
+import { dictionaries } from "@/lib/i18n/dictionary";
 import { SavedJobList } from "../saved-job-list";
 import type { SavedJobListItem } from "@/lib/savedJobs/dal";
 

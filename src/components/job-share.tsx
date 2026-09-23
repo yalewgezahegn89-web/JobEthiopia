@@ -2,8 +2,10 @@
 
 import { useCallback, useState } from "react";
 import { buildShareLinks } from "@/lib/jobs/public";
+import { useI18n } from "@/lib/i18n/client";
 
 export default function JobShare({ title }: { title: string }) {
+  const { t } = useI18n();
   const [status, setStatus] = useState<"idle" | "copied" | "failed">("idle");
   const [url] = useState<string>(() =>
     typeof window !== "undefined" ? window.location.href : "",
@@ -49,7 +51,7 @@ export default function JobShare({ title }: { title: string }) {
         onClick={handleShare}
         className="inline-flex items-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised hover:border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        Share
+        {t.jobs.shareCta}
       </button>
       <a
         href={whatsappUrl}
@@ -57,16 +59,16 @@ export default function JobShare({ title }: { title: string }) {
         rel="noopener noreferrer"
         className="inline-flex items-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised hover:border-border focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
-        Share on WhatsApp
+        {t.jobs.shareWhatsApp}
       </a>
       {status === "copied" && (
         <span className="text-sm font-medium text-success" role="status">
-          Link copied
+          {t.jobs.shareCopied}
         </span>
       )}
       {status === "failed" && (
         <span className="text-sm font-medium text-destructive" role="alert">
-          Could not copy the link. Please copy the URL manually.
+          {t.jobs.shareCopyFailed}
         </span>
       )}
     </div>

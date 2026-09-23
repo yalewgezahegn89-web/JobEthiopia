@@ -79,7 +79,7 @@ export default async function NotificationsPage({
 
       <header className="mt-4 max-w-3xl">
         <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
-          {isEmployer ? "Employer workspace" : "Candidate workspace"}
+          {isEmployer ? t.notifications.employerWorkspaceLabel : t.notifications.candidateWorkspaceLabel}
         </p>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -101,13 +101,13 @@ export default async function NotificationsPage({
               href="/organization/jobs"
               className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              View Jobs
+              {t.notifications.viewJobs}
             </Link>
             <Link
               href="/organization/applications?status=SUBMITTED"
               className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 font-semibold text-muted hover:bg-surface-raised/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              Review Applications
+              {t.notifications.reviewApplications}
             </Link>
           </>
         ) : (
@@ -116,13 +116,13 @@ export default async function NotificationsPage({
               href="/jobs"
               className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              Browse jobs
+              {t.notifications.browseJobs}
             </Link>
             <Link
               href="/applications"
               className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-surface-raised px-3 py-1 font-semibold text-muted hover:bg-surface-raised/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              My Applications
+              {t.notifications.myApplications}
             </Link>
           </>
         )}
@@ -158,7 +158,7 @@ export default async function NotificationsPage({
             href={isEmployer ? "/organization/jobs" : "/jobs"}
             className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            {isEmployer ? "View Jobs" : "Browse jobs"}
+            {isEmployer ? t.notifications.viewJobs : t.notifications.browseJobs}
           </Link>
         </div>
       ) : (

@@ -6,7 +6,7 @@ import { isStaffRole } from "@/lib/auth/roles";
 import { getOwnedCv } from "@/lib/cv/dal";
 import { CvDocument, type CvDocumentLabels } from "@/components/cv/cv-document";
 import { CvDeleteButton } from "@/components/cv/cv-delete-button";
-import { getI18n } from "@/lib/i18n/server";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 
 export default async function CvDashboardPage() {
   const t = await getI18n();
+  const locale = await getCurrentLocale();
 
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -107,7 +108,7 @@ export default async function CvDashboardPage() {
           </div>
 
           <div className="mt-6">
-            <CvDocument name={user.name} email={user.email} cv={cv} labels={labels} />
+            <CvDocument name={user.name} email={user.email} cv={cv} labels={labels} locale={locale} />
           </div>
 
           <div className="mt-8 border-t border-border-subtle pt-6 print-hide">

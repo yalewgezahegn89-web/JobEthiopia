@@ -110,10 +110,11 @@ export function CvForm({ initial }: { initial: CvFormInitial }) {
     name: string,
     value: string,
     onPatch: (field: string, value: string) => void,
+    inputId: string,
   ) {
     return (
       <input
-        id={name}
+        id={inputId}
         type="month"
         value={value}
         onChange={(e) => onPatch(name, e.target.value)}
@@ -290,7 +291,7 @@ export function CvForm({ initial }: { initial: CvFormInitial }) {
                     </label>
                     {monthInput("startMonth", entry.startMonth ?? "", (name, value) =>
                       patchSection(experiences, setExperiences, entry.id, name, value),
-                    )}
+                    `${entry.id}-start`)}
                   </div>
                   <div>
                     <label htmlFor={`${entry.id}-end`} className={labelClass}>
@@ -298,7 +299,7 @@ export function CvForm({ initial }: { initial: CvFormInitial }) {
                     </label>
                     {monthInput("endMonth", entry.endMonth ?? "", (name, value) =>
                       patchSection(experiences, setExperiences, entry.id, name, value),
-                    )}
+                    `${entry.id}-end`)}
                   </div>
                 </div>
                 <div className="sm:col-span-2">
@@ -399,7 +400,7 @@ export function CvForm({ initial }: { initial: CvFormInitial }) {
                     </label>
                     {monthInput("startMonth", entry.startMonth ?? "", (name, value) =>
                       patchSection(educations, setEducations, entry.id, name, value),
-                    )}
+                    `${entry.id}-start`)}
                   </div>
                   <div>
                     <label htmlFor={`${entry.id}-end`} className={labelClass}>
@@ -407,7 +408,7 @@ export function CvForm({ initial }: { initial: CvFormInitial }) {
                     </label>
                     {monthInput("endMonth", entry.endMonth ?? "", (name, value) =>
                       patchSection(educations, setEducations, entry.id, name, value),
-                    )}
+                    `${entry.id}-end`)}
                   </div>
                 </div>
               </div>
@@ -533,7 +534,7 @@ export function CvForm({ initial }: { initial: CvFormInitial }) {
                   </label>
                   {monthInput("issuedMonth", entry.issuedMonth ?? "", (name, value) =>
                     patchSection(certifications, setCertifications, entry.id, name, value),
-                  )}
+                  `${entry.id}-issuedMonth`)}
                 </div>
                 <div>
                   <label htmlFor={`${entry.id}-credentialUrl`} className={labelClass}>
