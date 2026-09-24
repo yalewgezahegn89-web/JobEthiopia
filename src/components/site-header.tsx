@@ -32,6 +32,7 @@ const candidateLinks = [
     { href: "/cv", label: t.nav.cv },
     { href: "/profile", label: t.nav.profile },
     { href: "/job-alerts", label: t.nav.jobAlerts },
+    { href: "/settings", label: t.nav.settings },
   ];
 
   const employerLinks = [
@@ -39,6 +40,7 @@ const candidateLinks = [
     { href: "/organization/jobs", label: t.nav.jobs },
     { href: "/organization/applications", label: t.nav.applications },
     { href: "/organization/team", label: t.nav.team },
+    { href: "/settings", label: t.nav.settings },
   ];
 
   const anonymousLinks = [
@@ -51,7 +53,10 @@ const candidateLinks = [
 
   if (user) {
     if (isStaffRole(user.role)) {
-      roleLinks = [{ href: "/admin", label: t.nav.admin }];
+      roleLinks = [
+        { href: "/admin", label: t.nav.admin },
+        { href: "/settings", label: t.nav.settings },
+      ];
     } else if (user.role === "ORGANIZATION_ADMIN") {
       roleLinks = employerLinks;
     } else if (user.role === "CANDIDATE") {

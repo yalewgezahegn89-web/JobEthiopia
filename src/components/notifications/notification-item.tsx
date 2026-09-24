@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ClientNotification } from "./notification-list";
 
-type NotificationMessages = {
+export type NotificationMessages = {
   typeApplicationStatusChanged: string;
   typeJobAlertMatch: string;
   typeEmployerNewApplication: string;
@@ -11,6 +11,13 @@ type NotificationMessages = {
   typeEmployerJobStatusChanged: string;
   typeEmployerOnboardingApproved: string;
   typeEmployerOnboardingRejected: string;
+  typeAccountSecurity: string;
+  accountSecurityPasswordChanged: string;
+  accountSecurityEmailChangeRequested: string;
+  accountSecurityEmailChanged: string;
+  accountSecurityEmailVerified: string;
+  accountSecuritySessionRevoked: string;
+  accountSecurityOtherSessionsRevoked: string;
   statusSubheading: (jobTitle: string, status: string) => string;
   alertMatchSubheading: (count: number, alertName: string) => string;
   employerNewApplicationSubheading: (jobTitle: string, candidateName: string) => string;
@@ -40,6 +47,15 @@ function resolveNotificationDisplay(
   t: NotificationMessages,
 ) {
   const data = (item.data ?? {}) as Record<string, unknown>;
+
+  if (item.type === "account_security") {
+    return {
+      title: t.typeAccountSecurity,
+      subheading: accountSecurityEventText(t, String(data.event ?? "")),
+      href: item.actionUrl ?? undefined,
+      linkLabel: t.viewApplication,
+    };
+  }
 
   if (item.type === "application_status_changed") {
     const jobTitle = String(data.jobTitle ?? "Job");
@@ -122,6 +138,28 @@ function resolveNotificationDisplay(
     href: item.actionUrl ?? undefined,
     linkLabel: t.viewApplication,
   };
+}
+
+function accountSecurityEventText(
+  t: NotificationMessages,
+  event: string,
+): string | null {
+  switch (event) {
+    case "password_changed":
+      return t.accountSecurityPasswordChanged;
+    case "email_change_requested":
+      return t.accountSecurityEmailChangeRequested;
+    case "email_changed":
+      return t.accountSecurityEmailChanged;
+    case "email_verified":
+      return t.accountSecurityEmailVerified;
+    case "session_revoked":
+      return t.accountSecuritySessionRevoked;
+    case "other_sessions_revoked":
+      return t.accountSecurityOtherSessionsRevoked;
+    default:
+      return null;
+  }
 }
 
 function timeAgo(dateStr: string): string {

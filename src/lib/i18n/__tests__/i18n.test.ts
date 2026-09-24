@@ -63,6 +63,8 @@ const TOP_LEVEL_KEYS = [
   "employerAuth",
   "employerNav",
   "loading",
+  "settings",
+  "verifyEmail",
 ] as const;
 
 describe("locale allowlist", () => {

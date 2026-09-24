@@ -22,6 +22,7 @@ import { emailVerifications } from "@/db/schema/emailVerifications";
 import { sessions } from "@/db/schema/sessions";
 import { auditLog } from "@/db/schema/auditLog";
 import { writeAuditLog } from "./audit";
+import { getAppBaseUrl } from "./csrf";
 import { checkRateLimit, buildScopedRateLimitKey } from "@/lib/rateLimit";
 
 export const TOKEN_BYTES = 32;
@@ -102,6 +103,20 @@ export async function createEmailVerificationToken(
   }
 
   return { rawToken, expiresAt };
+}
+
+/**
+ * Builds the public verification URL for a raw token. `change` tokens point at
+ * the same consumer page with an explicit type, which routes to the
+ * email-change verifier. The raw token is only ever embedded in the email sent
+ * to the recipient; it is never persisted or logged.
+ */
+export function buildEmailVerificationUrl(
+  rawToken: string,
+  purpose: EmailVerificationPurpose = "verify",
+): string {
+  const type = purpose === "change" ? "&type=change" : "";
+  return `${getAppBaseUrl()}/verify-email?token=${encodeURIComponent(rawToken)}${type}`;
 }
 
 /**
@@ -195,13 +210,19 @@ export async function verifyEmailToken(
 
       // Set email_verified_at if not already set
       const [user] = await tx
-        .select({ id: users.id, emailVerifiedAt: users.emailVerifiedAt })
+        .select({ id: users.id, email: users.email, emailVerifiedAt: users.emailVerifiedAt })
         .from(users)
         .where(eq(users.id, token.userId))
         .limit(1);
 
+      if (!user) throw new Error("invalid_token");
+      // Purpose hardening: a verification token created for an email change
+      // (pending new email) must never be consumed by the plain verify path.
+      // The token's email must match the user's current email.
+      if (user.email !== token.email) throw new Error("invalid_token");
+
       let alreadyVerified = false;
-      if (user && !user.emailVerifiedAt) {
+      if (!user.emailVerifiedAt) {
         await tx
           .update(users)
           .set({ emailVerifiedAt: new Date() })

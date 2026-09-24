@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { NotificationItem } from "./notification-item";
+import {
+  NotificationItem,
+  type NotificationMessages,
+} from "./notification-item";
 
 export type ClientNotification = {
   id: string;
@@ -11,30 +14,6 @@ export type ClientNotification = {
   actionUrl: string | null;
   readAt: string | null;
   createdAt: string;
-};
-
-type NotificationMessages = {
-  typeApplicationStatusChanged: string;
-  typeJobAlertMatch: string;
-  typeEmployerNewApplication: string;
-  typeEmployerApplicationWithdrawn: string;
-  typeEmployerJobStatusChanged: string;
-  typeEmployerOnboardingApproved: string;
-  typeEmployerOnboardingRejected: string;
-  statusSubheading: (jobTitle: string, status: string) => string;
-  alertMatchSubheading: (count: number, alertName: string) => string;
-  employerNewApplicationSubheading: (jobTitle: string, candidateName: string) => string;
-  employerApplicationWithdrawnSubheading: (jobTitle: string, candidateName: string) => string;
-  employerJobStatusSubheading: (jobTitle: string, status: string) => string;
-  employerOnboardingApprovedSubheading: (organizationName: string) => string;
-  employerOnboardingRejectedSubheading: (organizationName: string) => string;
-  viewApplication: string;
-  viewJob: string;
-  viewWorkspace: string;
-  markRead: string;
-  delete: string;
-  unreadLabel: string;
-  readLabel: string;
 };
 
 type Props = {

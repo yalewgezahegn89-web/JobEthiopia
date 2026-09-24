@@ -190,3 +190,35 @@ export async function notifyEmployerOnboardingRejected(
     actionUrl: "/employer/status",
   });
 }
+
+// ─── Account security events (Phase 12) ─────────────────────────────────
+
+export type AccountSecurityEvent =
+  | "password_changed"
+  | "email_change_requested"
+  | "email_changed"
+  | "email_verified"
+  | "session_revoked"
+  | "other_sessions_revoked";
+
+/**
+ * Creates an in-app notification when an account security event occurs
+ * (password changed, email changed, other sessions revoked). Best-effort and
+ * never throws, consistent with the other event helpers.
+ */
+export async function notifyAccountSecurity(
+  userId: string,
+  event: AccountSecurityEvent,
+  extraData: Record<string, unknown> = {},
+): Promise<void> {
+  await createNotification({
+    userId,
+    type: "account_security",
+    data: {
+      event,
+      ...extraData,
+      occurredAt: new Date().toISOString(),
+    },
+    actionUrl: "/settings",
+  });
+}
