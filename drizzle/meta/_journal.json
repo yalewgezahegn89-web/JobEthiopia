@@ -162,6 +162,13 @@
       "when": 1789324844232,
       "tag": "0022_melodic_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790227291805,
+      "tag": "0023_add_candidate_cover_letters",
+      "breakpoints": true
     }
   ]
 }

@@ -4,8 +4,11 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/context";
 import { isStaffRole } from "@/lib/auth/roles";
 import { getOwnedCv } from "@/lib/cv/dal";
+import { evaluateCvReadiness } from "@/lib/cv/completeness";
+import { getCandidateProfile } from "@/lib/candidateProfile/dal";
 import { CvDocument, type CvDocumentLabels } from "@/components/cv/cv-document";
 import { CvDeleteButton } from "@/components/cv/cv-delete-button";
+import { CvReadinessCard } from "@/components/cv/cv-readiness-card";
 import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
@@ -26,10 +29,34 @@ export default async function CvDashboardPage() {
 
   let cv = null;
   let loadError = false;
+  let profile: Awaited<ReturnType<typeof getCandidateProfile>> = null;
   try {
     cv = await getOwnedCv(user.id);
+    profile = await getCandidateProfile(user.id);
   } catch {
     loadError = true;
+  }
+
+  let readiness: Awaited<ReturnType<typeof evaluateCvReadiness>> | null = null;
+  if (!loadError) {
+    readiness = evaluateCvReadiness({
+      hasCv: cv !== null,
+      cv: cv
+        ? {
+            header: {
+              phone: cv.header.phone,
+              location: cv.header.location,
+              professionalSummary: cv.header.professionalSummary,
+            },
+            experiences: cv.experiences,
+            educations: cv.educations,
+            skills: cv.skills,
+            certifications: cv.certifications,
+          }
+        : null,
+      accountEmail: user.email,
+      profile: profile ? { phone: profile.phone } : null,
+    });
   }
 
   const labels: CvDocumentLabels = {
@@ -57,6 +84,18 @@ export default async function CvDashboardPage() {
           {t.cv.subtitle}
         </p>
       </header>
+
+      {!loadError && readiness ? (
+        <div className="mt-6">
+          <CvReadinessCard
+            t={t}
+            percent={readiness.percent}
+            complete={readiness.complete}
+            missing={readiness.missing}
+            hasCv={cv !== null}
+          />
+        </div>
+      ) : null}
 
       {loadError ? (
         <div

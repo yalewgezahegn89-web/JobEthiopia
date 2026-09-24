@@ -48,6 +48,7 @@ export { candidateCvExperiences } from "./candidateCvExperiences";
 export { candidateCvEducations } from "./candidateCvEducations";
 export { candidateCvSkills } from "./candidateCvSkills";
 export { candidateCvCertifications } from "./candidateCvCertifications";
+export { candidateCoverLetters } from "./candidateCoverLetters";
 export { notifications } from "./notifications";
 export { skills } from "./skills";
 export { skillAliases } from "./skillAliases";

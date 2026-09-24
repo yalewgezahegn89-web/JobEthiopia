@@ -30,6 +30,8 @@ const candidateLinks = [
     { href: "/saved-jobs", label: t.nav.savedJobs },
     { href: "/recommendations", label: t.nav.recommendations },
     { href: "/cv", label: t.nav.cv },
+    { href: "/cover-letter", label: t.nav.coverLetter },
+    { href: "/interview-prep", label: t.nav.interviewPrep },
     { href: "/profile", label: t.nav.profile },
     { href: "/job-alerts", label: t.nav.jobAlerts },
     { href: "/settings", label: t.nav.settings },

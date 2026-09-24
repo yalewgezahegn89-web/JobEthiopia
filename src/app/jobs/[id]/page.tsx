@@ -11,6 +11,8 @@ import {
   type PublicJobSummary,
 } from "@/lib/jobs/public";
 import { selectRelatedJobs } from "@/lib/jobs/related";
+import { loadJobSkillsWithNames } from "@/lib/career/prep";
+import { CareerPrepSection } from "@/components/career/career-prep-section";
 import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
 import type { Locale } from "@/lib/i18n/locale";
 import type { Messages } from "@/lib/i18n/dictionary";
@@ -237,6 +239,17 @@ export default async function JobPage({
 
   const canSaveJob =
     currentUser?.role === "CANDIDATE" && job.status === "PUBLISHED";
+
+  const candidateIdForPrep =
+    currentUser?.role === "CANDIDATE" ? currentUser.id : null;
+
+  let jobSkills: Awaited<ReturnType<typeof loadJobSkillsWithNames>> = new Map();
+  try {
+    jobSkills = await loadJobSkillsWithNames([job.id]);
+  } catch {
+    jobSkills = new Map();
+  }
+  const preSkillList = jobSkills.get(job.id) ?? [];
   let initialSaved = false;
   if (canSaveJob && currentUser) {
     try {
@@ -376,6 +389,16 @@ export default async function JobPage({
               </section>
 
               <KeyFacts job={job} t={t} closing={closing} />
+
+              {preSkillList.length > 0 || candidateIdForPrep ? (
+                <CareerPrepSection
+                  t={t}
+                  locale={locale}
+                  job={job}
+                  skills={preSkillList}
+                  candidateId={candidateIdForPrep}
+                />
+              ) : null}
 
               <AdSlot
                 placementId="job-detail-sidebar"

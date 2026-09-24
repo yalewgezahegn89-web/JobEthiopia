@@ -62,6 +62,10 @@ vi.mock("@/components/saved-jobs/save-button", () => ({
     createElement("button", { "data-save-job": jobId }, "Save"),
 }));
 
+vi.mock("@/components/career/career-prep-section", () => ({
+  CareerPrepSection: () => null,
+}));
+
 vi.mock("@/lib/i18n/server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
   return { ...actual, getI18n: async () => dictionaries.en };
