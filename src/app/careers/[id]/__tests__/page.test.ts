@@ -39,7 +39,11 @@ vi.mock("@/lib/careerArticles/related", () => ({
 
 vi.mock("@/lib/i18n/server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
-  return { ...actual, getI18n: async () => dictionaries.en };
+  return {
+    ...actual,
+    getI18n: async () => dictionaries.en,
+    getCurrentLocale: async () => "en",
+  };
 });
 
 import CareerArticlePage from "@/app/careers/[id]/page";

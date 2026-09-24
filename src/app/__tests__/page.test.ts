@@ -68,6 +68,7 @@ vi.mock("@/lib/i18n/server", async (importOriginal) => {
   return {
     ...actual,
     getI18n: async () => dictionaries.en,
+    getCurrentLocale: async () => "en",
   };
 });
 

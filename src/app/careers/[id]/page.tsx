@@ -9,9 +9,10 @@ import {
 } from "@/lib/careerArticles/public";
 import { selectRelatedArticles } from "@/lib/careerArticles/related";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
-import { getI18n } from "@/lib/i18n/server";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { BookIcon, CalendarIcon, ArrowRightIcon } from "@/components/public/icons";
+import AdSlot from "@/components/ads/ad-slot";
 
 export const dynamic = "force-dynamic";
 
@@ -88,6 +89,7 @@ export default async function CareerArticlePage({
 }) {
   const { id } = await params;
   const t = await getI18n();
+  const locale = await getCurrentLocale();
 
   let article: PublicArticleDetail | null = null;
   let loadError = false;
@@ -219,6 +221,13 @@ export default async function CareerArticlePage({
         {t.publicDetail.careerBrowseAll}
         <ArrowRightIcon className="h-4 w-4" />
       </Link>
+
+      <AdSlot
+        placementId="career-article-bottom"
+        pathname={`/careers/${id}`}
+        locale={locale}
+        t={t}
+      />
     </div>
   );
 }

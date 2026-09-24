@@ -475,6 +475,12 @@ export const en = {
   },
   ads: {
     label: "Advertisement",
+    house: {
+      cvTitle: "Polish your CV",
+      cvBody: "Use our free CV and cover-letter tools to apply with confidence.",
+      careersTitle: "Explore career resources",
+      careersBody: "Interview advice, guides, and tips from the JobEthiopia team.",
+    },
   },
   adminAds: {
     monetizationTitle: "Monetization",

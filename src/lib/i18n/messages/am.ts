@@ -467,6 +467,12 @@ primaryNavLabel: "ዋና",
   },
   ads: {
     label: "ማስታወቂያ",
+    house: {
+      cvTitle: "ሲቪዎን ያሻሽሉ",
+      cvBody: "የሲቪ እና የሽፋን ደብዳቤ መሳሪያዎቻችንን በነጻ ተጠቅመው በልበ ሙሉነት ያመልክቱ።",
+      careersTitle: "የሙያ ግብዓቶችን ይዳስሱ",
+      careersBody: "የቃለ መጠይቅ ምክር፣ መመሪያዎች እና ምክሮች ከJobEthiopia ቡድን።",
+    },
   },
   adminAds: {
     monetizationTitle: "ገቢ",

@@ -469,6 +469,12 @@ export const om = {
   },
   ads: {
     label: "Beeksisa",
+    house: {
+      cvTitle: "CV keessan fooyyaa'aa",
+      cvBody: "Meeshalee CV fi xalayaa ittiin hojjennu bilisaa fayyadamaa.",
+      careersTitle: "Qabeenya ogummaa qoradhaa",
+      careersBody: "Gorsa gaaffilee, barreeffamoota fi yaada gurmaa JobEthiopia irraa.",
+    },
   },
   adminAds: {
     monetizationTitle: "Galii",

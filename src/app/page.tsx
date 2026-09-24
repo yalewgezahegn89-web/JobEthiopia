@@ -12,7 +12,8 @@ import { LatestJobs, ClosingSoon } from "@/components/homepage/jobs";
 import { ExploreByPath } from "@/components/homepage/explore";
 import { EmployerCta } from "@/components/homepage/employer-cta";
 import { CareerResources } from "@/components/homepage/career-resources";
-import { getI18n } from "@/lib/i18n/server";
+import AdSlot from "@/components/ads/ad-slot";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Home() {
   const t = await getI18n();
+  const locale = await getCurrentLocale();
   const [jobsResult, articlesResult, categoriesResult, professionsResult, locationsResult] =
     await Promise.all([
       fetchJobs({ page: 1, limit: 20, status: "PUBLISHED" }).catch(() => null),
@@ -52,6 +54,8 @@ export default async function Home() {
       <TrustSignals t={t} />
 
       <div className="mx-auto w-full max-w-7xl space-y-16 px-4 py-14 sm:space-y-20 sm:py-16">
+        <AdSlot placementId="home-banner" pathname="/" locale={locale} t={t} />
+
         {jobsResult === null || jobs.length === 0 ? (
           <JobsEmptyState t={t} />
         ) : (
