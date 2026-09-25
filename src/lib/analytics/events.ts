@@ -139,7 +139,7 @@ export function sanitizeMetadata(
   return output;
 }
 
-async function resolveLocale(locale?: unknown): Promise<Locale> {
+export async function resolveAnalyticsLocale(locale?: unknown): Promise<Locale> {
   if (locale !== undefined && locale !== null) {
     return toLocale(locale);
   }
@@ -183,7 +183,7 @@ export async function trackDiscoveryEvent(
     ? input.jobId
     : null;
 
-  const locale = await resolveLocale(input.locale);
+  const locale = await resolveAnalyticsLocale(input.locale);
   const metadata = sanitizeMetadata(eventName, input.metadata);
 
   try {

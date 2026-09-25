@@ -10,6 +10,7 @@ import { CvDocument, type CvDocumentLabels } from "@/components/cv/cv-document";
 import { CvDeleteButton } from "@/components/cv/cv-delete-button";
 import { CvReadinessCard } from "@/components/cv/cv-readiness-card";
 import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import { trackPageView } from "@/lib/analytics/pageEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -70,6 +71,12 @@ export default async function CvDashboardPage() {
     website: t.cv.preview.websiteLabel,
     present: t.cv.preview.present,
   };
+
+  try {
+    await trackPageView({ pathname: "/cv", locale });
+  } catch {
+    // Best-effort capture must never break the page.
+  }
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10">

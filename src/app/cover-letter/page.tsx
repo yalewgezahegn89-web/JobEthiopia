@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth/context";
 import { isStaffRole } from "@/lib/auth/roles";
 import { listCoverLetters } from "@/lib/coverLetter/dal";
 import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import { trackPageView } from "@/lib/analytics/pageEvents";
 import { CoverLetterRowActions } from "@/components/cover-letter/cover-letter-row-actions";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,12 @@ export default async function CoverLetterDashboardPage() {
     letters = await listCoverLetters(user.id);
   } catch {
     loadError = true;
+  }
+
+  try {
+    await trackPageView({ pathname: "/cover-letter", locale });
+  } catch {
+    // Best-effort capture must never break the page.
   }
 
   return (

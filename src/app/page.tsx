@@ -14,6 +14,7 @@ import { EmployerCta } from "@/components/homepage/employer-cta";
 import { CareerResources } from "@/components/homepage/career-resources";
 import AdSlot from "@/components/ads/ad-slot";
 import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import { trackPageView } from "@/lib/analytics/pageEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -46,6 +47,12 @@ export default async function Home() {
   const categories = categoriesResult?.items ?? [];
   const professions = professionsResult?.items ?? [];
   const locations = locationsResult?.items ?? [];
+
+  try {
+    await trackPageView({ pathname: "/", locale });
+  } catch {
+    // Best-effort capture must never break the page.
+  }
 
   return (
     <div className="flex w-full flex-col">

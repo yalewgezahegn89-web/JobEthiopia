@@ -6,6 +6,7 @@ import { isStaffRole } from "@/lib/auth/roles";
 import { isValidUuid } from "@/lib/validations/coverLetter";
 import { fetchJobById } from "@/lib/jobs/public";
 import { getI18n } from "@/lib/i18n/server";
+import { trackPageView } from "@/lib/analytics/pageEvents";
 import {
   PrepChecklist,
   type PrepSection,
@@ -68,6 +69,12 @@ export default async function InterviewPrepPage({
     },
     { heading: ip.sections.dayOf.heading, items: ip.sections.dayOf.items },
   ];
+
+  try {
+    await trackPageView({ pathname: "/interview-prep" });
+  } catch {
+    // Best-effort capture must never break the page.
+  }
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-8 sm:py-10">

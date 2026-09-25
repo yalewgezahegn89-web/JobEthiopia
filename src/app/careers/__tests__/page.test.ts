@@ -35,6 +35,10 @@ vi.mock("@/lib/i18n/server", async (importOriginal) => {
   return { ...actual, getI18n: async () => dictionaries.en };
 });
 
+vi.mock("@/lib/analytics/pageEvents", () => ({
+  trackPageView: vi.fn().mockResolvedValue(undefined),
+}));
+
 import CareersPage from "@/app/careers/page";
 
 function makeArticle(overrides: Record<string, unknown> = {}) {

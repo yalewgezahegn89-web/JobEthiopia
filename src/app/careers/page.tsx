@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/public/empty-state";
 import { Pagination } from "@/components/public/pagination";
 import { BookIcon, CalendarIcon } from "@/components/public/icons";
 import { getI18n } from "@/lib/i18n/server";
+import { trackPageView } from "@/lib/analytics/pageEvents";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +98,12 @@ export default async function CareersPage({
     }
     query.set("page", String(targetPage));
     return `?${query.toString()}`;
+  }
+
+  try {
+    await trackPageView({ pathname: "/careers" });
+  } catch {
+    // Best-effort capture must never break the page.
   }
 
   return (

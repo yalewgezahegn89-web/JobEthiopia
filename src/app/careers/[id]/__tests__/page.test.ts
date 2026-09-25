@@ -46,6 +46,10 @@ vi.mock("@/lib/i18n/server", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/analytics/pageEvents", () => ({
+  trackPageView: vi.fn().mockResolvedValue(undefined),
+}));
+
 import CareerArticlePage from "@/app/careers/[id]/page";
 
 const ARTICLE_ID = "art-1";

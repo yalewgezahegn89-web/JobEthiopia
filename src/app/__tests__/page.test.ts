@@ -72,6 +72,10 @@ vi.mock("@/lib/i18n/server", async (importOriginal) => {
   };
 });
 
+vi.mock("@/lib/analytics/pageEvents", () => ({
+  trackPageView: vi.fn().mockResolvedValue(undefined),
+}));
+
 import Home from "@/app/page";
 
 function makeJob(overrides: Record<string, unknown> = {}) {

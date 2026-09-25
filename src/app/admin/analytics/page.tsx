@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireStaffAdmin } from "@/lib/auth/context";
 import { getAnalyticsSummary } from "@/lib/admin/analytics";
+import { parseAnalyticsWindowId } from "@/lib/analytics/timeWindows";
 import { getI18n } from "@/lib/i18n/server";
 import AdminNav from "../nav";
 import AnalyticsDashboard from "./analytics-dashboard";
@@ -9,7 +10,11 @@ export const metadata = {
   title: "Analytics | JobEthiopia Admin",
 };
 
-export default async function AdminAnalyticsPage() {
+export default async function AdminAnalyticsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ window?: string | string[] }>;
+}) {
   const guard = await requireStaffAdmin();
   if (!guard.ok) {
     redirect(guard.status === 401 ? "/login" : "/admin");
@@ -17,10 +22,15 @@ export default async function AdminAnalyticsPage() {
 
   const t = await getI18n();
 
+  // ?window= selects one explicit, bounded window; unknown values fall back
+  // to the default (30d) and can never widen a query.
+  const params = (await searchParams) ?? {};
+  const windowId = parseAnalyticsWindowId(params.window);
+
   let summary;
   let loadError = false;
   try {
-    summary = await getAnalyticsSummary();
+    summary = await getAnalyticsSummary(undefined, { windowId, cache: true });
   } catch {
     loadError = true;
   }

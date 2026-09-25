@@ -10,6 +10,7 @@ import {
 import { selectRelatedArticles } from "@/lib/careerArticles/related";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
 import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import { trackPageView } from "@/lib/analytics/pageEvents";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { BookIcon, CalendarIcon, ArrowRightIcon } from "@/components/public/icons";
 import AdSlot from "@/components/ads/ad-slot";
@@ -98,6 +99,12 @@ export default async function CareerArticlePage({
     article = await fetchCareerArticle(id);
   } catch {
     loadError = true;
+  }
+
+  try {
+    await trackPageView({ pathname: "/careers/[id]", locale });
+  } catch {
+    // Best-effort capture must never break the page.
   }
 
   if (loadError) {
