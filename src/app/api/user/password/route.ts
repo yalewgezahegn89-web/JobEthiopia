@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
@@ -15,7 +16,7 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(8),
 });
 
-export async function POST(request: Request) {
+async function __wrapped_POST(request: Request) {
   const store = await cookies();
   const rawToken = store.get(SESSION_COOKIE_NAME)?.value ?? "";
   if (!rawToken) {
@@ -83,3 +84,4 @@ async function resolveSessionId(tokenHash: string): Promise<string | null> {
 
   return session?.id ?? null;
 }
+export const POST = withRouteMetrics("/api/user/password", "POST", __wrapped_POST);

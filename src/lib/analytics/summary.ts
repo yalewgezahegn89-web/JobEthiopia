@@ -35,6 +35,7 @@ import { sessions } from "@/db/schema/sessions";
 import { sources } from "@/db/schema/sources";
 import { organizations } from "@/db/schema/organizations";
 import { notifications } from "@/db/schema/notifications";
+import { recordCacheEvent } from "@/lib/observability/metrics";
 import { DISCOVERY_EVENTS, type DiscoveryEventName } from "./events";
 import { CV_EVENTS } from "./cvEvents";
 import { COVER_LETTER_EVENTS } from "./coverLetterEvents";
@@ -402,6 +403,8 @@ export type AnalyticsSummaryOptions = {
 
 const SUMMARY_CACHE_TTL_MS = 60_000;
 const SUMMARY_CACHE_MAX_ENTRIES = 4;
+/** Metric series name for the analytics summary cache (Phase 16 Batch 2). */
+const SUMMARY_CACHE_METRIC_NAME = "analytics_summary";
 const summaryCache = new Map<
   string,
   { expiresAt: number; summary: AnalyticsSummary }
@@ -1043,25 +1046,38 @@ export async function getAnalyticsSummary(
 ): Promise<AnalyticsSummary> {
   const win = getAnalyticsWindow(options.windowId);
   const cacheKey = `${win.id}|${Math.floor(now.getTime() / SUMMARY_CACHE_TTL_MS)}`;
+  const useCache = Boolean(options.cache);
 
-  if (options.cache) {
+  if (useCache) {
     const hit = summaryCache.get(cacheKey);
     if (hit) {
-      if (hit.expiresAt > Date.now()) return hit.summary;
+      if (hit.expiresAt > Date.now()) {
+        recordCacheEvent({ name: SUMMARY_CACHE_METRIC_NAME, outcome: "hit" });
+        return hit.summary;
+      }
       summaryCache.delete(cacheKey);
     }
   }
 
+  const buildStart = performance.now();
   const summary = await buildAnalyticsSummary(now, win);
 
-  if (options.cache) {
+  if (useCache) {
+    recordCacheEvent({
+      name: SUMMARY_CACHE_METRIC_NAME,
+      outcome: "miss",
+      buildDurationMs: Math.round(performance.now() - buildStart),
+    });
     summaryCache.set(cacheKey, {
       expiresAt: Date.now() + SUMMARY_CACHE_TTL_MS,
       summary,
     });
     if (summaryCache.size > SUMMARY_CACHE_MAX_ENTRIES) {
       const oldest = summaryCache.keys().next().value;
-      if (oldest !== undefined) summaryCache.delete(oldest);
+      if (oldest !== undefined) {
+        summaryCache.delete(oldest);
+        recordCacheEvent({ name: SUMMARY_CACHE_METRIC_NAME, outcome: "evict" });
+      }
     }
   }
   return summary;

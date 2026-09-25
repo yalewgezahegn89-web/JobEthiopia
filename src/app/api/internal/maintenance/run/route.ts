@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { runMaintenance } from "@/lib/maintenance/run";
 import { writeAuditLog } from "@/lib/auth/audit";
@@ -10,7 +11,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function POST(request: Request) {
+async function __wrapped_POST(request: Request) {
   const authResult = await checkInternalRouteKey(request, {
     route: "/api/internal/maintenance/run",
     keyEnvVar: "MAINTENANCE_API_KEY",
@@ -79,3 +80,4 @@ export async function POST(request: Request) {
     return jsonError("Internal server error", 500);
   }
 }
+export const POST = withRouteMetrics("/api/internal/maintenance/run", "POST", __wrapped_POST);

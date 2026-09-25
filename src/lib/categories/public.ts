@@ -1,3 +1,4 @@
+import { timedFetch } from "@/lib/observability/internalFetch";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
 
 export type PublicCategoryQuery = {
@@ -125,7 +126,7 @@ export async function fetchCategories(
   const url = new URL("/api/categories", baseUrl);
   url.search = params.toString();
 
-  const res = await fetcher(url, { cache: "no-store" });
+  const res = await timedFetch(fetcher, url, { cache: "no-store" });
   if (!res.ok) {
     throw new PublicApiError();
   }
@@ -152,7 +153,7 @@ export async function fetchCategoryById(
 
   const url = new URL(`/api/categories/${encodeURIComponent(id)}`, baseUrl);
 
-  const res = await fetcher(url, { cache: "no-store" });
+  const res = await timedFetch(fetcher, url, { cache: "no-store" });
   if (res.status === 404) {
     return null;
   }

@@ -17,6 +17,7 @@ const links = [
   { href: "/admin/taxonomy", label: "Taxonomy" },
   { href: "/admin/audit", label: "Audit Log" },
   { href: "/admin/operations", label: "Operations" },
+  { href: "/admin/observability", label: "Observability" },
   { href: "/admin/analytics", label: "Analytics" },
 ];
 

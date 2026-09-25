@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -17,7 +18,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function DELETE(
+async function __wrapped_DELETE(
   request: Request,
   { params }: { params: Promise<{ membershipId: string }> },
 ) {
@@ -120,3 +121,4 @@ export async function DELETE(
     return jsonError("Internal server error", 500);
   }
 }
+export const DELETE = withRouteMetrics("/api/employer/team/[membershipId]", "DELETE", __wrapped_DELETE);

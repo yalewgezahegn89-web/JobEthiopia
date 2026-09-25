@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -16,7 +17,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function POST(request: Request) {
+async function __wrapped_POST(request: Request) {
   const start = performance.now();
   const requestId = await getRequestId();
 
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+async function __wrapped_GET() {
   const start = performance.now();
   const requestId = await getRequestId();
 
@@ -123,3 +124,5 @@ export async function GET() {
     return jsonError("Internal server error", 500);
   }
 }
+export const POST = withRouteMetrics("/api/job-alerts", "POST", __wrapped_POST);
+export const GET = withRouteMetrics("/api/job-alerts", "GET", __wrapped_GET);

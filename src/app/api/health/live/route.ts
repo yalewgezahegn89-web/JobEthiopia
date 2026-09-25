@@ -1,5 +1,7 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 
-export async function GET() {
+async function __wrapped_GET() {
   return NextResponse.json({ status: "ok" });
 }
+export const GET = withRouteMetrics("/api/health/live", "GET", __wrapped_GET);

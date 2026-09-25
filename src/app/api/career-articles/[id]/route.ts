@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -14,7 +15,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function GET(
+async function __wrapped_GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -43,7 +44,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function __wrapped_PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -129,7 +130,7 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
+async function __wrapped_DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -175,3 +176,6 @@ export async function DELETE(
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/career-articles/[id]", "GET", __wrapped_GET);
+export const PUT = withRouteMetrics("/api/career-articles/[id]", "PUT", __wrapped_PUT);
+export const DELETE = withRouteMetrics("/api/career-articles/[id]", "DELETE", __wrapped_DELETE);

@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -43,7 +44,7 @@ function memberToJson(item: {
   };
 }
 
-export async function GET() {
+async function __wrapped_GET() {
   const start = performance.now();
   const requestId = await getRequestId();
 
@@ -78,7 +79,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+async function __wrapped_POST(request: Request) {
   const start = performance.now();
   const requestId = await getRequestId();
 
@@ -184,3 +185,5 @@ export async function POST(request: Request) {
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/employer/team", "GET", __wrapped_GET);
+export const POST = withRouteMetrics("/api/employer/team", "POST", __wrapped_POST);

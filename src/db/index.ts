@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool, type PoolConfig } from "pg";
 import * as schema from "./schema";
+import { registerPoolStatsProvider } from "@/lib/observability/dbMetrics";
 
 /**
  * Conservative PostgreSQL pool configuration for a small Next.js / serverless
@@ -53,6 +54,29 @@ function toPositiveInt(raw: string | undefined, fallback: number): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-const pool = new Pool(getPoolConfig());
+const poolConfig = getPoolConfig();
+const pool = new Pool(poolConfig);
 
 export const db = drizzle(pool, { schema });
+
+/**
+ * Publishes live pool counters to the observability layer (Phase 16 Batch 2).
+ *
+ * Only numeric counters and the configured limits are shared — never the
+ * connection string, host, database name or credentials. Failures are
+ * swallowed so instrumentation can never break database access.
+ */
+registerPoolStatsProvider(() => {
+  try {
+    return {
+      max: poolConfig.max ?? 0,
+      total: pool.totalCount,
+      idle: pool.idleCount,
+      waiting: pool.waitingCount,
+      connectTimeoutMs: poolConfig.connectionTimeoutMillis ?? 0,
+      idleTimeoutMs: poolConfig.idleTimeoutMillis ?? 0,
+    };
+  } catch {
+    return null;
+  }
+});

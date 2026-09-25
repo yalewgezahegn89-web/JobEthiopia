@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth/session";
@@ -6,7 +7,7 @@ import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 import { markNotificationRead, deleteNotification } from "@/lib/notifications/dal";
 import { logWarn } from "@/lib/observability/logger";
 
-export async function PATCH(
+async function __wrapped_PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -43,7 +44,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function __wrapped_DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -79,3 +80,5 @@ export async function DELETE(
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
+export const PATCH = withRouteMetrics("/api/notifications/[id]", "PATCH", __wrapped_PATCH);
+export const DELETE = withRouteMetrics("/api/notifications/[id]", "DELETE", __wrapped_DELETE);

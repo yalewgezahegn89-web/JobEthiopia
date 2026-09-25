@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -9,7 +10,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function POST(request: Request) {
+async function __wrapped_POST(request: Request) {
   try {
     await assertTrustedCsrfFromRequest();
   } catch {
@@ -43,6 +44,8 @@ export async function POST(request: Request) {
   return NextResponse.redirect(loginUrl);
 }
 
-export async function GET() {
+async function __wrapped_GET() {
   return jsonError("Method Not Allowed", 405);
 }
+export const POST = withRouteMetrics("/logout", "POST", __wrapped_POST);
+export const GET = withRouteMetrics("/logout", "GET", __wrapped_GET);

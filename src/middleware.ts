@@ -8,12 +8,16 @@ import {
   CSP_HEADER_NAME,
   CSP_REPORT_ONLY_HEADER_NAME,
 } from "@/lib/csp";
-import { logWarn } from "@/lib/observability/logger";
+import { logInfo, logWarn } from "@/lib/observability/logger";
 import {
   generateRequestId,
   REQUEST_ID_HEADER,
   applyRequestIdToHeaders,
 } from "@/lib/observability/requestId";
+import {
+  normalizeRoutePath,
+  recordRateLimitRejection,
+} from "@/lib/observability/metrics";
 import { LOCALE_HEADER } from "@/lib/i18n/server";
 import { LOCALE_COOKIE_NAME, localeFromPathname, stripLocalePrefix } from "@/lib/i18n";
 
@@ -160,6 +164,10 @@ export function middleware(request: NextRequest) {
   const startedAt = performance.now();
 
   const logRejected = (status: number, route: string, bucket: string): void => {
+    // Phase 16 Batch 2: also count the rejection in the in-process registry so
+    // legitimate-vs-abusive rejection rates can be reviewed without log
+    // parsing. Only bucket + normalized route are stored — never IP or key.
+    recordRateLimitRejection({ bucket, route: targetPathname });
     logWarn("rate_limit_rejected", {
       requestId,
       route,
@@ -169,6 +177,21 @@ export function middleware(request: NextRequest) {
       durationMs: Math.round(performance.now() - startedAt),
     });
   };
+
+  /* ── Page request observability (Phase 16 Batch 2) ───────────────────── */
+  // One line per non-API request entering the page pipeline. Deliberately
+  // carries NO duration and NO status: middleware only measures its own slice
+  // of the request, so a middleware-derived latency would be misleading.
+  // Render status and render duration are not observable from a Next.js
+  // first-party hook — see OPERATIONS.md for the limitation.
+  if (!targetPathname.startsWith("/api/")) {
+    logInfo("page_request", {
+      requestId,
+      route: normalizeRoutePath(targetPathname),
+      method,
+      locale: resolvedLocale,
+    });
+  }
 
   /* ── Rate limiting ─────────────────────────────────────────────────── */
 

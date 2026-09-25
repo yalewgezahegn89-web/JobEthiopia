@@ -28,13 +28,47 @@ export interface SourceRunResult {
   possibleDuplicate: number;
   failed: number;
   durationMs: number;
+  /** True when this attempt auto-deactivated the source (failure threshold). */
+  deactivated: boolean;
 }
 
+/**
+ * Aggregate counters for one whole ingestion run (Phase 16 Batch 2).
+ *
+ * `checked/succeeded/failed/skipped` remain the stable response contract; the
+ * added fields are additive and feed the audit metadata, the structured run
+ * log and the in-process ingestion metrics. No schema change is involved.
+ */
 export interface SourcesIngestionResult {
   checked: number;
   succeeded: number;
   failed: number;
   skipped: number;
+  jobsReceived: number;
+  jobsCreated: number;
+  jobsUpdated: number;
+  duplicates: number;
+  failedRecords: number;
+  autoDeactivatedSources: number;
+}
+
+function zeroAggregates(): Pick<
+  SourcesIngestionResult,
+  | "jobsReceived"
+  | "jobsCreated"
+  | "jobsUpdated"
+  | "duplicates"
+  | "failedRecords"
+  | "autoDeactivatedSources"
+> {
+  return {
+    jobsReceived: 0,
+    jobsCreated: 0,
+    jobsUpdated: 0,
+    duplicates: 0,
+    failedRecords: 0,
+    autoDeactivatedSources: 0,
+  };
 }
 
 function zeroCounts(): Pick<
@@ -65,14 +99,18 @@ function elapsedMs(start: number): number {
 async function recordFailedCheckSafe(
   sourceId: string,
   message: string,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await recordFailedCheck(sourceId, message);
   } catch {
     // Health recording must never fail an ingestion run.
   }
   // Auto-deactivate sources that exceed the failure threshold (best-effort).
-  await autoDeactivateIfUnhealthy(sourceId).catch(() => {});
+  try {
+    return (await autoDeactivateIfUnhealthy(sourceId)) === true;
+  } catch {
+    return false;
+  }
 }
 
 async function recordSuccessfulCheckSafe(sourceId: string): Promise<void> {
@@ -120,6 +158,7 @@ export async function runSourceIngestion(
       reason: "Source not found",
       ...zeroCounts(),
       durationMs: 0,
+      deactivated: false,
     };
   }
 
@@ -130,6 +169,7 @@ export async function runSourceIngestion(
       reason: "Source is inactive",
       ...zeroCounts(),
       durationMs: elapsedMs(start),
+      deactivated: false,
     };
   }
 
@@ -141,6 +181,7 @@ export async function runSourceIngestion(
       reason: `Unsupported source type: ${source.sourceType}`,
       ...zeroCounts(),
       durationMs: elapsedMs(start),
+      deactivated: false,
     };
   }
 
@@ -149,7 +190,7 @@ export async function runSourceIngestion(
     fetch = await adapter.fetchJobs(sourceId);
   } catch (err: unknown) {
     const message = errorMessage(err);
-    await recordFailedCheckSafe(sourceId, message);
+    const deactivated = await recordFailedCheckSafe(sourceId, message);
     logWarn("ingestion_source_fetch_failed", {
       sourceId,
       reason: message,
@@ -160,11 +201,12 @@ export async function runSourceIngestion(
       reason: message,
       ...zeroCounts(),
       durationMs: elapsedMs(start),
+      deactivated,
     };
   }
 
   if (!fetch.success) {
-    await recordFailedCheckSafe(sourceId, fetch.error);
+    const deactivated = await recordFailedCheckSafe(sourceId, fetch.error);
     logWarn("ingestion_source_fetch_failed", {
       sourceId,
       reason: fetch.error,
@@ -175,6 +217,7 @@ export async function runSourceIngestion(
       reason: fetch.error,
       ...zeroCounts(),
       durationMs: elapsedMs(start),
+      deactivated,
     };
   }
 
@@ -186,6 +229,7 @@ export async function runSourceIngestion(
       reason: null,
       ...zeroCounts(),
       durationMs: elapsedMs(start),
+      deactivated: false,
     };
   }
 
@@ -214,10 +258,11 @@ export async function runSourceIngestion(
       possibleDuplicate: result.summary.possibleDuplicate,
       failed: result.summary.failed,
       durationMs: elapsedMs(start),
+      deactivated: false,
     };
   } catch (err: unknown) {
     const message = errorMessage(err);
-    await recordFailedCheckSafe(sourceId, message);
+    const deactivated = await recordFailedCheckSafe(sourceId, message);
     logWarn("ingestion_source_failed", {
       sourceId,
       reason: message,
@@ -229,6 +274,7 @@ export async function runSourceIngestion(
       reason: message,
       ...zeroCounts(),
       durationMs: elapsedMs(start),
+      deactivated,
     };
   }
 }
@@ -250,6 +296,7 @@ export async function runSourcesIngestion(): Promise<SourcesIngestionResult> {
     succeeded: 0,
     failed: 0,
     skipped: 0,
+    ...zeroAggregates(),
   };
 
   const activeSources = await db
@@ -290,6 +337,13 @@ export async function runSourcesIngestion(): Promise<SourcesIngestionResult> {
     result.checked += 1;
 
     const run = await runSourceIngestion(source.id);
+    result.jobsReceived += run.total;
+    result.jobsCreated += run.created;
+    result.jobsUpdated += run.updated;
+    result.duplicates += run.duplicate;
+    result.failedRecords += run.failed;
+    if (run.deactivated) result.autoDeactivatedSources += 1;
+
     if (run.status === "SUCCEEDED") {
       result.succeeded += 1;
     } else if (run.status === "FAILED") {
@@ -304,6 +358,12 @@ export async function runSourcesIngestion(): Promise<SourcesIngestionResult> {
     succeeded: result.succeeded,
     failed: result.failed,
     skipped: result.skipped,
+    jobsReceived: result.jobsReceived,
+    jobsCreated: result.jobsCreated,
+    jobsUpdated: result.jobsUpdated,
+    duplicates: result.duplicates,
+    failedRecords: result.failedRecords,
+    autoDeactivatedSources: result.autoDeactivatedSources,
   });
 
   return result;

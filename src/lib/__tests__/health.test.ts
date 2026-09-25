@@ -26,7 +26,8 @@ describe("GET /api/health", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body).toEqual({ status: "ok" });
+    expect(body.status).toBe("ok");
+    expect(body.databaseCheckDurationMs).toBeTypeOf("number");
   });
 
   it("calls db.execute with a SELECT 1 query", async () => {
@@ -42,7 +43,8 @@ describe("GET /api/health", () => {
     const body = await res.json();
 
     expect(res.status).toBe(503);
-    expect(body).toEqual({ status: "error" });
+    expect(body.status).toBe("error");
+    expect(body.databaseCheckDurationMs).toBeTypeOf("number");
   });
 
   it("does not leak error details on DB failure", async () => {
@@ -85,7 +87,8 @@ describe("GET /api/health/ready (readiness)", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body).toEqual({ status: "ok" });
+    expect(body.status).toBe("ok");
+    expect(body.databaseCheckDurationMs).toBeTypeOf("number");
     expect(mockExecute).toHaveBeenCalledTimes(1);
   });
 
@@ -96,7 +99,8 @@ describe("GET /api/health/ready (readiness)", () => {
     const body = await res.json();
 
     expect(res.status).toBe(503);
-    expect(body).toEqual({ status: "error" });
+    expect(body.status).toBe("error");
+    expect(body.databaseCheckDurationMs).toBeTypeOf("number");
   });
 
   it("does not leak error details when the DB is down", async () => {
@@ -124,7 +128,8 @@ describe("GET /api/health/ready (readiness)", () => {
       const res = await promise;
       expect(res.status).toBe(503);
       const body = await res.json();
-      expect(body).toEqual({ status: "error" });
+      expect(body.status).toBe("error");
+      expect(body.databaseCheckDurationMs).toBeTypeOf("number");
     } finally {
       vi.useRealTimers();
     }

@@ -1,10 +1,15 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
-import { checkDatabaseReadiness } from "@/lib/observability/health";
+import { checkDatabaseReadinessDetailed } from "@/lib/observability/health";
 
-export async function GET() {
-  const ready = await checkDatabaseReadiness();
+async function __wrapped_GET() {
+  const probe = await checkDatabaseReadinessDetailed();
   return NextResponse.json(
-    { status: ready ? "ok" : "error" },
-    { status: ready ? 200 : 503 },
+    {
+      status: probe.ready ? "ok" : "error",
+      databaseCheckDurationMs: probe.durationMs,
+    },
+    { status: probe.ready ? 200 : 503 },
   );
 }
+export const GET = withRouteMetrics("/api/health/ready", "GET", __wrapped_GET);

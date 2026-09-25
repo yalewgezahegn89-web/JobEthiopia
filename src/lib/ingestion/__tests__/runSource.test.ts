@@ -230,7 +230,18 @@ describe("runSourcesIngestion", () => {
   it("returns zeros when no active sources exist", async () => {
     mocks.activeSources = [];
     const result = await runSourcesIngestion();
-    expect(result).toEqual({ checked: 0, succeeded: 0, failed: 0, skipped: 0 });
+    expect(result).toEqual({
+      checked: 0,
+      succeeded: 0,
+      failed: 0,
+      skipped: 0,
+      jobsReceived: 0,
+      jobsCreated: 0,
+      jobsUpdated: 0,
+      duplicates: 0,
+      failedRecords: 0,
+      autoDeactivatedSources: 0,
+    });
   });
 
   it("silently skips sources that are not due", async () => {
@@ -244,7 +255,18 @@ describe("runSourcesIngestion", () => {
     ];
     mocks.mockIsDue.mockResolvedValue(false);
     const result = await runSourcesIngestion();
-    expect(result).toEqual({ checked: 0, succeeded: 0, failed: 0, skipped: 0 });
+    expect(result).toEqual({
+      checked: 0,
+      succeeded: 0,
+      failed: 0,
+      skipped: 0,
+      jobsReceived: 0,
+      jobsCreated: 0,
+      jobsUpdated: 0,
+      duplicates: 0,
+      failedRecords: 0,
+      autoDeactivatedSources: 0,
+    });
   });
 
   it("counts due sources without a baseUrl as skipped", async () => {
@@ -257,7 +279,18 @@ describe("runSourcesIngestion", () => {
       },
     ];
     const result = await runSourcesIngestion();
-    expect(result).toEqual({ checked: 0, succeeded: 0, failed: 0, skipped: 1 });
+    expect(result).toEqual({
+      checked: 0,
+      succeeded: 0,
+      failed: 0,
+      skipped: 1,
+      jobsReceived: 0,
+      jobsCreated: 0,
+      jobsUpdated: 0,
+      duplicates: 0,
+      failedRecords: 0,
+      autoDeactivatedSources: 0,
+    });
   });
 
   it("runs due sources and counts the outcomes", async () => {

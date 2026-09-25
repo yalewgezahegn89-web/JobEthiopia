@@ -1,3 +1,4 @@
+import { timedFetch } from "@/lib/observability/internalFetch";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
 
 export const DEFAULT_STALE_MAX_AGE_DAYS = 30;
@@ -414,7 +415,7 @@ export async function fetchJobs(
   const url = new URL("/api/jobs", baseUrl);
   url.search = params.toString();
 
-  const res = await fetcher(url, { cache: "no-store" });
+  const res = await timedFetch(fetcher, url, { cache: "no-store" });
   if (!res.ok) {
     throw new PublicApiError();
   }
@@ -441,7 +442,7 @@ export async function fetchJobById(
 
   const url = new URL(`/api/jobs/${encodeURIComponent(id)}`, baseUrl);
 
-  const res = await fetcher(url, { cache: "no-store" });
+  const res = await timedFetch(fetcher, url, { cache: "no-store" });
   if (res.status === 404) {
     return null;
   }

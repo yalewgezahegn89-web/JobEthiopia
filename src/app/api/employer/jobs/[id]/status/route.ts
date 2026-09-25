@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -17,7 +18,7 @@ function jsonError(message: string, status: number) {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function PATCH(
+async function __wrapped_PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -154,3 +155,4 @@ export async function PATCH(
     return jsonError("Internal server error", 500);
   }
 }
+export const PATCH = withRouteMetrics("/api/employer/jobs/[id]/status", "PATCH", __wrapped_PATCH);

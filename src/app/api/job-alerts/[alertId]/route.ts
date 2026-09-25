@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -18,7 +19,7 @@ function jsonError(message: string, status: number) {
 
 type Params = { params: Promise<{ alertId: string }> };
 
-export async function PATCH(request: Request, { params }: Params) {
+async function __wrapped_PATCH(request: Request, { params }: Params) {
   const start = performance.now();
   const requestId = await getRequestId();
 
@@ -98,7 +99,7 @@ export async function PATCH(request: Request, { params }: Params) {
   }
 }
 
-export async function DELETE(request: Request, { params }: Params) {
+async function __wrapped_DELETE(request: Request, { params }: Params) {
   const start = performance.now();
   const requestId = await getRequestId();
 
@@ -159,3 +160,5 @@ export async function DELETE(request: Request, { params }: Params) {
     return jsonError("Internal server error", 500);
   }
 }
+export const PATCH = withRouteMetrics("/api/job-alerts/[alertId]", "PATCH", __wrapped_PATCH);
+export const DELETE = withRouteMetrics("/api/job-alerts/[alertId]", "DELETE", __wrapped_DELETE);

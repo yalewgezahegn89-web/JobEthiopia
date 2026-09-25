@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { desc, eq, and, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -14,7 +15,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function POST(request: Request) {
+async function __wrapped_POST(request: Request) {
   const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
 
@@ -78,7 +79,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
+async function __wrapped_GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   const parsed = organizationListQuerySchema.safeParse({
@@ -155,3 +156,5 @@ export async function GET(request: Request) {
     return jsonError("Internal server error", 500);
   }
 }
+export const POST = withRouteMetrics("/api/organizations", "POST", __wrapped_POST);
+export const GET = withRouteMetrics("/api/organizations", "GET", __wrapped_GET);

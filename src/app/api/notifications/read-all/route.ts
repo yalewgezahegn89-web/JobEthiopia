@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { verifySession } from "@/lib/auth/session";
@@ -6,7 +7,7 @@ import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 import { markAllNotificationsRead } from "@/lib/notifications/dal";
 import { logWarn } from "@/lib/observability/logger";
 
-export async function POST(_request: Request) {
+async function __wrapped_POST(_request: Request) {
   const store = await cookies();
   const rawToken = store.get(SESSION_COOKIE_NAME)?.value ?? "";
   if (!rawToken) {
@@ -34,3 +35,4 @@ export async function POST(_request: Request) {
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
+export const POST = withRouteMetrics("/api/notifications/read-all", "POST", __wrapped_POST);

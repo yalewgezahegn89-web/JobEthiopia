@@ -8,6 +8,7 @@
  *
  * Security: candidate-owned, session-resolved identity, CSRF-protected.
  */
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse, type NextRequest } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { db } from "@/db";
@@ -24,7 +25,7 @@ function isValidFeedbackType(value: unknown): value is FeedbackType {
   return typeof value === "string" && (VALID_FEEDBACK_TYPES as readonly string[]).includes(value);
 }
 
-export async function POST(
+async function __wrapped_POST(
   request: NextRequest,
   { params }: { params: Promise<{ jobId: string }> },
 ) {
@@ -101,3 +102,4 @@ export async function POST(
 
   return NextResponse.json({ ok: true, feedback: body.feedback });
 }
+export const POST = withRouteMetrics("/api/recommendations/[jobId]/feedback", "POST", __wrapped_POST);

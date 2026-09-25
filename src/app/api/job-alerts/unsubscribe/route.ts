@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { unsubscribeAlertWithToken } from "@/lib/jobAlerts/delivery";
 import { dictionaries } from "@/lib/i18n/dictionary";
@@ -41,7 +42,7 @@ function toLocale(value: string | null): Locale {
   return value === "am" || value === "om" ? value : "en";
 }
 
-export async function GET(request: Request) {
+async function __wrapped_GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token") ?? "";
   const locale = toLocale(searchParams.get("locale"));
@@ -60,3 +61,4 @@ export async function GET(request: Request) {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 }
+export const GET = withRouteMetrics("/api/job-alerts/unsubscribe", "GET", __wrapped_GET);

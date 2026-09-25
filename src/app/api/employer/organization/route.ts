@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -21,7 +22,7 @@ function jsonError(message: string, status: number, errorCode: string) {
  * Updates organization profile settings. Only ORGANIZATION_ADMIN users
  * who are members of the organization can update its profile.
  */
-export async function PATCH(request: Request) {
+async function __wrapped_PATCH(request: Request) {
   const start = performance.now();
   const requestId = await getRequestId();
 
@@ -130,3 +131,4 @@ export async function PATCH(request: Request) {
 
   return NextResponse.json({ item: result.item });
 }
+export const PATCH = withRouteMetrics("/api/employer/organization", "PATCH", __wrapped_PATCH);

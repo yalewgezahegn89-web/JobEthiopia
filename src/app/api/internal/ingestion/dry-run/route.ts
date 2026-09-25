@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { dryRunSourceIngestion } from "@/lib/ingestion/dryRun";
 import { sourceIdParamSchema } from "@/lib/validations/sourceParams";
@@ -20,7 +21,7 @@ function jsonError(message: string, status: number) {
  * dedup cascade read-only. It never creates jobs, organizations, locations,
  * or modifies source health fields, and it never publishes.
  */
-export async function POST(request: Request) {
+async function __wrapped_POST(request: Request) {
   const authResult = await checkInternalRouteKey(request, {
     route: "/api/internal/ingestion/dry-run",
     keyEnvVar: "INTERNAL_INGESTION_API_KEY",
@@ -97,3 +98,4 @@ export async function POST(request: Request) {
     return jsonError("Internal server error", 500);
   }
 }
+export const POST = withRouteMetrics("/api/internal/ingestion/dry-run", "POST", __wrapped_POST);

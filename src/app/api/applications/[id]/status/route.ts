@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
@@ -24,7 +25,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function PATCH(
+async function __wrapped_PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -237,3 +238,4 @@ export async function PATCH(
     return jsonError("Internal server error", 500);
   }
 }
+export const PATCH = withRouteMetrics("/api/applications/[id]/status", "PATCH", __wrapped_PATCH);
