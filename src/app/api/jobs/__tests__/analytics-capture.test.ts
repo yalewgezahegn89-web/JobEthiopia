@@ -73,7 +73,7 @@ const PUBLISHED_JOB = {
   categoryId: null,
   professionId: null,
   locationId: null,
-  lastVerifiedAt: "2026-09-01T00:00:00.000Z",
+  lastVerifiedAt: new Date().toISOString(),
   deadline: "2030-12-31T00:00:00.000Z",
   createdAt: new Date("2026-09-01T00:00:00.000Z"),
   updatedAt: new Date("2026-09-01T00:00:00.000Z"),
