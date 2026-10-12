@@ -142,7 +142,7 @@ const SAMPLE_JOB = {
   status: "DRAFT",
   employmentType: "FULL_TIME",
   createdAt: new Date("2026-01-15"),
-  lastVerifiedAt: new Date("2026-08-20"),
+  lastVerifiedAt: new Date(),
 };
 
 function makeGetRequest(url: string): Request {
@@ -1289,7 +1289,7 @@ describe("GET /api/jobs/[id]", () => {
       mockJobsFindFirst.mockResolvedValue({
         ...SAMPLE_JOB,
         status: "PUBLISHED",
-        lastVerifiedAt: new Date("2026-08-20"),
+        lastVerifiedAt: new Date(),
       });
       mockOrganizationsFindFirst
         .mockResolvedValueOnce({ status: "ACTIVE" })
@@ -1343,7 +1343,7 @@ describe("GET /api/jobs/[id]", () => {
       mockJobsFindFirst.mockResolvedValue({
         ...SAMPLE_JOB,
         status: "PUBLISHED",
-        lastVerifiedAt: new Date("2026-08-20"),
+        lastVerifiedAt: new Date(),
       });
       mockOrganizationsFindFirst
         .mockResolvedValueOnce({ status: "ACTIVE" })
@@ -1363,7 +1363,7 @@ describe("GET /api/jobs/[id]", () => {
       mockJobsFindFirst.mockResolvedValue({
         ...SAMPLE_JOB,
         status: "PUBLISHED",
-        lastVerifiedAt: new Date("2026-08-20"),
+        lastVerifiedAt: new Date(),
         deadline: new Date("2026-01-01"),
       });
       mockOrganizationsFindFirst.mockResolvedValueOnce({ status: "ACTIVE" });
@@ -1380,7 +1380,7 @@ describe("GET /api/jobs/[id]", () => {
       mockJobsFindFirst.mockResolvedValue({
         ...SAMPLE_JOB,
         status: "PUBLISHED",
-        lastVerifiedAt: new Date("2026-08-20"),
+        lastVerifiedAt: new Date(),
         deadline: new Date("2027-01-01"),
       });
       mockOrganizationsFindFirst
@@ -1401,7 +1401,7 @@ describe("GET /api/jobs/[id]", () => {
       mockJobsFindFirst.mockResolvedValue({
         ...SAMPLE_JOB,
         status: "PUBLISHED",
-        lastVerifiedAt: new Date("2026-08-20"),
+        lastVerifiedAt: new Date(),
         deadline: null,
       });
       mockOrganizationsFindFirst
@@ -1422,7 +1422,7 @@ describe("GET /api/jobs/[id]", () => {
       mockJobsFindFirst.mockResolvedValue({
         ...SAMPLE_JOB,
         status: "PUBLISHED",
-        lastVerifiedAt: new Date("2026-08-20"),
+        lastVerifiedAt: new Date(),
       });
       mockOrganizationsFindFirst.mockResolvedValueOnce({ status: "INACTIVE" });
 
@@ -1438,7 +1438,7 @@ describe("GET /api/jobs/[id]", () => {
       mockJobsFindFirst.mockResolvedValue({
         ...SAMPLE_JOB,
         status: "PUBLISHED",
-        lastVerifiedAt: new Date("2026-08-20"),
+        lastVerifiedAt: new Date(),
       });
       mockOrganizationsFindFirst.mockResolvedValueOnce(undefined);
 
@@ -1454,7 +1454,7 @@ describe("GET /api/jobs/[id]", () => {
       mockJobsFindFirst.mockResolvedValue({
         ...SAMPLE_JOB,
         status: "PUBLISHED",
-        lastVerifiedAt: new Date("2026-08-20"),
+        lastVerifiedAt: new Date(),
       });
       mockOrganizationsFindFirst
         .mockResolvedValueOnce({ status: "ACTIVE" })
