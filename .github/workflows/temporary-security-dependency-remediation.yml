@@ -1,0 +1,108 @@
+name: Temporary production dependency remediation
+
+on:
+  push:
+    branches:
+      - release-auth-polished
+    paths:
+      - .github/workflows/temporary-security-dependency-remediation.yml
+
+permissions:
+  contents: read
+
+jobs:
+  update-and-validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release-auth-polished
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Upgrade patched Next.js versions
+        run: npm install --save-exact next@16.4.0 eslint-config-next@16.4.0
+
+      - name: Apply compatible security updates
+        shell: bash
+        run: |
+          set +e
+          npm audit fix --no-fund
+          audit_fix_status=$?
+          set -e
+          # npm audit fix can return 1 when development-only advisories remain.
+          # The production-only audit below is the release gate.
+          if [ "$audit_fix_status" -gt 1 ]; then
+            exit "$audit_fix_status"
+          fi
+
+      - name: Verify production dependency audit
+        run: npm audit --omit=dev
+
+      - name: Verify lockfile reproducibility
+        run: npm ci
+
+      - name: Recheck production dependencies after clean install
+        run: npm audit --omit=dev
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --run
+
+      - name: Build
+        run: npm run build
+        env:
+          APP_BASE_URL: http://localhost:3000
+
+      - name: Upload updated package manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-updated-package-manifests
+          path: |
+            package.json
+            package-lock.json
+          if-no-files-found: error
+          retention-days: 1
+
+  commit-validated-update:
+    needs: update-and-validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Checkout release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release-auth-polished
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download validated package manifests
+        uses: actions/download-artifact@v4
+        with:
+          name: security-updated-package-manifests
+          path: /tmp/security-updated-package-manifests
+
+      - name: Commit only validated dependency files and remove temporary workflow
+        shell: bash
+        run: |
+          cp /tmp/security-updated-package-manifests/package.json package.json
+          cp /tmp/security-updated-package-manifests/package-lock.json package-lock.json
+          git rm .github/workflows/temporary-security-dependency-remediation.yml
+          git add package.json package-lock.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "fix: remediate production dependency advisories"
+          git push origin HEAD:release-auth-polished
