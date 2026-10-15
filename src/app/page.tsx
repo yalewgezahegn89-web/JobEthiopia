@@ -63,7 +63,9 @@ export default async function Home() {
       <div className="mx-auto w-full max-w-7xl space-y-16 px-4 py-14 sm:space-y-20 sm:py-16">
         <AdSlot placementId="home-banner" pathname="/" locale={locale} t={t} />
 
-        {jobsResult === null || jobs.length === 0 ? (
+        {jobsResult === null ? (
+          <JobsLoadError t={t} />
+        ) : jobs.length === 0 ? (
           <JobsEmptyState t={t} />
         ) : (
           <LatestJobs jobs={jobs} t={t} />
@@ -82,13 +84,43 @@ export default async function Home() {
       <EmployerCta t={t} />
 
       <div className="mx-auto w-full max-w-7xl space-y-16 px-4 py-14 sm:py-16">
-        {articlesResult === null || articles.length === 0 ? (
+        {articlesResult === null ? (
+          <ResourcesLoadError t={t} />
+        ) : articles.length === 0 ? (
           <ResourcesEmptyState t={t} />
         ) : (
           <CareerResources articles={articles} t={t} />
         )}
       </div>
     </div>
+  );
+}
+
+function JobsLoadError({ t }: { t: Awaited<ReturnType<typeof getI18n>> }) {
+  return (
+    <section aria-labelledby="latest-jobs-error-heading" className="rounded-xl border border-dashed border-border p-8 text-center">
+      <h2 id="latest-jobs-error-heading" className="text-2xl font-bold tracking-tight text-foreground">
+        ${t.jobs.loadErrorHeading}
+      </h2>
+      <p className="mt-2 text-sm text-muted">${t.jobs.loadErrorBody}</p>
+      <Link href="/" className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary">
+        ${t.jobs.loadErrorCta}
+      </Link>
+    </section>
+  );
+}
+
+function ResourcesLoadError({ t }: { t: Awaited<ReturnType<typeof getI18n>> }) {
+  return (
+    <section aria-labelledby="resources-error-heading" className="rounded-xl border border-dashed border-border p-8 text-center">
+      <h2 id="resources-error-heading" className="text-2xl font-bold tracking-tight text-foreground">
+        ${t.careers.loadErrorHeading}
+      </h2>
+      <p className="mt-2 text-sm text-muted">${t.careers.loadErrorBody}</p>
+      <Link href="/careers" className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary">
+        ${t.careers.loadErrorCta}
+      </Link>
+    </section>
   );
 }
 
