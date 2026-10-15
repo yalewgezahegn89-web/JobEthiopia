@@ -315,17 +315,17 @@ describe("Homepage", () => {
     expect(html).toContain("method=\"get\"");
   });
 
-  it("shows empty state when jobs fail to load", async () => {
+  it("shows the dedicated load-error state when jobs fail to load", async () => {
     mocks.mockFetchJobs.mockRejectedValue(new Error("boom"));
     const html = await renderHome();
-    expect(html).toContain("We could not load the latest jobs right now");
+    expect(html).toContain("Something went wrong while loading job listings. Please try again shortly.");
   });
 
-  it("shows empty state when articles fail to load", async () => {
+  it("shows the dedicated load-error state when articles fail to load", async () => {
     mocks.mockFetchCareerArticles.mockRejectedValue(new Error("boom"));
     const html = await renderHome();
     expect(html).toContain(
-      "We could not load the latest career resources right now",
+      "We could not load career resources right now. Please try again shortly.",
     );
   });
 
