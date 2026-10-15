@@ -93,7 +93,7 @@ async function verifyTelegramIdToken(
   }
   if (!jwk) throw new Error("TELEGRAM_SIGNING_KEY_NOT_FOUND");
 
-  const publicKey = createPublicKey({ key: jwk, format: "jwk" });
+  const publicKey = createPublicKey({ key: jwk as unknown as JsonWebKey, format: "jwk" });
   const validSignature = verifySignature(
     "RSA-SHA256",
     Buffer.from(`${encodedHeader}.${encodedClaims}`),
