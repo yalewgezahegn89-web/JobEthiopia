@@ -162,10 +162,10 @@ export const en = {
     viewAllResources: "View all resources",
     readArticle: "Read article",
     latestJobsEmptyHeading: "Latest Jobs",
-    latestJobsEmptyBody: "We could not load the latest jobs right now.",
+    latestJobsEmptyBody: "No jobs have been published yet. Please check back soon for new opportunities.",
     latestJobsEmptyCta: "Browse jobs",
     resourcesEmptyHeading: "Career Resources",
-    resourcesEmptyBody: "We could not load the latest career resources right now.",
+    resourcesEmptyBody: "Career resources are being prepared. Check back soon for practical guidance and tips.",
     resourcesEmptyCta: "Browse career resources",
   },
   jobs: {
