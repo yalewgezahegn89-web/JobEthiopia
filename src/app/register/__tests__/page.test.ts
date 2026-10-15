@@ -15,6 +15,10 @@ vi.mock("./actions", () => ({
   registerAction: (...args: unknown[]) => mocks.mockRegisterAction(...args),
 }));
 
+vi.mock("@/components/auth/telegram-option", () => ({
+  TelegramOption: () => null,
+}));
+
 import RegisterPage from "../page";
 import RegisterForm from "../register-form";
 
