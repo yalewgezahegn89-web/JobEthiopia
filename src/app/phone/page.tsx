@@ -1,19 +1,11 @@
-import type { Metadata } from "next";
-import PhoneForm from "./phone-form";
-import { AuthCard } from "@/components/auth/auth-card";
+import { redirect } from "next/navigation";
+import { getCurrentLocale } from "@/lib/i18n/server";
 
-export const metadata: Metadata = {
-  title: "Phone sign in",
+export const metadata = {
+  title: "Sign in with Telegram",
 };
 
-export default function PhonePage() {
-  return (
-    <AuthCard
-      eyebrow="Phone sign in"
-      title="Get started with your phone"
-      description="Verify your mobile number to sign in or create your JobEthiopia account in under a minute."
-    >
-      <PhoneForm />
-    </AuthCard>
-  );
+export default async function PhonePage() {
+  const locale = await getCurrentLocale();
+  redirect(locale === "en" ? "/login" : `/${locale}/login`);
 }

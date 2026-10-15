@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import LoginForm from "./login-form";
-import { PhoneOption } from "@/components/auth/phone-option";
+import { TelegramOption } from "@/components/auth/telegram-option";
 import { Card } from "@/components/ui/card";
 import { BrandMark } from "@/components/ui/brand-mark";
 
@@ -9,7 +9,14 @@ export const metadata: Metadata = {
   title: "Sign in",
 };
 
-export default function LoginPage() {
+type LoginPageProps = {
+  searchParams: Promise<{ telegramError?: string | string[] }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams;
+  const telegramError = params.telegramError === "1";
+
   return (
     <section className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-16 sm:py-20">
       <LoginGeometry />
@@ -32,7 +39,7 @@ export default function LoginPage() {
             </p>
           </div>
           <LoginForm />
-          <PhoneOption actionLabel="Continue with phone" />
+          <TelegramOption showError={telegramError} />
           <div className="mt-6 border-t border-border-subtle pt-6 text-center">
             <p className="text-sm text-muted">
               New to JobEthiopia?{" "}
