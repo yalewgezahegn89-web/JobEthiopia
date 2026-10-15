@@ -100,11 +100,11 @@ function JobsLoadError({ t }: { t: Awaited<ReturnType<typeof getI18n>> }) {
   return (
     <section aria-labelledby="latest-jobs-error-heading" className="rounded-xl border border-dashed border-border p-8 text-center">
       <h2 id="latest-jobs-error-heading" className="text-2xl font-bold tracking-tight text-foreground">
-        ${t.jobs.loadErrorHeading}
+        {t.jobs.loadErrorHeading}
       </h2>
-      <p className="mt-2 text-sm text-muted">${t.jobs.loadErrorBody}</p>
+      <p className="mt-2 text-sm text-muted">{t.jobs.loadErrorBody}</p>
       <Link href="/" className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary">
-        ${t.jobs.loadErrorCta}
+        {t.jobs.loadErrorCta}
       </Link>
     </section>
   );
@@ -114,11 +114,11 @@ function ResourcesLoadError({ t }: { t: Awaited<ReturnType<typeof getI18n>> }) {
   return (
     <section aria-labelledby="resources-error-heading" className="rounded-xl border border-dashed border-border p-8 text-center">
       <h2 id="resources-error-heading" className="text-2xl font-bold tracking-tight text-foreground">
-        ${t.careers.loadErrorHeading}
+        {t.careers.loadErrorHeading}
       </h2>
-      <p className="mt-2 text-sm text-muted">${t.careers.loadErrorBody}</p>
+      <p className="mt-2 text-sm text-muted">{t.careers.loadErrorBody}</p>
       <Link href="/careers" className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary">
-        ${t.careers.loadErrorCta}
+        {t.careers.loadErrorCta}
       </Link>
     </section>
   );
