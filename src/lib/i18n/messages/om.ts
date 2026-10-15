@@ -161,10 +161,10 @@ export const om = {
     viewAllResources: "Qabeenya hunda ilaali",
     readArticle: "Barruu dubbisi",
     latestJobsEmptyHeading: "Hojiilee Dhiyoo",
-    latestJobsEmptyBody: "Amma hojiilee dhiyoo fe'uu hin dandeenye.",
+    latestJobsEmptyBody: "Ammaaf carraan hojii maxxanfame hin jiru. Carraan haaraan yeroo dhihootti ni maxxanfama; maaloo boodarra deebi'ii ilaali.",
     latestJobsEmptyCta: "Hojiilee ilaali",
     resourcesEmptyHeading: "Qabeenya Aangoo",
-    resourcesEmptyBody: "Amma qabeenya aangoo dhiyoo fe'uu hin dandeenye.",
+    resourcesEmptyBody: "Qabeenyi guddina hojii qophaa'aa jira. Gorsa fi qajeelfama haaraa argachuuf boodarra deebi'ii ilaali.",
     resourcesEmptyCta: "Qabeenya aangoo ilaali",
   },
   jobs: {
