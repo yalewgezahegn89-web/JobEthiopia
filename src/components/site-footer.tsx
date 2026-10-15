@@ -1,9 +1,16 @@
 import Link from "next/link";
-import { getI18n } from "@/lib/i18n/server";
+import { getCurrentLocale, getI18n } from "@/lib/i18n/server";
 
 export default async function SiteFooter() {
   const year = new Date().getFullYear();
-  const t = await getI18n();
+  const [t, locale] = await Promise.all([getI18n(), getCurrentLocale()]);
+
+  const telegramLabel =
+    locale === "am"
+      ? "የቴሌግራም ቻናላችንን ይቀላቀሉ"
+      : locale === "om"
+        ? "Chaanaalii Telegram keenyaa hordofi"
+        : "Join our Telegram channel";
 
   const footerLinks = [
     { href: "/", label: t.nav.home },
@@ -25,12 +32,23 @@ export default async function SiteFooter() {
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="font-medium text-muted hover:text-primary transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  className="font-medium text-muted transition-colors duration-150 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   {link.label}
                 </Link>
               </li>
             ))}
+            <li>
+              <a
+                href="https://t.me/jobethiopiaet"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-primary transition-colors duration-150 hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                {telegramLabel}
+                <span aria-hidden="true">↗</span>
+              </a>
+            </li>
           </ul>
         </nav>
       </div>
