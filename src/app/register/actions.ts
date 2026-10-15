@@ -6,6 +6,11 @@ import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { SESSION_COOKIE_NAME, SESSION_DURATION_MS } from "@/lib/auth/constants";
 import { createSession } from "@/lib/auth/session";
 import { normalizeEmail } from "@/lib/auth/login";
+import {
+  buildEmailVerificationUrl,
+  requestEmailVerification,
+} from "@/lib/auth/emailVerification";
+import { dispatchEmailVerification } from "@/lib/email";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { registerCandidate } from "@/lib/register/dal";
 import { registerSchema } from "@/lib/register/schema";
@@ -108,6 +113,21 @@ export async function registerAction(
     path: "/",
     maxAge: SESSION_DURATION_MS / 1000,
   });
+
+  // Best-effort initial email verification. Registration has already committed,
+  // so a dispatch failure must never fail the request. The token is emailed,
+  // not persisted or logged.
+  try {
+    const verification = await requestEmailVerification(result.userId);
+    if (verification.ok && verification.rawToken && verification.email) {
+      await dispatchEmailVerification(
+        verification.email,
+        buildEmailVerificationUrl(verification.rawToken, "verify"),
+      );
+    }
+  } catch {
+    // Swallow: registration already succeeded.
+  }
 
   logInfo("candidate_registration_succeeded", {
     requestId,

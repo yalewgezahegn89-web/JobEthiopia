@@ -5,6 +5,8 @@ import { desc } from "drizzle-orm";
 import { db } from "@/db";
 import { employerOnboardingRequests } from "@/db/schema/employerOnboardingRequests";
 import { getCurrentUser } from "@/lib/auth/context";
+import { getI18n } from "@/lib/i18n/server";
+import { EmployerResubmitForm } from "./resubmit-form";
 
 export const metadata: Metadata = {
   title: "Employer request status",
@@ -15,6 +17,8 @@ export default async function EmployerStatusPage() {
   if (!user) {
     redirect("/login");
   }
+
+  const t = await getI18n();
 
   let request;
   let loadError = false;
@@ -30,13 +34,12 @@ export default async function EmployerStatusPage() {
   if (loadError) {
     return (
       <section className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-16">
-        <h1 className="text-2xl font-semibold">Request status</h1>
-        <p className="max-w-md text-center text-neutral-600">
-          We could not load your request status right now. Please try again
-          shortly.
+        <h1 className="text-2xl font-semibold text-foreground">{t.employerAuth.statusHeading}</h1>
+        <p className="max-w-md text-center text-muted">
+          {t.employerAuth.statusLoadError}
         </p>
-        <Link href="/" className="text-sm text-neutral-600 underline">
-          Back to JobEthiopia
+        <Link href="/" className="text-sm text-muted underline">
+          {t.employerAuth.statusBack}
         </Link>
       </section>
     );
@@ -45,15 +48,15 @@ export default async function EmployerStatusPage() {
   if (!request) {
     return (
       <section className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-16">
-        <h1 className="text-2xl font-semibold">No employer request yet</h1>
-        <p className="max-w-md text-center text-neutral-600">
-          It looks like you have not submitted an employer onboarding request.
+        <h1 className="text-2xl font-semibold text-foreground">{t.employerAuth.statusNoRequest}</h1>
+        <p className="max-w-md text-center text-muted">
+          {t.employerAuth.statusNoRequestBody}
         </p>
         <Link
           href="/employer/register"
-          className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
+          className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Request an employer account
+          {t.employerAuth.statusRequestCta}
         </Link>
       </section>
     );
@@ -65,29 +68,44 @@ export default async function EmployerStatusPage() {
 
   return (
     <section className="flex flex-1 flex-col items-center justify-center gap-4 px-4 py-16">
-      <h1 className="text-2xl font-semibold">Employer request status</h1>
+      <h1 className="text-2xl font-semibold text-foreground">{t.employerAuth.statusTitle}</h1>
       {request.status === "PENDING" ? (
         <>
-          <p className="max-w-md text-center text-neutral-600">
-            Your request for{" "}
-            <strong>{request.organizationName}</strong> is under review. Our
-            team will activate your employer account once it is approved.
+          <p className="max-w-md text-center text-muted">
+            {t.employerAuth.statusPendingBody(request.organizationName)}
           </p>
-          <span className="rounded-full bg-yellow-100 px-3 py-1 text-sm font-semibold text-yellow-800">
-            Pending review
+          <span className="rounded-full bg-warning-light px-3 py-1 text-sm font-semibold text-warning">
+            {t.employerAuth.statusPendingLabel}
           </span>
         </>
       ) : (
         <>
-          <p className="max-w-md text-center text-neutral-600">
-            Your request to set up an employer account was not approved.
+          <p className="max-w-md text-center text-muted">
+            {t.employerAuth.statusRejectedBody}
           </p>
-          <Link
-            href="/employer/register"
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-semibold text-white"
-          >
-            Submit a new request
-          </Link>
+
+          {request.reviewNotes ? (
+            <div className="w-full max-w-md rounded-xl border border-border bg-surface p-5 text-left">
+              <h2 className="text-sm font-semibold text-foreground">
+                {t.employerAuth.statusRejectedReasonLabel}
+              </h2>
+              <p className="mt-1.5 text-sm leading-6 text-muted">
+                {request.reviewNotes}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="w-full max-w-md">
+            <h2 className="text-center text-base font-semibold tracking-tight text-foreground">
+              {t.employerAuth.resubmitHeading}
+            </h2>
+            <p className="mt-1 text-center text-sm text-muted">
+              {t.employerAuth.resubmitBody}
+            </p>
+            <div className="mt-4 flex justify-center">
+              <EmployerResubmitForm t={t} />
+            </div>
+          </div>
         </>
       )}
     </section>

@@ -6,18 +6,28 @@ const EXPECTED_HEADERS = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=31536000; includeSubDomains",
+  },
 ] as const;
 
 describe("SECURITY_HEADERS", () => {
-  it("defines exactly the three baseline headers with their exact values", () => {
+  it("defines exactly the four baseline headers with their exact values", () => {
     expect(SECURITY_HEADERS).toEqual(EXPECTED_HEADERS);
   });
 
-  it("does not include deferred headers such as CSP or HSTS", () => {
+  it("does not include deferred headers such as CSP", () => {
     const keys = SECURITY_HEADERS.map((h) => h.key);
     expect(keys).not.toContain("Content-Security-Policy");
-    expect(keys).not.toContain("Strict-Transport-Security");
     expect(keys).not.toContain("Permissions-Policy");
+  });
+
+  it("enables HSTS with a one-year max-age on all subdomains", () => {
+    const hsts = SECURITY_HEADERS.find(
+      (h) => h.key === "Strict-Transport-Security",
+    );
+    expect(hsts?.value).toBe("max-age=31536000; includeSubDomains");
   });
 });
 

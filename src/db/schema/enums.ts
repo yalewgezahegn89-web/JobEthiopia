@@ -88,3 +88,29 @@ export const employerOnboardingRequestStatusEnum = pgEnum(
   "employer_onboarding_request_status",
   ["PENDING", "APPROVED", "REJECTED"],
 );
+
+export const authProviderEnum = pgEnum("auth_provider", [
+  "password",
+  "phone",
+  "google",
+  "apple",
+  "telegram",
+]);
+
+export const alertFrequencyEnum = pgEnum("alert_frequency", [
+  "INSTANT",
+  "DAILY",
+]);
+
+export const alertStatusEnum = pgEnum("alert_status", [
+  "ACTIVE",
+  "PAUSED",
+  "UNSUBSCRIBED",
+  "DISABLED",
+]);
+
+export const alertDeliveryStatusEnum = pgEnum("alert_delivery_status", [
+  "SENT",
+  "SKIPPED_NO_EMAIL",
+  "FAILED",
+]);

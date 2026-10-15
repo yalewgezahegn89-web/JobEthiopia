@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { checkApiKey } from "../apiKey";
+import {
+  checkApiKey,
+  fingerprintApiKey,
+  getApiKeyFingerprint,
+} from "../apiKey";
 
 function makeRequest(apiKey?: string): Request {
   return new Request("http://localhost/api/test", {
@@ -56,5 +60,37 @@ describe("apiKey bridge", () => {
     if (!result.ok) {
       expect(result.message).not.toContain("super-secret-value");
     }
+  });
+});
+
+describe("api key fingerprint", () => {
+  it("derives a deterministic, one-way fingerprint from the key", () => {
+    const fp1 = fingerprintApiKey("shared-key-abc");
+    const fp2 = fingerprintApiKey("shared-key-abc");
+    expect(fp1).toBe(fp2);
+    expect(fp1).not.toContain("shared-key-abc");
+    expect(fp1).toMatch(/^apikey_/);
+    expect(fp1.length).toBeGreaterThan(7);
+  });
+
+  it("produces distinct fingerprints for distinct keys", () => {
+    expect(fingerprintApiKey("key-one")).not.toBe(
+      fingerprintApiKey("key-two"),
+    );
+  });
+
+  it("returns the configured key fingerprint and null when unset", () => {
+    vi.stubEnv("INGESTION_API_KEY", "configured-shared-key");
+    expect(getApiKeyFingerprint()).toBe(
+      fingerprintApiKey("configured-shared-key"),
+    );
+
+    vi.stubEnv("INGESTION_API_KEY", "");
+    expect(getApiKeyFingerprint()).toBeNull();
+  });
+
+  it("never reveals the configured key through the fingerprint", () => {
+    vi.stubEnv("INGESTION_API_KEY", "super-secret-value");
+    expect(getApiKeyFingerprint()).not.toContain("super-secret-value");
   });
 });

@@ -1,5 +1,7 @@
 import { db } from "@/db";
 import { auditLog } from "@/db/schema/auditLog";
+import { getApiKeyFingerprint } from "@/lib/auth/apiKey";
+import { getRequestId } from "@/lib/observability/requestId";
 
 export interface WriteAuditLogParams {
   actorUserId?: string | null;
@@ -38,11 +40,38 @@ export function sanitizeMetadata(
 /**
  * Best-effort audit insert. Never throws, so auditing can never break the
  * primary operation it accompanies.
+ *
+ * Attribution enrichment:
+ * - API-key mutations declare `metadata.source = "api_key"`. For those events
+ *   a non-secret credential fingerprint (derived from the configured
+ *   INGESTION_API_KEY) is added as `metadata.credentialId`. The raw key is
+ *   never written to the audit log.
+ * - When the current request carries a server-generated request ID (middleware
+ *   stamps every request with `x-request-id`), it is added as
+ *   `metadata.requestId` for correlation.
  */
 export async function writeAuditLog(
   params: WriteAuditLogParams,
 ): Promise<void> {
-  const metadata = sanitizeMetadata(params.metadata);
+  const metadataInput = params.metadata ?? {};
+
+  const enriched: Record<string, unknown> = { ...metadataInput };
+  if (enriched.source === "api_key") {
+    const credentialId = getApiKeyFingerprint();
+    if (credentialId) {
+      enriched.credentialId = credentialId;
+    }
+  }
+
+  const requestId = await getRequestId();
+  if (requestId) {
+    enriched.requestId = requestId;
+  }
+
+  const metadata =
+    params.metadata === null || params.metadata === undefined
+      ? null
+      : sanitizeMetadata(enriched);
 
   try {
     await db.insert(auditLog).values({

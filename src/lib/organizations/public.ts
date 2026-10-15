@@ -1,3 +1,4 @@
+import { timedFetch } from "@/lib/observability/internalFetch";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
 
 export type PublicOrganizationQuery = {
@@ -135,7 +136,7 @@ export async function fetchOrganizations(
   const url = new URL("/api/organizations", baseUrl);
   url.search = params.toString();
 
-  const res = await fetcher(url, { cache: "no-store" });
+  const res = await timedFetch(fetcher, url, { cache: "no-store" });
   if (!res.ok) {
     throw new PublicApiError();
   }
@@ -165,7 +166,7 @@ export async function fetchOrganizationById(
     baseUrl,
   );
 
-  const res = await fetcher(url, { cache: "no-store" });
+  const res = await timedFetch(fetcher, url, { cache: "no-store" });
   if (res.status === 404) {
     return null;
   }

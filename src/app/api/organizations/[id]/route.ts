@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -8,12 +9,13 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
+import { isPgUniqueViolation, isPgForeignKeyViolation } from "@/lib/pgErrors";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function GET(
+async function __wrapped_GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -27,6 +29,20 @@ export async function GET(
   try {
     const organization = await db.query.organizations.findFirst({
       where: eq(organizations.id, parsed.data.id),
+      columns: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        industry: true,
+        websiteUrl: true,
+        logoUrl: true,
+        locationId: true,
+        isVerified: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     if (!organization) {
@@ -39,7 +55,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function __wrapped_PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -76,6 +92,8 @@ export async function PUT(
     return jsonError(`${path}${issue.message}`, 400);
   }
 
+  const updateData = parsed.data;
+
   try {
     const existing = await db.query.organizations.findFirst({
       where: eq(organizations.id, parsedId.data.id),
@@ -88,7 +106,7 @@ export async function PUT(
 
     const [updated] = await db
       .update(organizations)
-      .set(parsed.data)
+      .set(updateData)
       .where(eq(organizations.id, parsedId.data.id))
       .returning({
         id: organizations.id,
@@ -114,17 +132,14 @@ export async function PUT(
 
     return NextResponse.json({ item: updated });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      err.message.includes("organizations_slug_unique")
-    ) {
+    if (isPgUniqueViolation(err, "organizations_slug_unique")) {
       return jsonError("Organization slug already exists", 409);
     }
     return jsonError("Internal server error", 500);
   }
 }
 
-export async function DELETE(
+async function __wrapped_DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -167,10 +182,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      err.message.includes("foreign key constraint")
-    ) {
+    if (isPgForeignKeyViolation(err)) {
       return jsonError(
         "Organization cannot be deleted because it is referenced by other records",
         409,
@@ -179,3 +191,6 @@ export async function DELETE(
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/organizations/[id]", "GET", __wrapped_GET);
+export const PUT = withRouteMetrics("/api/organizations/[id]", "PUT", __wrapped_PUT);
+export const DELETE = withRouteMetrics("/api/organizations/[id]", "DELETE", __wrapped_DELETE);

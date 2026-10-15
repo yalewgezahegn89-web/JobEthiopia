@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireStaffAdmin } from "@/lib/auth/context";
 import { listModerationJobs } from "@/lib/admin/jobs";
@@ -37,10 +38,20 @@ export default async function AdminJobsPage({
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-semibold">Job Moderation</h1>
+      <main className="mx-auto w-full max-w-6xl px-4 py-8">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Job Moderation
+          </h1>
+          <Link
+            href="/admin/jobs/create"
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          >
+            Create Curated Job
+          </Link>
+        </div>
         {loadError ? (
-          <p className="mt-4 text-neutral-600">
+          <p className="mt-4 text-sm text-destructive">
             We could not load the moderation queue right now. Please try again shortly.
           </p>
         ) : (

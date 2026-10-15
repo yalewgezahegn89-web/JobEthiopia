@@ -20,7 +20,7 @@ import { writeAuditLog } from "@/lib/auth/audit";
 export async function bootstrapAdmin(
   email: string,
   password: string,
-): Promise<{ created: boolean; email: string }> {
+): Promise<{ created: boolean; email: string | null }> {
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail || !password) {
     throw new Error("Bootstrap requires an email and password");

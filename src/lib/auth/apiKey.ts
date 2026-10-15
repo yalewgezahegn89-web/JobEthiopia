@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 /**
  * Centralized API-key verification bridge (Batch 50).
@@ -33,4 +33,31 @@ export function checkApiKey(request: Request): ApiKeyCheckResult {
   }
 
   return { ok: true };
+}
+
+const API_KEY_FINGERPRINT_PREFIX = "apikey_";
+
+/**
+ * Derives a deterministic, non-secret fingerprint from an API key.
+ *
+ * SHA-256 is one-way: the digest never reveals the key, and the raw key is
+ * never written to any audit log or response. A stable fingerprint lets a
+ * single shared credential be identified across audit events without exposing
+ * the secret itself.
+ */
+export function fingerprintApiKey(apiKey: string): string {
+  const digest = createHash("sha256")
+    .update(`jobethiopia:api-key:v1:${apiKey}`)
+    .digest("hex");
+  return `${API_KEY_FINGERPRINT_PREFIX}${digest}`;
+}
+
+/**
+ * Fingerprint of the configured ingestion API key, or `null` when not
+ * configured.
+ */
+export function getApiKeyFingerprint(): string | null {
+  const configuredKey = process.env.INGESTION_API_KEY;
+  if (!configuredKey) return null;
+  return fingerprintApiKey(configuredKey);
 }

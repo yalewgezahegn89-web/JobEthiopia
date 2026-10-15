@@ -32,7 +32,7 @@ export type EmployerApplicationListItem = {
   organizationId: string;
   organizationName: string;
   candidateName: string;
-  candidateEmail: string;
+  candidateEmail: string | null;
   status: ApplicationStatus;
   createdAt: Date;
   updatedAt: Date;
@@ -52,7 +52,7 @@ export type EmployerApplicationDetail = {
   jobTitle: string;
   organizationName: string;
   candidateName: string;
-  candidateEmail: string;
+  candidateEmail: string | null;
   coverLetter: string | null;
   status: ApplicationStatus;
   createdAt: Date;
@@ -594,7 +594,8 @@ export async function listEmployerJobsForFilter(
     .select({ id: jobs.id, title: jobs.title })
     .from(jobs)
     .where(inArray(jobs.organizationId, orgIds))
-    .orderBy(desc(jobs.createdAt));
+    .orderBy(desc(jobs.createdAt))
+    .limit(200);
 
   return rows.map((r) => ({ id: r.id, title: r.title }));
 }

@@ -1,34 +1,54 @@
 import Link from "next/link";
+import { getCurrentLocale, getI18n } from "@/lib/i18n/server";
 
-const footerLinks = [
-  { href: "/", label: "Home" },
-  { href: "/jobs", label: "Jobs" },
-  { href: "/organizations", label: "Organizations" },
-  { href: "/categories", label: "Categories" },
-  { href: "/professions", label: "Professions" },
-  { href: "/locations", label: "Locations" },
-  { href: "/careers", label: "Careers" },
-];
-
-export default function SiteFooter() {
+export default async function SiteFooter() {
   const year = new Date().getFullYear();
+  const [t, locale] = await Promise.all([getI18n(), getCurrentLocale()]);
+
+  const telegramLabel =
+    locale === "am"
+      ? "የቴሌግራም ቻናላችንን ይቀላቀሉ"
+      : locale === "om"
+        ? "Chaanaalii Telegram keenyaa hordofi"
+        : "Join our Telegram channel";
+
+  const footerLinks = [
+    { href: "/", label: t.nav.home },
+    { href: "/jobs", label: t.nav.jobs },
+    { href: "/organizations", label: t.nav.organizations },
+    { href: "/categories", label: t.nav.categories },
+    { href: "/professions", label: t.nav.professions },
+    { href: "/locations", label: t.nav.locations },
+    { href: "/careers", label: t.nav.careers },
+  ];
 
   return (
-    <footer className="border-t border-gray-200 dark:border-gray-800">
-      <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-6 text-sm text-gray-500 dark:text-gray-400">
-        <p>&copy; {year} JobEthiopia</p>
-        <nav aria-label="Footer">
+    <footer className="border-t border-border-subtle bg-surface">
+      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-4 px-4 py-8 text-sm text-muted sm:px-6 lg:px-8">
+        <p>&copy; {year} {t.common.brand}</p>
+        <nav aria-label={t.footer.footerNavLabel}>
           <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">
             {footerLinks.map((link) => (
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className="font-medium text-gray-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                  className="font-medium text-muted transition-colors duration-150 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   {link.label}
                 </Link>
               </li>
             ))}
+            <li>
+              <a
+                href="https://t.me/jobethiopiaet"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-primary transition-colors duration-150 hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              >
+                {telegramLabel}
+                <span aria-hidden="true">↗</span>
+              </a>
+            </li>
           </ul>
         </nav>
       </div>

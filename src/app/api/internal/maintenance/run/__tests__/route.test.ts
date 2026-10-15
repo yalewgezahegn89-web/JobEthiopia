@@ -35,6 +35,7 @@ beforeEach(() => {
     sourcesSucceeded: 4,
     sourcesFailed: 1,
     sourcesSkipped: 0,
+    analyticsEventsPruned: 0,
   });
   mockWriteAuditLog.mockResolvedValue(undefined);
 });
@@ -92,6 +93,7 @@ describe("POST /api/internal/maintenance/run", () => {
         sourcesSucceeded: 4,
         sourcesFailed: 1,
         sourcesSkipped: 0,
+        analyticsEventsPruned: 0,
       });
     });
 
@@ -119,6 +121,7 @@ describe("POST /api/internal/maintenance/run", () => {
             sourcesSucceeded: 4,
             sourcesFailed: 1,
             sourcesSkipped: 0,
+            analyticsEventsPruned: 0,
           }),
         }),
       );

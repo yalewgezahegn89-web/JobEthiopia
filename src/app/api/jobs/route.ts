@@ -1,5 +1,6 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
-import { desc, eq, and, or, ilike, inArray, sql } from "drizzle-orm";
+import { and, ilike, inArray, eq, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { organizations } from "@/db/schema/organizations";
@@ -13,6 +14,22 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize, escapeLikePattern } from "@/lib/apiUtils";
+import { buildPublicJobEligibilityConditions } from "@/lib/jobs/eligibility";
+import {
+  isPgTrgmAvailable,
+} from "@/lib/search/trgm";
+import {
+  buildJobListOrder,
+  buildKeywordMatchCondition,
+  buildSalaryConditions,
+  type JobListSort,
+  type SearchTier,
+} from "@/lib/search/jobSearch";
+import {
+  trackDiscoveryEvent,
+  classifyJobListEvent,
+  buildJobSearchMetadata,
+} from "@/lib/analytics/events";
 
 function toEntityMap<T extends { id: string }>(rows: T[]): Map<string, T> {
   return new Map(rows.map((row) => [row.id, row]));
@@ -22,7 +39,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function POST(request: Request) {
+async function __wrapped_POST(request: Request) {
   const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
 
@@ -49,8 +66,13 @@ export async function POST(request: Request) {
     return jsonError(`${path}${issue.message}`, 400);
   }
 
+  const organizationId = process.env.INGESTION_ORGANIZATION_ID;
+  if (!organizationId) {
+    return jsonError("Server configuration error", 500);
+  }
+
   try {
-    const created = await createJobDirect(parsed.data);
+    const created = await createJobDirect(parsed.data, { organizationId });
 
     await writeAuditLog({
       action: "JOB_CREATED",
@@ -71,7 +93,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
+async function __wrapped_GET(request: Request) {
   const { searchParams } = new URL(request.url);
 
   const parsed = jobListQuerySchema.safeParse({
@@ -84,6 +106,9 @@ export async function GET(request: Request) {
     professionId: searchParams.get("professionId") ?? undefined,
     locationId: searchParams.get("locationId") ?? undefined,
     q: searchParams.get("q") ?? undefined,
+    sort: searchParams.get("sort") ?? undefined,
+    salaryMin: searchParams.get("salaryMin") ?? undefined,
+    salaryMax: searchParams.get("salaryMax") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -95,13 +120,15 @@ export async function GET(request: Request) {
   const {
     page,
     limit,
-    status,
     employmentType,
     organizationId,
     categoryId,
     professionId,
     locationId,
     q,
+    sort,
+    salaryMin,
+    salaryMax,
   } = parsed.data;
   const offset = (page - 1) * limit;
 
@@ -118,12 +145,15 @@ export async function GET(request: Request) {
       organizationNameIds = matches.map((match) => match.id);
     }
 
-    const conditions = [];
-    if (status) {
-      conditions.push(eq(jobs.status, status));
-    }
+    const tier: SearchTier = keyword
+      ? ((await isPgTrgmAvailable()) ? "trgm" : "substring")
+      : "substring";
+
+    const now = new Date();
+    const conditions: (SQL | undefined)[] =
+      await buildPublicJobEligibilityConditions(now);
     if (employmentType) {
-      conditions.push(eq(jobs.employmentType, employmentType));
+      conditions.push(eq(jobs.employmentType, employmentType as never));
     }
     if (organizationId) {
       conditions.push(eq(jobs.organizationId, organizationId));
@@ -138,25 +168,23 @@ export async function GET(request: Request) {
       conditions.push(eq(jobs.locationId, locationId));
     }
     if (keyword) {
-      const escapedKeyword = escapeLikePattern(keyword);
-      const pattern = `%${escapedKeyword}%`;
-      const titleOrDescription = or(
-        ilike(jobs.title, pattern),
-        ilike(jobs.description, pattern),
+      conditions.push(
+        buildKeywordMatchCondition({
+          q: keyword,
+          organizationNameIds,
+          tier,
+        }),
       );
-      if (organizationNameIds.length > 0) {
-        conditions.push(
-          or(
-            titleOrDescription,
-            inArray(jobs.organizationId, organizationNameIds),
-          ),
-        );
-      } else {
-        conditions.push(titleOrDescription);
-      }
     }
+    conditions.push(...buildSalaryConditions(salaryMin, salaryMax));
 
     const where = conditions.length > 0 ? and(...conditions) : undefined;
+
+    const requestedSort = (sort as JobListSort | undefined) ?? null;
+    const effectiveSort: JobListSort =
+      !keyword && requestedSort === "relevance"
+        ? "newest"
+        : (requestedSort ?? (keyword ? "relevance" : "newest"));
 
     const [countResult, rows] = await Promise.all([
       db
@@ -165,9 +193,20 @@ export async function GET(request: Request) {
         .where(where),
       db.query.jobs.findMany({
         where,
-        orderBy: [desc(jobs.createdAt)],
+        orderBy: buildJobListOrder(effectiveSort, {
+          q: keyword ?? "",
+          organizationIds: organizationNameIds,
+          trgm: tier === "trgm",
+        }),
         limit,
         offset,
+        columns: {
+          description: false,
+          responsibilities: false,
+          requirements: false,
+          educationRequirements: false,
+          benefits: false,
+        },
       }),
     ]);
 
@@ -250,7 +289,7 @@ export async function GET(request: Request) {
     const total = Number(countResult[0]?.count ?? 0);
     const totalPages = Math.ceil(total / limit);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       items,
       pagination: {
         page,
@@ -259,7 +298,41 @@ export async function GET(request: Request) {
         totalPages,
       },
     });
+
+    // Best-effort discovery analytics (never impacts the response).
+    try {
+      const discovered = classifyJobListEvent({
+        q: keyword,
+        categoryId,
+        professionId,
+        locationId,
+        employmentType,
+        organizationId,
+      });
+      await trackDiscoveryEvent({
+        event: discovered,
+        metadata:
+          discovered === "job_search"
+            ? buildJobSearchMetadata({
+                q: keyword,
+                categoryId,
+                professionId,
+                locationId,
+                employmentType,
+                organizationId,
+                resultCount: total,
+                page,
+              })
+            : { page },
+      });
+    } catch {
+      // Analytics failures are isolated and swallowed.
+    }
+
+    return response;
   } catch {
     return jsonError("Internal server error", 500);
   }
 }
+export const POST = withRouteMetrics("/api/jobs", "POST", __wrapped_POST);
+export const GET = withRouteMetrics("/api/jobs", "GET", __wrapped_GET);

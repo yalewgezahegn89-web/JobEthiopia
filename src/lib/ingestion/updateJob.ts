@@ -3,6 +3,8 @@ import { db } from "../../db";
 import { jobs } from "../../db/schema/jobs";
 import { jobSources } from "../../db/schema/jobSources";
 
+const PUBLISHED_STATUS = "PUBLISHED";
+
 export interface UpdateJobInput {
   jobId: string;
   jobSourceId: string;
@@ -67,37 +69,58 @@ export async function getStoredHash(
  * Updates job content fields and refreshes the jobSource rawHash and lastSeenAt.
  * Does NOT modify identity fields (id, slug, organizationId) or status fields.
  *
+ * **Publication gate:** a PUBLISHED job's content is treated as moderated and
+ * must not be silently rewritten by automated ingestion. When the target job
+ * is PUBLISHED, content fields are left untouched and only the job-source
+ * metadata (rawHash, lastSeenAt) is refreshed, keeping the job fresh/verified
+ * without content drift. The return value reports whether content was applied.
+ *
  * Both updates occur inside a single database transaction. If either fails,
  * the entire operation rolls back — no partial writes.
  *
+ * @param input - The normalized fields to apply
+ * @returns True if the job content was updated; false when the PUBLISHED gate
+ *          blocked the content mutation (metadata was still refreshed).
  * @throws If the transaction fails, the error propagates without being swallowed
  */
-export async function updateJob(input: UpdateJobInput): Promise<void> {
+export async function updateJob(input: UpdateJobInput): Promise<boolean> {
+  let contentUpdated = true;
+
   await db.transaction(async (tx) => {
-    await tx
-      .update(jobs)
-      .set({
-        title: input.normalizedTitle,
-        description: input.normalizedDescription,
-        locationId: input.locationId,
-        professionId: input.professionId,
-        categoryId: input.categoryId,
-        employmentType: input.employmentType as never,
-        salaryMin: input.salaryMin != null ? String(input.salaryMin) : null,
-        salaryMax: input.salaryMax != null ? String(input.salaryMax) : null,
-        salaryCurrency: input.salaryCurrency,
-        salaryPeriod: input.salaryPeriod as never,
-        experienceMin: input.experienceMin,
-        experienceMax: input.experienceMax,
-        responsibilities: input.responsibilities,
-        requirements: input.requirements,
-        educationRequirements: input.educationRequirements,
-        benefits: input.benefits,
-        postedAt: input.postedAt,
-        deadline: input.deadline,
-        applicationUrl: input.applicationUrl,
-      })
-      .where(eq(jobs.id, input.jobId));
+    const job = await tx
+      .select({ id: jobs.id, status: jobs.status })
+      .from(jobs)
+      .where(eq(jobs.id, input.jobId))
+      .limit(1);
+
+    if (job[0]?.status === PUBLISHED_STATUS) {
+      contentUpdated = false;
+    } else {
+      await tx
+        .update(jobs)
+        .set({
+          title: input.normalizedTitle,
+          description: input.normalizedDescription,
+          locationId: input.locationId,
+          professionId: input.professionId,
+          categoryId: input.categoryId,
+          employmentType: input.employmentType as never,
+          salaryMin: input.salaryMin != null ? String(input.salaryMin) : null,
+          salaryMax: input.salaryMax != null ? String(input.salaryMax) : null,
+          salaryCurrency: input.salaryCurrency,
+          salaryPeriod: input.salaryPeriod as never,
+          experienceMin: input.experienceMin,
+          experienceMax: input.experienceMax,
+          responsibilities: input.responsibilities,
+          requirements: input.requirements,
+          educationRequirements: input.educationRequirements,
+          benefits: input.benefits,
+          postedAt: input.postedAt,
+          deadline: input.deadline,
+          applicationUrl: input.applicationUrl,
+        })
+        .where(eq(jobs.id, input.jobId));
+    }
 
     await tx
       .update(jobSources)
@@ -107,4 +130,6 @@ export async function updateJob(input: UpdateJobInput): Promise<void> {
       })
       .where(eq(jobSources.id, input.jobSourceId));
   });
+
+  return contentUpdated;
 }

@@ -117,15 +117,18 @@ export default function AuditList({
 }) {
   const hasFilters = currentAction || currentTargetType || currentActorUserId;
 
+  const FOCUS_RING =
+    "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
+
   return (
     <div>
       <form method="get" className="mt-4 flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-sm">
-          Action
+          <span className="font-medium text-foreground">Action</span>
           <select
             name="action"
             defaultValue={currentAction ?? ""}
-            className="rounded-md border border-neutral-300 px-2 py-1"
+            className={`rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground ${FOCUS_RING}`}
           >
             <option value="">All actions</option>
             {ACTIONS.map((a) => (
@@ -136,11 +139,11 @@ export default function AuditList({
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          Target type
+          <span className="font-medium text-foreground">Target type</span>
           <select
             name="targetType"
             defaultValue={currentTargetType ?? ""}
-            className="rounded-md border border-neutral-300 px-2 py-1"
+            className={`rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground ${FOCUS_RING}`}
           >
             <option value="">All types</option>
             {TARGET_TYPES.map((t) => (
@@ -155,14 +158,14 @@ export default function AuditList({
         )}
         <button
           type="submit"
-          className="rounded-md border border-neutral-300 px-3 py-1 text-sm"
+          className={`rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md ${FOCUS_RING}`}
         >
           Filter
         </button>
         {hasFilters && (
           <Link
             href="/admin/audit"
-            className="rounded-md border border-neutral-300 px-3 py-1 text-sm text-neutral-700 hover:bg-neutral-50"
+            className={`rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-muted shadow-sm hover:bg-surface-raised hover:text-foreground ${FOCUS_RING}`}
           >
             Clear filters
           </Link>
@@ -170,13 +173,15 @@ export default function AuditList({
       </form>
 
       {result.items.length === 0 ? (
-        <p className="mt-6 text-neutral-600">No audit events found.</p>
+        <div className="mt-6 rounded-xl border border-dashed border-border bg-surface px-6 py-16 text-center">
+          <p className="text-sm text-muted">No audit events found.</p>
+        </div>
       ) : (
         <>
-          <p className="mt-4 text-sm text-neutral-500">
+          <p className="mt-4 text-sm text-muted">
             {result.total} event{result.total === 1 ? "" : "s"} total
           </p>
-          <ul className="mt-3 space-y-2 text-sm">
+          <ul className="mt-3 space-y-3 text-sm">
             {result.items.map((entry) => {
               const link =
                 entry.targetType &&
@@ -188,30 +193,32 @@ export default function AuditList({
               return (
                 <li
                   key={entry.id}
-                  className="rounded-md border border-neutral-200 p-3"
+                  className="rounded-lg border border-border bg-surface p-4 shadow-sm"
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium">{entry.action}</span>
-                        <span className="text-xs text-neutral-500">
+                        <span className="font-semibold text-foreground">
+                          {entry.action}
+                        </span>
+                        <span className="text-xs text-subtle">
                           {new Date(entry.createdAt).toLocaleString()}
                         </span>
                       </div>
-                      <div className="mt-1 text-xs text-neutral-500">
+                      <div className="mt-1 text-xs text-muted">
                         by {entry.actorEmail ?? "system"}
                         {entry.targetType && (
                           <>
                             {" · "}
                             {link ? (
-                              <Link href={link} className="underline">
+                              <Link href={link} className="underline hover:text-primary">
                                 {entry.targetType}
                               </Link>
                             ) : (
                               <span>{entry.targetType}</span>
                             )}
                             {entry.targetId && (
-                              <span className="ml-1 font-mono text-neutral-400">
+                              <span className="ml-1 font-mono text-subtle">
                                 {entry.targetId.slice(0, 8)}…
                               </span>
                             )}
@@ -223,16 +230,16 @@ export default function AuditList({
                   {entry.metadata &&
                   typeof entry.metadata === "object" &&
                   Object.keys(entry.metadata).length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-600">
+                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
                       {Object.entries(
                         entry.metadata as Record<string, unknown>,
                       ).map(([key, value]) => (
                         <span key={key}>
-                          <span className="text-neutral-400">{key}:</span>{" "}
+                          <span className="text-subtle">{key}:</span>{" "}
                           {typeof value === "boolean"
                             ? value
-                                ? "yes"
-                                : "no"
+                              ? "yes"
+                              : "no"
                             : String(value ?? "–")}
                         </span>
                       ))}
@@ -244,7 +251,7 @@ export default function AuditList({
           </ul>
 
           {result.totalPages > 1 && (
-            <nav className="mt-4 flex items-center justify-between">
+            <nav className="mt-4 flex flex-wrap items-center justify-between gap-3" aria-label="Audit log pagination">
               <div className="flex gap-1">
                 {result.page > 1 && (
                   <Link
@@ -254,13 +261,13 @@ export default function AuditList({
                       currentTargetType,
                       currentActorUserId,
                     )}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                    className={`rounded-lg border border-border bg-surface px-4 py-2 font-semibold text-foreground shadow-sm hover:bg-surface-raised hover:shadow-md ${FOCUS_RING}`}
                   >
                     Previous
                   </Link>
                 )}
               </div>
-              <span className="text-sm text-neutral-500">
+              <span className="text-sm text-muted">
                 Page {result.page} of {result.totalPages}
               </span>
               <div className="flex gap-1">
@@ -272,7 +279,7 @@ export default function AuditList({
                       currentTargetType,
                       currentActorUserId,
                     )}
-                    className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm text-neutral-700 hover:bg-neutral-50"
+                    className={`rounded-lg border border-border bg-surface px-4 py-2 font-semibold text-foreground shadow-sm hover:bg-surface-raised hover:shadow-md ${FOCUS_RING}`}
                   >
                     Next
                   </Link>

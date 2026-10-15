@@ -65,20 +65,21 @@ export function EditNoteButton({
 
   if (editing) {
     return (
-      <div className="mt-2 space-y-2">
+      <div className="mt-2 space-y-3">
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
           rows={3}
           maxLength={4000}
-          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-950"
+          aria-label="Edit note"
+          className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground placeholder:text-subtle focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={save}
             disabled={pending}
-            className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-60"
+            className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-4 py-1.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
           >
             {pending ? "Saving…" : "Save"}
           </button>
@@ -86,12 +87,16 @@ export function EditNoteButton({
             type="button"
             onClick={() => setEditing(false)}
             disabled={pending}
-            className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300"
+            className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg border border-border bg-surface px-4 py-1.5 text-sm font-semibold text-muted transition-colors hover:bg-surface-raised hover:text-foreground focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-60"
           >
             Cancel
           </button>
         </div>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
       </div>
     );
   }
@@ -100,7 +105,7 @@ export function EditNoteButton({
     <button
       type="button"
       onClick={openEditor}
-      className="rounded border border-gray-300 px-3 py-1 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-900"
+      className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg border border-border bg-surface px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
       Edit
     </button>

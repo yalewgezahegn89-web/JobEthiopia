@@ -13,6 +13,7 @@ import { applications } from "@/db/schema/applications";
 import { jobs } from "@/db/schema/jobs";
 import { organizations } from "@/db/schema/organizations";
 import { auditLog } from "@/db/schema/auditLog";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 
 /* ── Status model (centralized) ───────────────────────────────────────── */
 
@@ -82,11 +83,7 @@ const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function isDuplicateError(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  return (
-    err.message.includes("applications_job_id_candidate_user_id_unique") ||
-    (err as { code?: unknown }).code === "23505"
-  );
+  return isPgUniqueViolation(err);
 }
 
 /**

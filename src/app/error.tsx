@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useI18n } from "@/lib/i18n/client";
 
 export default function Error({
   error,
@@ -10,37 +11,36 @@ export default function Error({
   reset: () => void;
 }) {
   void error;
+  const { t } = useI18n();
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col items-center px-4 py-24 text-center">
-      <p className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-        Error
+      <p className="text-sm font-semibold uppercase tracking-wide text-muted">
+        {t.error.title}
       </p>
-      <h1 className="mt-2 text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-50">
-        Something went wrong
+      <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground">
+        {t.error.genericHeading}
       </h1>
-      <p className="mt-3 max-w-md text-gray-600 dark:text-gray-300">
-        Please try again, or return to JobEthiopia.
-      </p>
+      <p className="mt-3 max-w-md text-muted">{t.error.genericBody}</p>
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
         <button
           type="button"
           onClick={() => reset()}
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-300"
+          className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Try again
+          {t.common.tryAgain}
         </button>
         <Link
           href="/"
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+          className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Back to home
+          {t.common.backToHome}
         </Link>
         <Link
           href="/jobs"
-          className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+          className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Browse jobs
+          {t.error.browseJobs}
         </Link>
       </div>
     </div>

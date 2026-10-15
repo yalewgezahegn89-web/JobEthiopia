@@ -7,7 +7,15 @@ import { applications } from "@/db/schema/applications";
 import { organizations } from "@/db/schema/organizations";
 import { getCurrentUser } from "@/lib/auth/context";
 import { getUserOrganizationIds } from "@/lib/auth/organizationMembership";
-import { OrganizationNav } from "./nav";
+import {
+  BriefcaseIcon,
+  BuildingIcon,
+  CalendarIcon,
+  ArrowRightIcon,
+  PlusIcon,
+  UserIcon,
+} from "@/components/public/icons";
+import { EmptyState } from "@/components/public/empty-state";
 
 export const dynamic = "force-dynamic";
 
@@ -48,17 +56,11 @@ export default async function OrganizationDashboardPage() {
   const orgIds = await getUserOrganizationIds(user.id);
   if (orgIds.length === 0) {
     return (
-      <>
-        <OrganizationNav />
-        <main className="mx-auto max-w-5xl px-4 py-8">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-            Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            No organizations
-          </p>
-        </main>
-      </>
+      <EmptyState
+        icon={<BuildingIcon className="h-7 w-7" />}
+        heading="Dashboard"
+        body="No organizations yet."
+      />
     );
   }
 
@@ -80,30 +82,21 @@ export default async function OrganizationDashboardPage() {
       .then((rows) => rows.map((r) => r.id));
   } catch {
     return (
-      <>
-        <OrganizationNav />
-        <main className="mx-auto max-w-5xl px-4 py-8">
-          <p className="text-sm text-red-600">
-            We could not load the dashboard right now. Please try again shortly.
-          </p>
-        </main>
-      </>
+      <EmptyState
+        icon={<BuildingIcon className="h-7 w-7" />}
+        heading="Dashboard"
+        body="We could not load the dashboard right now. Please try again shortly."
+      />
     );
   }
 
   if (activeOrgIds.length === 0) {
     return (
-      <>
-        <OrganizationNav />
-        <main className="mx-auto max-w-5xl px-4 py-8">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-            Dashboard
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            No active organizations
-          </p>
-        </main>
-      </>
+      <EmptyState
+        icon={<BuildingIcon className="h-7 w-7" />}
+        heading="Dashboard"
+        body="No active organizations."
+      />
     );
   }
 
@@ -220,14 +213,11 @@ export default async function OrganizationDashboardPage() {
     deadlines = deadlines.slice(0, 5);
   } catch {
     return (
-      <>
-        <OrganizationNav />
-        <main className="mx-auto max-w-5xl px-4 py-8">
-          <p className="text-sm text-red-600">
-            We could not load the dashboard right now. Please try again shortly.
-          </p>
-        </main>
-      </>
+      <EmptyState
+        icon={<BriefcaseIcon className="h-7 w-7" />}
+        heading="Dashboard"
+        body="We could not load the dashboard right now. Please try again shortly."
+      />
     );
   }
 
@@ -238,146 +228,228 @@ export default async function OrganizationDashboardPage() {
       label: "Published Jobs",
       value: jobCounts.PUBLISHED,
       href: "/organization/jobs?status=PUBLISHED",
-      color: "bg-green-50 text-green-800 dark:bg-green-900 dark:text-green-200",
+      tone: "text-success",
+      icon: BriefcaseIcon,
+      light: "bg-success-light",
     },
     {
       label: "Drafts",
       value: jobCounts.DRAFT,
       href: "/organization/jobs?status=DRAFT",
-      color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
+      tone: "text-muted",
+      icon: BriefcaseIcon,
+      light: "bg-surface-raised",
     },
     {
       label: "Pending Review",
       value: jobCounts.PENDING_REVIEW,
       href: "/organization/jobs?status=PENDING_REVIEW",
-      color:
-        "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200",
+      tone: "text-warning",
+      icon: BriefcaseIcon,
+      light: "bg-warning-light",
     },
     {
       label: "Applications to Review",
       value: appCounts.SUBMITTED,
       href: "/organization/applications?status=SUBMITTED",
-      color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-    },
-    {
-      label: "Shortlisted",
-      value: appCounts.SHORTLISTED,
-      href: "/organization/applications?status=SHORTLISTED",
-      color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+      tone: "text-primary",
+      icon: UserIcon,
+      light: "bg-primary-light",
     },
     {
       label: "In Review",
       value: appCounts.REVIEWING,
       href: "/organization/applications?status=REVIEWING",
-      color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+      tone: "text-warning",
+      icon: UserIcon,
+      light: "bg-warning-light",
+    },
+    {
+      label: "Shortlisted",
+      value: appCounts.SHORTLISTED,
+      href: "/organization/applications?status=SHORTLISTED",
+      tone: "text-success",
+      icon: UserIcon,
+      light: "bg-success-light",
     },
     {
       label: "Total Applications",
       value: appCounts.total,
       href: "/organization/applications",
-      color: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200",
+      tone: "text-foreground",
+      icon: UserIcon,
+      light: "bg-surface-raised",
+    },
+  ];
+
+  const quickActions = [
+    {
+      label: "Create Job",
+      description: "Post a new role",
+      href: "/organization/jobs/create",
+      primary: true,
+    },
+    {
+      label: "View Jobs",
+      description: "Manage your listings",
+      href: "/organization/jobs",
+    },
+    {
+      label: "Review Applications",
+      description: "Candidates to action",
+      href: "/organization/applications?status=SUBMITTED",
     },
   ];
 
   return (
-    <>
-      <OrganizationNav />
-      <main className="mx-auto max-w-5xl px-4 py-8">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
-          Dashboard
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Overview of your organizations, jobs, and applications.
-        </p>
+    <div>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-primary">
+            Employer workspace
+          </p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            Dashboard
+          </h1>
+          <p className="mt-2 max-w-2xl text-base leading-7 text-muted">
+            Overview of your organizations, jobs, and applications.
+          </p>
+        </div>
+        <Link
+          href="/organization/jobs/create"
+          className="focus-visible:outline-2 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          <PlusIcon className="h-4 w-4" />
+          Create Job
+        </Link>
+      </div>
 
-        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {kpiCards.map((card) => (
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {kpiCards.map((card) => {
+          const Icon = card.icon;
+          return (
             <Link
               key={card.label}
               href={card.href}
-              className={`rounded-lg p-4 ${card.color}`}
+              className="group rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
-              <p className="text-2xl font-bold">{card.value}</p>
-              <p className="mt-1 text-sm">{card.label}</p>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className={`text-3xl font-bold tracking-tight ${card.tone}`}>
+                    {card.value}
+                  </p>
+                  <p className="mt-1.5 text-sm font-medium text-muted">
+                    {card.label}
+                  </p>
+                </div>
+                <span
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${card.light} ${card.tone}`}
+                >
+                  <Icon className="h-5 w-5" />
+                </span>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+
+      <section aria-labelledby="quick-actions-heading" className="mt-10">
+        <h2
+          id="quick-actions-heading"
+          className="text-sm font-semibold uppercase tracking-wider text-subtle"
+        >
+          Quick actions
+        </h2>
+        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {quickActions.map((action) => (
+            <Link
+              key={action.label}
+              href={action.href}
+              className={`group flex items-center justify-between gap-3 rounded-xl border p-4 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                action.primary
+                  ? "border-transparent bg-primary text-white hover:bg-primary-hover"
+                  : "border-border bg-surface"
+              }`}
+            >
+              <span>
+                <span
+                  className={`block text-sm font-semibold ${
+                    action.primary ? "text-white" : "text-foreground"
+                  }`}
+                >
+                  {action.label}
+                </span>
+                <span
+                  className={`block text-xs ${
+                    action.primary ? "text-white/80" : "text-muted"
+                  }`}
+                >
+                  {action.description}
+                </span>
+              </span>
+              <ArrowRightIcon
+                className={`h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 ${
+                  action.primary ? "text-white" : "text-subtle"
+                }`}
+              />
             </Link>
           ))}
         </div>
+      </section>
 
-        <div className="mt-8">
-          <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Quick Actions
+      <section aria-labelledby="deadlines-heading" className="mt-10">
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="h-4 w-4 text-primary" />
+          <h2
+            id="deadlines-heading"
+            className="text-base font-semibold tracking-tight text-foreground"
+          >
+            Upcoming deadlines
           </h2>
-          <div className="mt-3 flex flex-wrap gap-3">
-            <Link
-              href="/organization/jobs/create"
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Create Job
-            </Link>
-            <Link
-              href="/organization/jobs"
-              className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              View Jobs
-            </Link>
-            <Link
-              href="/organization/applications?status=SUBMITTED"
-              className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-            >
-              Review Applications
-            </Link>
-          </div>
         </div>
 
-        <div className="mt-8">
-          <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300">
-            Upcoming Deadlines
-          </h2>
-          {deadlines.length === 0 ? (
-            <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-              No upcoming deadlines.
-            </p>
-          ) : (
-            <ul className="mt-3 space-y-2">
-              {deadlines.map((d) => {
-                const isOverdue = d.deadline.getTime() < now.getTime();
-                const label = deadlineLabel(d.deadline, now);
-                return (
-                  <li
-                    key={d.id}
-                    className={`flex items-center justify-between rounded border p-3 text-sm ${
+        {deadlines.length === 0 ? (
+          <p className="mt-3 text-sm text-muted">No upcoming deadlines.</p>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {deadlines.map((d) => {
+              const isOverdue = d.deadline.getTime() < now.getTime();
+              const label = deadlineLabel(d.deadline, now);
+              return (
+                <li
+                  key={d.id}
+                  className={`flex items-center justify-between gap-4 rounded-xl border p-4 transition-shadow hover:shadow-md ${
+                    isOverdue
+                      ? "border-destructive-light bg-destructive-light/40"
+                      : "border-border bg-surface"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <Link
+                      href={`/organization/jobs/${d.id}`}
+                      className="focus-visible:outline-2 block truncate text-sm font-semibold text-foreground focus-visible:outline-offset-2 focus-visible:outline-primary hover:text-primary"
+                    >
+                      {d.title}
+                    </Link>
+                    <span className="mt-0.5 block truncate text-xs text-muted">
+                      {d.organizationName}
+                    </span>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                       isOverdue
-                        ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950"
-                        : "border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-950"
+                        ? "bg-destructive-light text-destructive"
+                        : "bg-warning-light text-warning"
                     }`}
                   >
-                    <div className="min-w-0">
-                      <Link
-                        href={`/organization/jobs/${d.id}`}
-                        className="font-medium text-blue-600 hover:underline dark:text-blue-400"
-                      >
-                        {d.title}
-                      </Link>
-                      <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                        {d.organizationName}
-                      </span>
-                    </div>
-                    <span
-                      className={`ml-4 shrink-0 text-xs font-medium ${
-                        isOverdue
-                          ? "text-red-700 dark:text-red-300"
-                          : "text-amber-700 dark:text-amber-300"
-                      }`}
-                    >
-                      {label}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      </main>
-    </>
+                    {label}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </div>
   );
 }

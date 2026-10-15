@@ -3,6 +3,7 @@ import { users } from "@/db/schema/users";
 import { auditLog } from "@/db/schema/auditLog";
 import { hashPassword } from "@/lib/auth/password";
 import { normalizeEmail } from "@/lib/auth/login";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 import { registerSchema } from "./schema";
 
 /**
@@ -26,11 +27,7 @@ export type RegisterCandidateResult =
   | { ok: false; code: "invalid_input" | "duplicate" | "error" };
 
 export function isDuplicateError(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  return (
-    err.message.includes("users_email_unique") ||
-    (err as { code?: unknown }).code === "23505"
-  );
+  return isPgUniqueViolation(err);
 }
 
 export async function registerCandidate(

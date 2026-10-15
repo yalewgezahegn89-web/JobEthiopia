@@ -4,6 +4,9 @@ import "./globals.css";
 import SiteHeader from "@/components/site-header";
 import SiteFooter from "@/components/site-footer";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
+import { I18nProvider } from "@/lib/i18n/client";
+import { getCurrentLocale } from "@/lib/i18n/server";
+import { LOCALE_METADATA } from "@/lib/i18n";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,20 +31,25 @@ export const metadata: Metadata = {
   description: "An Ethiopian job and career platform.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await getCurrentLocale();
+  const htmlLang = LOCALE_METADATA[locale].htmlLang;
+
   return (
     <html
-      lang="en"
+      lang={htmlLang}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <SiteHeader />
-        <main className="flex w-full flex-1 flex-col">{children}</main>
-        <SiteFooter />
+        <I18nProvider locale={locale}>
+          <SiteHeader />
+          <main className="flex w-full flex-1 flex-col">{children}</main>
+          <SiteFooter />
+        </I18nProvider>
       </body>
     </html>
   );

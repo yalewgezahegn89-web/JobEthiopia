@@ -5,6 +5,8 @@ export {
   recordFailedCheck,
   isSourceDueForCheck,
   getSourceHealth,
+  autoDeactivateIfUnhealthy,
+  AUTO_DEACTIVATE_THRESHOLD,
 } from "./health";
 
 export type { SourceHealthStatus } from "./types";

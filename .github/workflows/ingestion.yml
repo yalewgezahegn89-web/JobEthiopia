@@ -1,0 +1,60 @@
+name: Ingestion
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ingestion-production
+  cancel-in-progress: false
+
+jobs:
+  run-ingestion:
+    if: vars.ENABLE_PRODUCTION_SCHEDULED_WORKFLOWS == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Invoke production ingestion endpoint
+        env:
+          MAINTENANCE_TARGET_URL: "${{ vars.MAINTENANCE_TARGET_URL }}"
+          MAINTENANCE_API_KEY: "${{ secrets.MAINTENANCE_API_KEY }}"
+          INTERNAL_INGESTION_API_KEY: "${{ secrets.INTERNAL_INGESTION_API_KEY }}"
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MAINTENANCE_TARGET_URL}" ]; then
+            echo "MAINTENANCE_TARGET_URL is not configured."
+            exit 1
+          fi
+
+          # Route-dedicated secret when set, otherwise the shared maintenance
+          # key. This lets operators adopt per-route keys without a
+          # coordinated env change.
+          INGESTION_KEY="${INTERNAL_INGESTION_API_KEY:-${MAINTENANCE_API_KEY}}"
+
+          if [ -z "${INGESTION_KEY}" ]; then
+            echo "No ingestion key configured: set INTERNAL_INGESTION_API_KEY or MAINTENANCE_API_KEY."
+            exit 1
+          fi
+
+          INGESTION_URL="${MAINTENANCE_TARGET_URL%/}/api/internal/ingestion/run"
+
+          # --fail-with-body: any non-2xx (e.g. 401, 500, 502) exits non-zero
+          # and the workflow fails. Network errors/empty responses fail via
+          # set -o pipefail. jq rejects a malformed (non-object) 2xx body.
+          curl \
+            --silent \
+            --show-error \
+            --fail-with-body \
+            --request POST \
+            --max-time 300 \
+            --retry 3 \
+            --retry-delay 30 \
+            --retry-on-http-error 429,500,502,503,504 \
+            --header "x-maintenance-key: ${INGESTION_KEY}" \
+            "${INGESTION_URL}" \
+            | jq -e 'type == "object"' >/dev/null

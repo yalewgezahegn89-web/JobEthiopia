@@ -1,0 +1,153 @@
+name: Job Alerts Daily Digest
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/lib/jobAlerts/**"
+      - "src/lib/email/**"
+      - "src/lib/jobs/eligibility.ts"
+      - "src/app/api/job-alerts/**"
+      - "src/app/api/internal/job-alerts/**"
+      - ".github/workflows/job-alerts.yml"
+
+concurrency:
+  group: job-alerts-production
+  cancel-in-progress: false
+
+jobs:
+  trigger-production-digest:
+    if: vars.ENABLE_PRODUCTION_SCHEDULED_WORKFLOWS == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Trigger production job-alerts digest endpoint
+        env:
+          MAINTENANCE_API_KEY: "${{ secrets.MAINTENANCE_API_KEY }}"
+          INTERNAL_JOB_ALERTS_API_KEY: "${{ secrets.INTERNAL_JOB_ALERTS_API_KEY }}"
+          PRODUCTION_URL: "${{ vars.MAINTENANCE_TARGET_URL }}"
+        run: |
+          set -euo pipefail
+
+          INSTANCES="${INSTANCES:-production}"
+          FAILED=0
+
+          for instance in $INSTANCES; do
+            if [ "$instance" = "production" ]; then
+              TARGET_URL="${PRODUCTION_URL}"
+              # Route-dedicated secret when set, otherwise the shared
+              # maintenance key. Lets operators adopt per-route keys without a
+              # coordinated env change.
+              DIGEST_KEY="${INTERNAL_JOB_ALERTS_API_KEY:-${MAINTENANCE_API_KEY}}"
+            else
+              echo "::error::Unknown digest instance '$instance'"
+              FAILED=$((FAILED+1))
+              continue
+            fi
+
+            if [ -z "${TARGET_URL}" ]; then
+              echo "::error::PRODUCTION_URL is not configured (set the MAINTENANCE_TARGET_URL repository variable)."
+              FAILED=$((FAILED+1))
+              continue
+            fi
+
+            if [ -z "${DIGEST_KEY}" ]; then
+              echo "::error::No job-alerts key configured: set INTERNAL_JOB_ALERTS_API_KEY or MAINTENANCE_API_KEY."
+              FAILED=$((FAILED+1))
+              continue
+            fi
+
+            echo "Dispatching job-alerts digest to $instance ($TARGET_URL)"
+
+            response=$(curl -s -w "\n%{http_code}" -X POST "$TARGET_URL/api/internal/job-alerts/daily" \
+              --connect-timeout 10 --max-time 300 \
+              -H "x-maintenance-key: $DIGEST_KEY")
+
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+
+            # Any non-2xx (401/500/...), a failed/empty curl (network error or
+            # timeout), or a timeout leaves http_code empty and FAILS the job.
+            case "$http_code" in
+              2??)
+                echo "✅ Digest accepted by $instance ($http_code)"
+                if [ -n "$body" ] && [ "$body" != "null" ]; then
+                  echo "Result: $body"
+                fi
+                ;;
+              *)
+                echo "::error::Job-alerts digest rejected by $instance (http_code=${http_code:-<empty/network error>})"
+                if [ -n "$body" ]; then
+                  echo "Response: $body"
+                fi
+                FAILED=$((FAILED+1))
+                ;;
+            esac
+          done
+
+          if [ "$FAILED" -gt 0 ]; then
+            echo "::error::$FAILED job-alerts digest instance(s) failed"
+            exit 1
+          fi
+
+          echo "✅ All job-alerts digest instances accepted"
+
+  pr-summary:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Emit PR summary
+        run: |
+          cat <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          ## Job Alerts Digest workflow
+
+          \`.github/workflows/job-alerts.yml\` active for this pull request.
+
+          **Cron schedule:** \`0 4 * * *\` — daily at 04:00 UTC (after maintenance and ingestion)
+
+          **Production endpoint:** \`POST /api/internal/job-alerts/daily\`
+          - Authenticates via `x-maintenance-key` header
+          - Uses `INTERNAL_JOB_ALERTS_API_KEY` when configured, otherwise `MAINTENANCE_API_KEY`
+
+          ### What it does
+
+          1. Sweeps ACTIVE/DAILY alerts not served in the last 23 hours
+          2. Matches eligible public jobs via the shared eligibility helper
+          3. Sends one localized email (en/am/om) per alert
+          4. Records per-job delivery rows for dedup
+          5. Updates lastSentAt timestamp on success
+          6. Writes audit log with full delivery stats
+          7. Returns JSON result (alerts processed, sent, skipped, failed)
+
+          ### Repository configuration
+
+          | Variable | Source | Description |
+          |---|---|---|
+          | `MAINTENANCE_API_KEY` | Actions secret | Shared fallback key for maintenance, ingestion, and digest endpoints |
+          | `INTERNAL_JOB_ALERTS_API_KEY` | Actions secret (optional) | Route-dedicated digest key; falls back to `MAINTENANCE_API_KEY` |
+          | `MAINTENANCE_TARGET_URL` | Actions variable | Production HTTPS origin only; the workflow appends `/api/internal/job-alerts/daily` |
+          | `RESEND_API_KEY` | Deploy environment secret | Email transport key (noop if absent) |
+          | `EMAIL_FROM` | Deploy environment secret | From address (noop if absent) |
+
+          ### Local development
+
+          ```bash
+          curl -X POST http://localhost:3000/api/internal/job-alerts/daily \
+            -H "x-maintenance-key: test-maintenance-key"
+          ```
+
+          - No email sent when `RESEND_API_KEY` is absent (noop transport)
+          - Returns stats showing alerts processed, matches, delivery outcomes
+          - The job exits nonzero on any non-2xx / network failure so a missed
+            digest is never silently swallowed
+          EOF

@@ -59,6 +59,10 @@ import {
   PUT,
   DELETE,
 } from "../../../app/api/organizations/[id]/route";
+import {
+  createOrganizationSchema,
+  updateOrganizationSchema,
+} from "../../validations";
 
 const VALID_ID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -73,6 +77,9 @@ const SAMPLE_ORG = {
   locationId: "110e8400-e29b-41d4-a716-446655440010",
   isVerified: false,
   status: "ACTIVE",
+  verifiedAt: new Date("2026-01-20"),
+  verifiedBy: "440e8400-e29b-41d4-a716-446655440099",
+  verificationNotes: "Verified against business license 2026-001",
   createdAt: new Date("2026-01-15"),
   updatedAt: new Date("2026-01-15"),
 };
@@ -83,7 +90,32 @@ function mockDbSuccess(count: number, items: unknown[]) {
       where: vi.fn().mockResolvedValue([{ count }]),
     }),
   });
-  mockDbFindMany.mockResolvedValue(items);
+  mockDbFindMany.mockImplementation(
+    (config?: { columns?: Record<string, boolean> }) =>
+      Promise.resolve(
+        items.map((row) => projectRow(row, config?.columns)),
+      ),
+  );
+}
+
+function projectRow(
+  row: unknown,
+  columns?: Record<string, boolean>,
+): unknown {
+  if (!columns || typeof row !== "object" || row === null) return row;
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(columns)) {
+    if (columns[key] === true && key in (row as Record<string, unknown>)) {
+      out[key] = (row as Record<string, unknown>)[key];
+    }
+  }
+  return out;
+}
+
+function lastFindManyConfig() {
+  return mockDbFindMany.mock.calls.at(-1)?.[0] as
+    | { columns?: Record<string, boolean>; where?: unknown }
+    | undefined;
 }
 
 function makeGetListRequest(searchParams?: Record<string, string>): Request {
@@ -195,7 +227,10 @@ const VALID_POST_BODY = {
 beforeEach(() => {
   vi.clearAllMocks();
   mockDbSuccess(1, [SAMPLE_ORG]);
-  mockFindFirst.mockResolvedValue(SAMPLE_ORG);
+  mockFindFirst.mockImplementation(
+    (config?: { columns?: Record<string, boolean> }) =>
+      Promise.resolve(projectRow(SAMPLE_ORG, config?.columns)),
+  );
 });
 
 describe("GET /api/organizations", () => {
@@ -291,6 +326,66 @@ describe("GET /api/organizations", () => {
       expect(response.status).toBe(200);
       expect(data.items).toHaveLength(0);
       expect(data.pagination.total).toBe(0);
+    });
+  });
+
+  describe("public projection", () => {
+    it("queries only public columns for list", async () => {
+      const request = makeGetListRequest();
+      await GET(request);
+
+      const columns = lastFindManyConfig()?.columns;
+      expect(columns).toBeDefined();
+      expect(columns?.verifiedAt).toBeUndefined();
+      expect(columns?.verifiedBy).toBeUndefined();
+      expect(columns?.verificationNotes).toBeUndefined();
+    });
+
+    it("list response does not contain verification internals", async () => {
+      const request = makeGetListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(data.items).toHaveLength(1);
+      const item = data.items[0];
+      expect(item.id).toBe(VALID_ID);
+      expect(item.verifiedAt).toBeUndefined();
+      expect(item.verifiedBy).toBeUndefined();
+      expect(item.verificationNotes).toBeUndefined();
+    });
+
+    it("list response retains legitimate public fields", async () => {
+      const request = makeGetListRequest();
+      const response = await GET(request);
+      const data = await response.json();
+
+      const item = data.items[0];
+      expect(Object.keys(item)).toEqual(
+        expect.arrayContaining([
+          "id",
+          "name",
+          "slug",
+          "description",
+          "industry",
+          "websiteUrl",
+          "logoUrl",
+          "locationId",
+          "isVerified",
+          "status",
+          "createdAt",
+          "updatedAt",
+        ]),
+      );
+    });
+
+    it("existing public filtering/visibility behavior is unchanged", async () => {
+      const request = makeGetListRequest({ status: "ACTIVE" });
+      const response = await GET(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.items).toHaveLength(1);
+      expect(data.items[0].status).toBe("ACTIVE");
     });
   });
 
@@ -484,6 +579,55 @@ describe("POST /api/organizations", () => {
       expect(data.item.isVerified).toBe(false);
     });
 
+    it("isVerified=true in request body is stripped and not written to DB", async () => {
+      mockInsertSuccess({ ...SAMPLE_ORG, isVerified: false });
+
+      const request = makePostRequest({
+        name: "Black Lion Hospital",
+        slug: "black-lion-hospital",
+        isVerified: true,
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.item.isVerified).toBe(false);
+
+      const insertCall = mockDbInsert.mock.calls.at(-1);
+      const insertValues = insertCall?.[0] as unknown as { values: (v: unknown) => unknown } | undefined;
+      expect(insertValues).toBeDefined();
+    });
+
+    it("isVerified=false in request body is stripped and not written to DB", async () => {
+      mockInsertSuccess({ ...SAMPLE_ORG, isVerified: false });
+
+      const request = makePostRequest({
+        name: "Black Lion Hospital",
+        slug: "black-lion-hospital",
+        isVerified: false,
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.item.isVerified).toBe(false);
+    });
+
+    it("isVerified cannot be set via alternate payload shape", async () => {
+      mockInsertSuccess({ ...SAMPLE_ORG, isVerified: false });
+
+      const request = makePostRequest({
+        name: "Black Lion Hospital",
+        slug: "black-lion-hospital",
+        verification: { isVerified: true },
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(201);
+      expect(data.item.isVerified).toBe(false);
+    });
+
     it("full body with all optional fields returns 201", async () => {
       const fullOrg = {
         ...SAMPLE_ORG,
@@ -612,6 +756,61 @@ describe("GET /api/organizations/[id]", () => {
       expect(item.status).toBeDefined();
       expect(item.createdAt).toBeDefined();
       expect(item.updatedAt).toBeDefined();
+    });
+  });
+
+  describe("public projection", () => {
+    it("queries only public columns for detail", async () => {
+      const request = makeGetDetailRequest(VALID_ID);
+      await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      const columns = mockFindFirst.mock.calls.at(-1)?.[0] as
+        | { columns?: Record<string, boolean> }
+        | undefined;
+      expect(columns?.columns).toBeDefined();
+      expect(columns?.columns?.verifiedAt).toBeUndefined();
+      expect(columns?.columns?.verifiedBy).toBeUndefined();
+      expect(columns?.columns?.verificationNotes).toBeUndefined();
+    });
+
+    it("detail response does not contain verification internals", async () => {
+      const request = makeGetDetailRequest(VALID_ID);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(data.item.id).toBe(VALID_ID);
+      expect(data.item.verifiedAt).toBeUndefined();
+      expect(data.item.verifiedBy).toBeUndefined();
+      expect(data.item.verificationNotes).toBeUndefined();
+    });
+
+    it("detail response retains legitimate public fields", async () => {
+      const request = makeGetDetailRequest(VALID_ID);
+      const response = await GET_BY_ID(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(Object.keys(data.item)).toEqual(
+        expect.arrayContaining([
+          "id",
+          "name",
+          "slug",
+          "description",
+          "industry",
+          "websiteUrl",
+          "logoUrl",
+          "locationId",
+          "isVerified",
+          "status",
+          "createdAt",
+          "updatedAt",
+        ]),
+      );
     });
   });
 
@@ -821,6 +1020,53 @@ describe("PUT /api/organizations/[id]", () => {
 
       expect(Object.keys(data)).toEqual(["item"]);
     });
+
+    it("isVerified=true is stripped from PUT and not written to DB", async () => {
+      mockUpdateSuccess({ ...SAMPLE_ORG, isVerified: false });
+
+      const request = makePutRequest(VALID_ID, { isVerified: true });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item.isVerified).toBe(false);
+
+      const updateCall = mockDbUpdate.mock.calls.at(-1);
+      const updateFn = updateCall?.[0] as unknown as { set: (v: unknown) => unknown } | undefined;
+      expect(updateFn).toBeDefined();
+    });
+
+    it("isVerified=false is stripped from PUT and not written to DB", async () => {
+      mockUpdateSuccess({ ...SAMPLE_ORG, isVerified: true });
+
+      const request = makePutRequest(VALID_ID, { isVerified: false });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item.isVerified).toBe(true);
+    });
+
+    it("isVerified cannot be changed via PUT even with valid API key", async () => {
+      mockUpdateSuccess({ ...SAMPLE_ORG, isVerified: false, name: "Updated Name" });
+
+      const request = makePutRequest(VALID_ID, {
+        name: "Updated Name",
+        isVerified: true,
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(data.item.name).toBe("Updated Name");
+      expect(data.item.isVerified).toBe(false);
+    });
   });
 
   describe("slug conflict", () => {
@@ -1000,5 +1246,64 @@ describe("DELETE /api/organizations/[id]", () => {
       expect(body).not.toContain("SECRET_DB_PASSWORD");
       expect(body).not.toContain("xyz");
     });
+  });
+});
+
+describe("Schema-level isVerified rejection", () => {
+  it("createOrganizationSchema rejects isVerified field", () => {
+    const result = createOrganizationSchema.safeParse({
+      name: "Test Org",
+      slug: "test-org",
+      isVerified: true,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty("isVerified");
+    }
+  });
+
+  it("updateOrganizationSchema rejects isVerified field", () => {
+    const result = updateOrganizationSchema.safeParse({
+      name: "Updated Org",
+      isVerified: true,
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty("isVerified");
+    }
+  });
+
+  it("createOrganizationSchema accepts valid fields without isVerified", () => {
+    const result = createOrganizationSchema.safeParse({
+      name: "Test Org",
+      slug: "test-org",
+      description: "A test organization",
+      industry: "Technology",
+      websiteUrl: "https://example.com",
+      logoUrl: "https://example.com/logo.png",
+      locationId: "110e8400-e29b-41d4-a716-446655440010",
+      status: "ACTIVE",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty("isVerified");
+      expect(result.data.status).toBe("ACTIVE");
+    }
+  });
+
+  it("createOrganizationSchema defaults status to ACTIVE without isVerified", () => {
+    const result = createOrganizationSchema.safeParse({
+      name: "Test Org",
+      slug: "test-org",
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data).not.toHaveProperty("isVerified");
+      expect(result.data.status).toBe("ACTIVE");
+    }
   });
 });

@@ -1,4 +1,25 @@
+import { timedFetch } from "@/lib/observability/internalFetch";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
+
+export const DEFAULT_STALE_MAX_AGE_DAYS = 30;
+
+export function isJobStale(
+  lastVerifiedAt: string | null | undefined,
+  maxAgeDays: number = DEFAULT_STALE_MAX_AGE_DAYS,
+  now?: Date,
+): boolean {
+  if (lastVerifiedAt == null) {
+    return true;
+  }
+  const date = new Date(lastVerifiedAt);
+  if (Number.isNaN(date.getTime())) {
+    return true;
+  }
+  const reference = now ?? new Date();
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const elapsedMs = reference.getTime() - date.getTime();
+  return elapsedMs >= maxAgeDays * msPerDay;
+}
 
 export type PublicJobQuery = {
   q?: string;
@@ -8,6 +29,9 @@ export type PublicJobQuery = {
   organizationId?: string;
   status?: string;
   employmentType?: string;
+  sort?: "relevance" | "newest" | "deadline";
+  salaryMin?: number;
+  salaryMax?: number;
   page?: number;
   limit?: number;
 };
@@ -178,6 +202,7 @@ export function daysSince(
 export function freshnessLabel(
   date: string | null,
   now?: Date,
+  t?: { freshnessToday: string; freshnessDaysAgo: (n: number) => string },
 ): string | null {
   const parsed = toDate(date, now);
   if (!parsed) {
@@ -186,6 +211,10 @@ export function freshnessLabel(
   const days = daysSince(date, now);
   if (days == null) {
     return null;
+  }
+  if (t) {
+    if (days === 0) return t.freshnessToday;
+    return t.freshnessDaysAgo(days);
   }
   if (days === 0) {
     return "Today";
@@ -373,11 +402,20 @@ export async function fetchJobs(
   if (query.employmentType) {
     params.set("employmentType", query.employmentType);
   }
+  if (query.sort) {
+    params.set("sort", query.sort);
+  }
+  if (query.salaryMin !== undefined) {
+    params.set("salaryMin", String(query.salaryMin));
+  }
+  if (query.salaryMax !== undefined) {
+    params.set("salaryMax", String(query.salaryMax));
+  }
 
   const url = new URL("/api/jobs", baseUrl);
   url.search = params.toString();
 
-  const res = await fetcher(url, { cache: "no-store" });
+  const res = await timedFetch(fetcher, url, { cache: "no-store" });
   if (!res.ok) {
     throw new PublicApiError();
   }
@@ -404,7 +442,7 @@ export async function fetchJobById(
 
   const url = new URL(`/api/jobs/${encodeURIComponent(id)}`, baseUrl);
 
-  const res = await fetcher(url, { cache: "no-store" });
+  const res = await timedFetch(fetcher, url, { cache: "no-store" });
   if (res.status === 404) {
     return null;
   }

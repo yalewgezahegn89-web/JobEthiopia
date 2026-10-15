@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -16,7 +17,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function POST(request: Request) {
+async function __wrapped_POST(request: Request) {
   const keyCheck = checkApiKey(request);
   if (!keyCheck.ok) return jsonError(keyCheck.message, keyCheck.status);
 
@@ -112,3 +113,4 @@ export async function POST(request: Request) {
     return jsonError("Internal server error", 500);
   }
 }
+export const POST = withRouteMetrics("/api/jobs/ingest", "POST", __wrapped_POST);

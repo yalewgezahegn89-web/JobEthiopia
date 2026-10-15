@@ -5,20 +5,26 @@ import type {
 } from "./types";
 import { buildPasswordResetEmail } from "./passwordReset";
 import { buildApplicationStatusEmail, buildApplicationSubmissionEmail } from "./notification";
+import { buildJobAlertEmail } from "./jobAlert";
+import { buildVerificationEmail, buildEmailChangeVerificationEmail } from "./verification";
 import type { ApplicationStatusNotification } from "./notification";
 import type { ApplicationSubmissionNotification } from "./notification";
+import type { JobAlertNotification } from "./jobAlert";
+import type { Locale } from "@/lib/i18n/locale";
 import { getAppBaseUrl } from "@/lib/auth/csrf";
 import { logInfo, logError } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
-export { buildPasswordResetEmail, buildApplicationStatusEmail, buildApplicationSubmissionEmail };
+export { buildPasswordResetEmail, buildApplicationStatusEmail, buildApplicationSubmissionEmail, buildJobAlertEmail, buildVerificationEmail, buildEmailChangeVerificationEmail };
 export type {
   EmailTransport,
   PasswordResetEmail,
   SendPasswordResetEmail,
+  EmailMessage,
 } from "./types";
 export type { ApplicationStatusNotification } from "./notification";
 export type { ApplicationSubmissionNotification } from "./notification";
+export type { JobAlertNotification } from "./jobAlert";
 
 /* ── Transport selection ──────────────────────────────────────────────── */
 
@@ -176,6 +182,100 @@ export async function dispatchApplicationSubmissionNotification(
     logError("email_send_failed", {
       requestId: await getRequestId(),
       emailType: "application_submission",
+      errorCode: "EMAIL_DISPATCH_FAILED",
+    });
+  }
+}
+
+/* ── Job alert notification ───────────────────────────────────────────── */
+
+/**
+ * Dispatches a job-alert notification email to a candidate. Must be called
+ * AFTER the alert's delivery bookkeeping context allows it (delivery rows are
+ * written by the caller, not here).
+ *
+ * Never throws: email failure is logged and swallowed. Returns true when the
+ * transport accepted the message, false on failure, so the delivery layer can
+ * record the correct delivery status per job. No recipient/body/secret is ever
+ * logged — only the email type and a stable error code.
+ */
+export async function dispatchJobAlertEmail(
+  to: string,
+  locale: Locale,
+  notification: JobAlertNotification,
+): Promise<boolean> {
+  try {
+    await ensureTransport();
+    const email = buildJobAlertEmail(locale, notification);
+    await transport.sendEmail({ ...email, to });
+    logInfo("email_send_succeeded", {
+      requestId: await getRequestId(),
+      emailType: "job_alert",
+      recipientType: "candidate",
+    });
+    return true;
+  } catch {
+    logError("email_send_failed", {
+      requestId: await getRequestId(),
+      emailType: "job_alert",
+      errorCode: "EMAIL_DISPATCH_FAILED",
+    });
+    return false;
+  }
+}
+
+/* ── Email verification ────────────────────────────────────────────── */
+
+/**
+ * Dispatches an email verification email to the user. Must be called AFTER the
+ * verification token has been created in the database.
+ *
+ * Never throws: email failure is logged and swallowed so the caller's response
+ * is unaffected.
+ */
+export async function dispatchEmailVerification(
+  to: string,
+  verifyUrl: string,
+): Promise<void> {
+  try {
+    await ensureTransport();
+    const email = buildVerificationEmail(to, verifyUrl);
+    await transport.sendEmail(email);
+    logInfo("email_send_succeeded", {
+      requestId: await getRequestId(),
+      emailType: "email_verification",
+      recipientType: "user",
+    });
+  } catch {
+    logError("email_send_failed", {
+      requestId: await getRequestId(),
+      emailType: "email_verification",
+      errorCode: "EMAIL_DISPATCH_FAILED",
+    });
+  }
+}
+
+/**
+ * Dispatches an email change verification email. Must be called AFTER the
+ * verification token has been created in the database.
+ */
+export async function dispatchEmailChangeVerification(
+  to: string,
+  verifyUrl: string,
+): Promise<void> {
+  try {
+    await ensureTransport();
+    const email = buildEmailChangeVerificationEmail(to, verifyUrl);
+    await transport.sendEmail(email);
+    logInfo("email_send_succeeded", {
+      requestId: await getRequestId(),
+      emailType: "email_change_verification",
+      recipientType: "user",
+    });
+  } catch {
+    logError("email_send_failed", {
+      requestId: await getRequestId(),
+      emailType: "email_change_verification",
       errorCode: "EMAIL_DISPATCH_FAILED",
     });
   }

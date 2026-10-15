@@ -11,6 +11,44 @@ const organizationSlugSchema = z
     "Slug may only contain lowercase letters, numbers, and hyphens",
   );
 
+const organizationNameSchema = z
+  .string()
+  .trim()
+  .min(1, "Organization name is required")
+  .max(150, "Organization name must be 150 characters or fewer");
+
+const optionalTrimmedSchema = (field: string, max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max, `${field} must be ${max} characters or fewer`)
+    .optional()
+    .or(z.literal(""));
+
+const optionalUrlSchema = z
+  .string()
+  .trim()
+  .max(2000, "Website URL must be 2000 characters or fewer")
+  .url("Enter a valid URL")
+  .optional()
+  .or(z.literal(""));
+
+const optionalUuidSchema = z
+  .string()
+  .uuid("Select a valid location")
+  .optional()
+  .or(z.literal(""));
+
+const employerOrganizationFields = {
+  organizationName: organizationNameSchema,
+  organizationSlug: organizationSlugSchema,
+  industry: optionalTrimmedSchema("Industry", 100),
+  description: optionalTrimmedSchema("Description", 2000),
+  websiteUrl: optionalUrlSchema,
+  contactPhone: optionalTrimmedSchema("Phone number", 30),
+  locationId: optionalUuidSchema,
+};
+
 /**
  * Strict employer self-service onboarding request schema (Batch 97).
  *
@@ -45,42 +83,7 @@ export const employerOnboardingSchema = z
         `Password must be at least ${MIN_PASSWORD_LENGTH} characters`,
       ),
     confirmPassword: z.string().min(1, "Confirm your password"),
-    organizationName: z
-      .string()
-      .trim()
-      .min(1, "Organization name is required")
-      .max(150, "Organization name must be 150 characters or fewer"),
-    organizationSlug: organizationSlugSchema,
-    industry: z
-      .string()
-      .trim()
-      .max(100, "Industry must be 100 characters or fewer")
-      .optional()
-      .or(z.literal("")),
-    description: z
-      .string()
-      .trim()
-      .max(2000, "Description must be 2000 characters or fewer")
-      .optional()
-      .or(z.literal("")),
-    websiteUrl: z
-      .string()
-      .trim()
-      .max(2000, "Website URL must be 2000 characters or fewer")
-      .url("Enter a valid URL")
-      .optional()
-      .or(z.literal("")),
-    contactPhone: z
-      .string()
-      .trim()
-      .max(30, "Phone number must be 30 characters or fewer")
-      .optional()
-      .or(z.literal("")),
-    locationId: z
-      .string()
-      .uuid("Select a valid location")
-      .optional()
-      .or(z.literal("")),
+    ...employerOrganizationFields,
   })
   .strict()
   .refine((data) => data.password === data.confirmPassword, {
@@ -89,3 +92,24 @@ export const employerOnboardingSchema = z
   });
 
 export type EmployerOnboardingInput = z.infer<typeof employerOnboardingSchema>;
+
+/**
+ * Strict employer onboarding RE-SUBMISSION schema (Phase 11).
+ *
+ * Used when a previously REJECTED request is resubmitted by the same user
+ * with a revised application. Identity and credentials are deliberately NOT
+ * accepted here — the actor is the authenticated session owner and their
+ * existing account is reused unchanged. Only the organization fields may be
+ * revised. `.strict()` rejects any privileged field (`userId`, `role`,
+ * `status`, `reviewedBy`, ...) — those are always derived and enforced
+ * server-side.
+ */
+export const employerOnboardingResubmitSchema = z
+  .object({
+    ...employerOrganizationFields,
+  })
+  .strict();
+
+export type EmployerOnboardingResubmitInput = z.infer<
+  typeof employerOnboardingResubmitSchema
+>;

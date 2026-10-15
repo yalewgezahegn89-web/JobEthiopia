@@ -19,6 +19,7 @@ vi.mock("next/navigation", () => ({
   redirect: (url: string): never => {
     throw new Error(`REDIRECT:${url}`);
   },
+  usePathname: () => "/admin/employer-requests",
 }));
 
 vi.mock("next/link", () => ({

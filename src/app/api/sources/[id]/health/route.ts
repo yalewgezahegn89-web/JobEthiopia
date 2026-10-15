@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -17,7 +18,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function GET(
+async function __wrapped_GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -53,7 +54,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function __wrapped_POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -141,3 +142,5 @@ export async function POST(
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/sources/[id]/health", "GET", __wrapped_GET);
+export const POST = withRouteMetrics("/api/sources/[id]/health", "POST", __wrapped_POST);

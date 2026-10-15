@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -38,7 +39,7 @@ async function authenticateAndAuthorize(_request: Request) {
   return { user, error: null };
 }
 
-export async function GET(
+async function __wrapped_GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -85,7 +86,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function __wrapped_PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -195,7 +196,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function __wrapped_DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -285,3 +286,6 @@ export async function DELETE(
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/employer/jobs/[id]", "GET", __wrapped_GET);
+export const PATCH = withRouteMetrics("/api/employer/jobs/[id]", "PATCH", __wrapped_PATCH);
+export const DELETE = withRouteMetrics("/api/employer/jobs/[id]", "DELETE", __wrapped_DELETE);

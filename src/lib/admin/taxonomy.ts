@@ -14,6 +14,7 @@ import { locations } from "@/db/schema/locations";
 import { jobs } from "@/db/schema/jobs";
 import { auditLog } from "@/db/schema/auditLog";
 import { escapeLikePattern } from "@/lib/apiUtils";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 import {
   createCategorySchema,
   updateCategorySchema,
@@ -294,7 +295,7 @@ export async function createCategory(
 
     return { ok: true, id: categoryId };
   } catch (err: unknown) {
-    if (err instanceof Error && err.message.includes("categories_slug_unique")) {
+    if (isPgUniqueViolation(err, "categories_slug_unique")) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;
@@ -376,7 +377,7 @@ export async function updateCategory(
 
     return { ok: true };
   } catch (err: unknown) {
-    if (err instanceof Error && err.message.includes("categories_slug_unique")) {
+    if (isPgUniqueViolation(err, "categories_slug_unique")) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;
@@ -690,7 +691,7 @@ export async function createProfession(
 
     return { ok: true, id: professionId };
   } catch (err: unknown) {
-    if (err instanceof Error && err.message.includes("professions_slug_unique")) {
+    if (isPgUniqueViolation(err, "professions_slug_unique")) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;
@@ -763,7 +764,7 @@ export async function updateProfession(
 
     return { ok: true };
   } catch (err: unknown) {
-    if (err instanceof Error && err.message.includes("professions_slug_unique")) {
+    if (isPgUniqueViolation(err, "professions_slug_unique")) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;
@@ -1121,7 +1122,7 @@ export async function createLocation(
 
     return { ok: true, id: locationId };
   } catch (err: unknown) {
-    if (err instanceof Error && err.message.includes("locations_slug_unique")) {
+    if (isPgUniqueViolation(err, "locations_slug_unique")) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;
@@ -1204,7 +1205,7 @@ export async function updateLocation(
 
     return { ok: true };
   } catch (err: unknown) {
-    if (err instanceof Error && err.message.includes("locations_slug_unique")) {
+    if (isPgUniqueViolation(err, "locations_slug_unique")) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;

@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { eq, inArray } from "drizzle-orm";
@@ -13,6 +14,7 @@ import { checkBodySize } from "@/lib/apiUtils";
 import { bulkApplicationStatusChangeSchema } from "@/lib/validations/applicationStatus";
 import { changeEmployerApplicationStatuses } from "@/lib/employer/applications";
 import { dispatchApplicationStatusNotification } from "@/lib/email";
+import { notifyApplicationStatusChanged } from "@/lib/notifications/events";
 import { logInfo, logWarn, logError } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
@@ -33,7 +35,7 @@ function jsonError(message: string, status: number, errorCode: string) {
  * committed (max 50 per request). A notification failure never rolls back the
  * committed status changes.
  */
-export async function PATCH(request: Request) {
+async function __wrapped_PATCH(request: Request) {
   const start = performance.now();
   const requestId = await getRequestId();
 
@@ -149,6 +151,7 @@ export async function PATCH(request: Request) {
     const recipients = await db
       .select({
         applicationId: applications.id,
+        candidateUserId: applications.candidateUserId,
         candidateEmail: users.email,
         candidateName: users.name,
         jobTitle: jobs.title,
@@ -171,6 +174,13 @@ export async function PATCH(request: Request) {
           newStatus: status,
         });
       }
+
+      await notifyApplicationStatusChanged({
+        candidateUserId: r.candidateUserId,
+        applicationId: r.applicationId,
+        jobTitle: r.jobTitle,
+        newStatus: status,
+      });
     }
   } catch {
     // Notification failure must not affect the committed response.
@@ -193,3 +203,4 @@ export async function PATCH(request: Request) {
     status,
   });
 }
+export const PATCH = withRouteMetrics("/api/employer/applications/status", "PATCH", __wrapped_PATCH);

@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth/context";
+import { getUnreadCount } from "@/lib/notifications/dal";
+import { getI18n } from "@/lib/i18n/server";
 import { OrganizationNav } from "./nav";
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 export default async function OrganizationLayout({
   children,
@@ -13,10 +20,16 @@ export default async function OrganizationLayout({
     redirect("/login");
   }
 
+  const unreadCount = await getUnreadCount(user.id);
+  const t = await getI18n();
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <OrganizationNav />
-      <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
+    <div className="min-h-screen bg-surface-raised">
+      <OrganizationNav
+        unreadNotificationCount={unreadCount}
+        t={t.employerNav}
+      />
+      <main className="mx-auto w-full max-w-6xl px-4 py-8">{children}</main>
     </div>
   );
 }

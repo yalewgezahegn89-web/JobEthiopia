@@ -11,6 +11,10 @@ export {
   userRoleEnum,
   applicationStatusEnum,
   employerOnboardingRequestStatusEnum,
+  authProviderEnum,
+  alertFrequencyEnum,
+  alertStatusEnum,
+  alertDeliveryStatusEnum,
 } from "./enums";
 
 export { locations } from "./locations";
@@ -22,6 +26,8 @@ export { jobs } from "./jobs";
 export { jobSources } from "./jobSources";
 export { careerArticles } from "./careerArticles";
 export { users } from "./users";
+export { emailVerifications } from "./emailVerifications";
+export { loginFailures } from "./loginFailures";
 export { candidateProfiles } from "./candidateProfiles";
 export { sessions } from "./sessions";
 export { passwordResetTokens } from "./passwordResetTokens";
@@ -32,3 +38,19 @@ export { employerOnboardingRequests } from "./employerOnboardingRequests";
 export { auditLog } from "./auditLog";
 export { savedJobs } from "./savedJobs";
 export { applicationNotes } from "./applicationNotes";
+export { authAccounts } from "./authAccounts";
+export { phoneVerifications } from "./phoneVerifications";
+export { jobAlerts } from "./jobAlerts";
+export { jobAlertDeliveries } from "./jobAlertDeliveries";
+export { analyticsEvents } from "./analyticsEvents";
+export { candidateCvs } from "./candidateCvs";
+export { candidateCvExperiences } from "./candidateCvExperiences";
+export { candidateCvEducations } from "./candidateCvEducations";
+export { candidateCvSkills } from "./candidateCvSkills";
+export { candidateCvCertifications } from "./candidateCvCertifications";
+export { candidateCoverLetters } from "./candidateCoverLetters";
+export { notifications } from "./notifications";
+export { skills } from "./skills";
+export { skillAliases } from "./skillAliases";
+export { jobSkills } from "./jobSkills";
+export { recommendationFeedback } from "./recommendationFeedback";

@@ -26,6 +26,7 @@ vi.mock("next/navigation", () => ({
   notFound: (): never => {
     throw new Error("NOTFOUND");
   },
+  usePathname: () => "/admin/employer-requests/11111111-1111-4111-8111-111111111111",
 }));
 
 vi.mock("next/link", () => ({

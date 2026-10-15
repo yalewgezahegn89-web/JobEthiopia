@@ -151,7 +151,8 @@ function fetchOnce(
   method: string,
   signal: AbortSignal,
   validatedAddresses: string[],
-): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders }> {
+  maxBytes?: number,
+): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders; body?: string }> {
   return new Promise((resolve, reject) => {
     const mod = url.protocol === "https:" ? https : http;
     const opts: http.RequestOptions = {
@@ -164,8 +165,35 @@ function fetchOnce(
       lookup: buildValidatedLookup(validatedAddresses),
     };
     const req = mod.request(opts, (res) => {
-      res.resume();
-      resolve({ statusCode: res.statusCode ?? 0, headers: res.headers });
+      if (maxBytes === undefined) {
+        res.resume();
+        resolve({ statusCode: res.statusCode ?? 0, headers: res.headers });
+        return;
+      }
+
+      const chunks: Buffer[] = [];
+      let received = 0;
+      let aborted = false;
+
+      res.on("data", (chunk: Buffer) => {
+        if (aborted) return;
+        received += chunk.length;
+        if (received > maxBytes) {
+          aborted = true;
+          req.destroy();
+          reject(new SsrfError(`Response body exceeded ${maxBytes} bytes`));
+          return;
+        }
+        chunks.push(chunk);
+      });
+      res.on("end", () => {
+        if (aborted) return;
+        resolve({
+          statusCode: res.statusCode ?? 0,
+          headers: res.headers,
+          body: Buffer.concat(chunks).toString("utf8"),
+        });
+      });
     });
     req.on("error", reject);
     req.on("timeout", () => {
@@ -184,10 +212,27 @@ function resolveLocation(location: string, base: URL): URL {
   }
 }
 
+export interface SsrfFetchOptions {
+  method?: string;
+  /**
+   * When provided, the response body is captured (UTF-8) and returned as
+   * `text` on the result, bounded to at most this many bytes. Without this
+   * option the body is discarded and no `text` key is present.
+   */
+  maxBytes?: number;
+}
+
+export interface SsrfFetchResult {
+  ok: boolean;
+  status: number;
+  /** Present only when the request supplied a `maxBytes` body bound. */
+  text?: string;
+}
+
 export async function ssrfFetch(
   rawUrl: string,
-  options: { method?: string } = {},
-): Promise<{ ok: boolean; status: number }> {
+  options: SsrfFetchOptions = {},
+): Promise<SsrfFetchResult> {
   const parsed = validateScheme(rawUrl);
   const method = (options.method ?? "GET").toUpperCase();
 
@@ -207,6 +252,7 @@ export async function ssrfFetch(
         method,
         controller.signal,
         validatedAddresses,
+        options.maxBytes,
       );
 
       if (
@@ -232,6 +278,9 @@ export async function ssrfFetch(
       return {
         ok: result.statusCode >= 200 && result.statusCode < 400,
         status: result.statusCode,
+        ...(options.maxBytes !== undefined && result.body !== undefined
+          ? { text: result.body }
+          : {}),
       };
     }
 

@@ -4,6 +4,12 @@ import {
   fetchCategories,
   type PublicCategoryList,
 } from "@/lib/categories/public";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+import { PageHeader } from "@/components/public/page-header";
+import { EmptyState } from "@/components/public/empty-state";
+import { Pagination } from "@/components/public/pagination";
+import { TagIcon } from "@/components/public/icons";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +39,7 @@ export default async function CategoriesPage({
   searchParams: Promise<SearchParams>;
 }) {
   const params = await searchParams;
+  const t = await getI18n();
   const page = toPositiveInteger(firstValue(params.page), 1);
 
   let result: PublicCategoryList | null = null;
@@ -46,16 +53,14 @@ export default async function CategoriesPage({
 
   if (loadError) {
     return (
-      <div className="mx-auto w-full max-w-3xl px-4 py-12 text-center">
-        <h1 className="text-2xl font-bold">Categories</h1>
-        <p className="mt-4 text-gray-600 dark:text-gray-300">
-          We could not load categories right now. Please try again shortly.
-        </p>
+      <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
+        <h1 className="text-2xl font-bold">{t.categories.loadErrorHeading}</h1>
+        <p className="mt-4 text-muted">{t.categories.loadErrorBody}</p>
         <Link
           href="/categories"
-          className="mt-6 inline-block font-semibold text-blue-600 underline dark:text-blue-400"
+          className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
-          Retry
+          {t.common.retry}
         </Link>
       </div>
     );
@@ -78,87 +83,94 @@ export default async function CategoriesPage({
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8">
-      <h1 className="text-3xl font-bold tracking-tight">Categories</h1>
-      <p className="mt-1 text-gray-600 dark:text-gray-300">
-        Browse job categories across Ethiopia.
-      </p>
+    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
+      <Breadcrumb
+        items={[
+          { label: t.categories.breadcrumbHome, href: "/" },
+          { label: t.categories.breadcrumbCategories },
+        ]}
+        t={t}
+      />
+
+      <div className="mt-4">
+        <PageHeader
+          eyebrow={t.categories.eyebrow}
+          title={t.categories.title}
+          description={t.categories.description}
+        />
+      </div>
 
       {items.length === 0 ? (
-        <div
-          className="mt-10 rounded-lg border border-dashed border-gray-300 p-8 text-center dark:border-gray-700"
-          role="status"
-        >
-          <h2 className="text-lg font-semibold">No categories found</h2>
-          <p className="mt-1 text-gray-600 dark:text-gray-300">
-            There are no active categories to show right now.
-          </p>
-        </div>
+        <EmptyState
+          icon={<TagIcon className="h-7 w-7" />}
+          heading={t.categories.noResultsHeading}
+          body={t.categories.noResultsBody}
+        />
       ) : (
         <>
-          <ul className="mt-6 grid gap-4 sm:grid-cols-2">
-            {items.map((category) => (
-              <li key={category.id}>
-                <Link
-                  href={`/categories/${category.id}`}
-                  className="block h-full rounded-lg border border-gray-200 p-4 transition-colors hover:border-blue-400 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 dark:border-gray-800 dark:hover:bg-gray-900"
-                >
-                  <h2 className="text-lg font-semibold text-blue-700 dark:text-blue-400">
-                    {category.name}
-                  </h2>
-                  {category.description && (
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-200">
-                      {category.description}
-                    </p>
-                  )}
-                  {category.parentId && (
-                    <span className="mt-2 inline-block rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                      Subcategory
-                    </span>
-                  )}
-                </Link>
+          <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {items.map((category, index) => (
+              <li key={category.id} className="h-full">
+                <CategoryCard category={category} index={index} t={t} />
               </li>
             ))}
           </ul>
 
-          {totalPages > 1 && (
-            <nav
-              className="mt-8 flex items-center justify-between gap-4"
-              aria-label="Pagination"
-            >
-              {currentPage > 1 ? (
-                <Link
-                  href={hrefWithPage(currentPage - 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Previous
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Previous
-                </span>
-              )}
-
-              <span className="text-sm text-gray-600 dark:text-gray-300">
-                Page {currentPage} of {totalPages}
-              </span>
-
-              {currentPage < totalPages ? (
-                <Link
-                  href={hrefWithPage(currentPage + 1)}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-sm font-semibold hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
-                >
-                  Next
-                </Link>
-              ) : (
-                <span className="rounded-md border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 dark:border-gray-800 dark:text-gray-600">
-                  Next
-                </span>
-              )}
-            </nav>
-          )}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            hrefForPage={hrefWithPage}
+            t={t}
+          />
         </>
       )}
     </div>
+  );
+}
+
+function CategoryCard({
+  category,
+  index,
+  t,
+}: {
+  category: { id: string; name: string; description: string | null; parentId: string | null };
+  index: number;
+  t: Awaited<ReturnType<typeof getI18n>>;
+}) {
+  const amber = index % 2 === 1;
+  return (
+    <Link
+      href={`/categories/${category.id}`}
+      className="group flex h-full flex-col rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+    >
+      <span
+        className={`flex h-11 w-11 items-center justify-center rounded-lg ${
+          amber ? "bg-accent-light text-warning" : "bg-primary-light text-primary"
+        }`}
+      >
+        <TagIcon className="h-5 w-5" />
+      </span>
+      <h2 className="mt-4 text-lg font-semibold tracking-tight text-foreground">
+        {category.name}
+      </h2>
+      {category.description && (
+        <p className="mt-2 line-clamp-2 text-sm text-muted">
+          {category.description}
+        </p>
+      )}
+      <span className="mt-auto flex flex-wrap items-center gap-2 pt-4">
+        {category.parentId && (
+          <span className="rounded-full bg-surface-raised px-2.5 py-0.5 text-xs font-semibold text-muted">
+            {t.common.subcategory}
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
+          {t.categories.exploreJobs}
+          <span className="transition-transform duration-200 group-hover:translate-x-0.5">
+            →
+          </span>
+        </span>
+      </span>
+    </Link>
   );
 }

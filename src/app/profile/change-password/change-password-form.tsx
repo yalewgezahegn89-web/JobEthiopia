@@ -3,22 +3,28 @@
 import { useActionState } from "react";
 import { changePasswordAction } from "./actions";
 import type { ChangePasswordActionState } from "./types";
+import type { Dictionary } from "@/lib/i18n/dictionary";
 
 export default function ChangePasswordForm({
   initialState: initial = {},
+  t,
 }: {
   initialState?: ChangePasswordActionState;
-} = {}) {
+  t: Dictionary;
+}) {
   const [state, formAction, isPending] = useActionState<
     ChangePasswordActionState,
     FormData
   >(changePasswordAction, initial);
 
   return (
-    <form action={formAction} className="max-w-sm space-y-4">
+    <form action={formAction} className="max-w-sm space-y-5">
       <div>
-        <label htmlFor="currentPassword" className="block text-sm font-medium">
-          Current password
+        <label
+          htmlFor="currentPassword"
+          className="block text-sm font-medium text-foreground"
+        >
+          {t.changePassword.currentLabel}
         </label>
         <input
           id="currentPassword"
@@ -31,13 +37,13 @@ export default function ChangePasswordForm({
               ? "currentPassword-error"
               : undefined
           }
-          className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2"
+          className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground placeholder:text-subtle focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         {state.fieldErrors?.currentPassword ? (
           <p
             id="currentPassword-error"
             role="alert"
-            className="mt-1 text-sm text-red-600"
+            className="mt-1.5 text-sm text-destructive"
           >
             {state.fieldErrors.currentPassword}
           </p>
@@ -45,8 +51,11 @@ export default function ChangePasswordForm({
       </div>
 
       <div>
-        <label htmlFor="newPassword" className="block text-sm font-medium">
-          New password
+        <label
+          htmlFor="newPassword"
+          className="block text-sm font-medium text-foreground"
+        >
+          {t.changePassword.newLabel}
         </label>
         <input
           id="newPassword"
@@ -58,16 +67,16 @@ export default function ChangePasswordForm({
           aria-describedby={
             state.fieldErrors?.newPassword ? "newPassword-error" : undefined
           }
-          className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2"
+          className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground placeholder:text-subtle focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
-        <p className="mt-1 text-xs text-neutral-500">
-          Must be at least 8 characters.
+        <p className="mt-1.5 text-xs text-subtle">
+          {t.changePassword.newHint}
         </p>
         {state.fieldErrors?.newPassword ? (
           <p
             id="newPassword-error"
             role="alert"
-            className="mt-1 text-sm text-red-600"
+            className="mt-1.5 text-sm text-destructive"
           >
             {state.fieldErrors.newPassword}
           </p>
@@ -75,8 +84,11 @@ export default function ChangePasswordForm({
       </div>
 
       <div>
-        <label htmlFor="confirmPassword" className="block text-sm font-medium">
-          Confirm new password
+        <label
+          htmlFor="confirmPassword"
+          className="block text-sm font-medium text-foreground"
+        >
+          {t.changePassword.confirmLabel}
         </label>
         <input
           id="confirmPassword"
@@ -89,13 +101,13 @@ export default function ChangePasswordForm({
               ? "confirmPassword-error"
               : undefined
           }
-          className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2"
+          className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground placeholder:text-subtle focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         {state.fieldErrors?.confirmPassword ? (
           <p
             id="confirmPassword-error"
             role="alert"
-            className="mt-1 text-sm text-red-600"
+            className="mt-1.5 text-sm text-destructive"
           >
             {state.fieldErrors.confirmPassword}
           </p>
@@ -103,13 +115,13 @@ export default function ChangePasswordForm({
       </div>
 
       {state.formError ? (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-destructive">
           {state.formError}
         </p>
       ) : null}
 
       {state.success ? (
-        <p role="status" className="text-sm font-medium text-green-700">
+        <p role="status" className="text-sm font-medium text-success">
           {state.success}
         </p>
       ) : null}
@@ -117,9 +129,9 @@ export default function ChangePasswordForm({
       <button
         type="submit"
         disabled={isPending}
-        className="rounded-md bg-neutral-900 px-4 py-2 text-white disabled:opacity-50"
+        className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isPending ? "Changing…" : "Change password"}
+        {isPending ? t.changePassword.changing : t.changePassword.changeCta}
       </button>
     </form>
   );

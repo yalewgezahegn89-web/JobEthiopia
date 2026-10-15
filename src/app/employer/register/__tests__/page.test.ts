@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { en } from "@/lib/i18n/messages/en";
 
 const mocks = vi.hoisted(() => ({
   mockAction: vi.fn(),
@@ -15,8 +16,14 @@ vi.mock("./actions", () => ({
   employerOnboardingAction: (...args: unknown[]) => mocks.mockAction(...args),
 }));
 
+vi.mock("@/lib/i18n/server", () => ({
+  getI18n: async () => en,
+}));
+
 import EmployerRegisterPage from "../page";
 import EmployerRegisterForm from "../employer-register-form";
+
+const t = en;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -42,7 +49,7 @@ describe("EmployerRegisterPage", () => {
 
 describe("EmployerRegisterForm", () => {
   it("renders the required credential and organization fields", async () => {
-    const html = renderToStaticMarkup(createElement(EmployerRegisterForm));
+    const html = renderToStaticMarkup(createElement(EmployerRegisterForm, { t }));
     for (const label of [
       "Full name",
       "Email",
@@ -62,7 +69,7 @@ describe("EmployerRegisterForm", () => {
   });
 
   it("uses password inputs with new-password autocomplete", async () => {
-    const html = renderToStaticMarkup(createElement(EmployerRegisterForm));
+    const html = renderToStaticMarkup(createElement(EmployerRegisterForm, { t }));
     const matches = html.match(/autoComplete="new-password"/g) ?? [];
     expect(matches.length).toBe(2);
     expect(html).toContain('type="password"');
@@ -71,7 +78,7 @@ describe("EmployerRegisterForm", () => {
   });
 
   it("exposes no role, profile, or privileged fields", async () => {
-    const html = renderToStaticMarkup(createElement(EmployerRegisterForm));
+    const html = renderToStaticMarkup(createElement(EmployerRegisterForm, { t }));
     expect(html).not.toContain('name="role"');
     expect(html).not.toContain('name="userId"');
     expect(html).not.toContain('name="status"');
@@ -84,13 +91,13 @@ describe("EmployerRegisterForm", () => {
   });
 
   it("provides a submit button for the request", async () => {
-    const html = renderToStaticMarkup(createElement(EmployerRegisterForm));
+    const html = renderToStaticMarkup(createElement(EmployerRegisterForm, { t }));
     expect(html).toContain("Submit employer request");
     expect(html).toContain('type="submit"');
   });
 
   it("renders no errors on the initial clean state", async () => {
-    const html = renderToStaticMarkup(createElement(EmployerRegisterForm));
+    const html = renderToStaticMarkup(createElement(EmployerRegisterForm, { t }));
     expect(html).not.toContain('role="alert"');
   });
 });

@@ -9,7 +9,7 @@ import {
   uniqueIndex,
   check,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
+import { sql, and, eq } from "drizzle-orm";
 import {
   employmentTypeEnum,
   salaryPeriodEnum,
@@ -90,6 +90,14 @@ export const jobs = pgTable(
     index("jobs_location_id_idx").on(t.locationId),
     index("jobs_employment_type_idx").on(t.employmentType),
     uniqueIndex("jobs_slug_unique").on(t.slug),
+    index("jobs_public_newest_idx") // Phase 8 Batch 2: public list / job-alert pool
+      .on(sql`${t.createdAt} DESC`)
+      .where(eq(t.status, "PUBLISHED")),
+    index("jobs_open_deadline_idx") // Phase 8 Batch 2: sort=deadline path
+      .on(t.deadline)
+      .where(and(eq(t.status, "PUBLISHED"), sql`${t.deadline} IS NOT NULL`)!),
+    index("jobs_title_trgm_idx") // Phase 8 Batch 2: trigram search on title
+      .using("gin", sql`${t.title} gin_trgm_ops`),
     check("jobs_salary_min_non_negative", sql`${t.salaryMin} >= 0`),
     check("jobs_salary_max_non_negative", sql`${t.salaryMax} >= 0`),
     check("jobs_experience_min_non_negative", sql`${t.experienceMin} >= 0`),

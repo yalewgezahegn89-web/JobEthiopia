@@ -40,10 +40,10 @@ export default async function AdminUsersPage({
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-semibold">User Management</h1>
+      <main className="mx-auto w-full max-w-6xl px-4 py-8">
+        <h1 className="text-2xl font-bold text-foreground">User Management</h1>
         {loadError ? (
-          <p className="mt-4 text-neutral-600">
+          <p className="mt-4 text-sm text-destructive">
             We could not load the user list right now. Please try again shortly.
           </p>
         ) : (

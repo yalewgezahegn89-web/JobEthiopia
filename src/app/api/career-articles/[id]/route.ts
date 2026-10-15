@@ -1,5 +1,6 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { careerArticles } from "@/db/schema/careerArticles";
 import { careerArticleIdParamSchema } from "@/lib/validations/careerArticleQuery";
@@ -8,12 +9,13 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function GET(
+async function __wrapped_GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -26,7 +28,10 @@ export async function GET(
 
   try {
     const article = await db.query.careerArticles.findFirst({
-      where: eq(careerArticles.id, parsed.data.id),
+      where: and(
+        eq(careerArticles.id, parsed.data.id),
+        eq(careerArticles.status, "PUBLISHED"),
+      ),
     });
 
     if (!article) {
@@ -39,7 +44,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function __wrapped_PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -79,20 +84,18 @@ export async function PUT(
   try {
     const existing = await db.query.careerArticles.findFirst({
       where: eq(careerArticles.id, parsedId.data.id),
-      columns: { id: true },
+      columns: { id: true, status: true },
     });
 
     if (!existing) {
       return jsonError("Career article not found", 404);
     }
 
-    const { publishedAt: publishedAtRaw, ...rest } = parsed.data;
-    const updateData = {
-      ...rest,
-      ...(publishedAtRaw !== undefined && {
-        publishedAt: publishedAtRaw ? new Date(publishedAtRaw) : null,
-      }),
-    };
+    const updateData =
+      parsed.data.status === "PUBLISHED" &&
+      existing.status !== "PUBLISHED"
+        ? { ...parsed.data, publishedAt: new Date() }
+        : parsed.data;
 
     const [updated] = await db
       .update(careerArticles)
@@ -120,17 +123,14 @@ export async function PUT(
 
     return NextResponse.json({ item: updated });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      err.message.includes("career_articles_slug_unique")
-    ) {
+    if (isPgUniqueViolation(err, "career_articles_slug_unique")) {
       return jsonError("Career article slug already exists", 409);
     }
     return jsonError("Internal server error", 500);
   }
 }
 
-export async function DELETE(
+async function __wrapped_DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -176,3 +176,6 @@ export async function DELETE(
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/career-articles/[id]", "GET", __wrapped_GET);
+export const PUT = withRouteMetrics("/api/career-articles/[id]", "PUT", __wrapped_PUT);
+export const DELETE = withRouteMetrics("/api/career-articles/[id]", "DELETE", __wrapped_DELETE);

@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -55,7 +56,7 @@ function mapNoteError(
   }
 }
 
-export async function PATCH(
+async function __wrapped_PATCH(
   request: Request,
   { params }: { params: Promise<{ applicationId: string; noteId: string }> },
 ) {
@@ -152,7 +153,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function __wrapped_DELETE(
   request: Request,
   { params }: { params: Promise<{ applicationId: string; noteId: string }> },
 ) {
@@ -230,3 +231,5 @@ export async function DELETE(
     return jsonError("Internal server error", 500);
   }
 }
+export const PATCH = withRouteMetrics("/api/employer/applications/[applicationId]/notes/[noteId]", "PATCH", __wrapped_PATCH);
+export const DELETE = withRouteMetrics("/api/employer/applications/[applicationId]/notes/[noteId]", "DELETE", __wrapped_DELETE);

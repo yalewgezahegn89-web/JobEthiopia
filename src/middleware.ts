@@ -8,12 +8,18 @@ import {
   CSP_HEADER_NAME,
   CSP_REPORT_ONLY_HEADER_NAME,
 } from "@/lib/csp";
-import { logWarn } from "@/lib/observability/logger";
+import { logInfo, logWarn } from "@/lib/observability/logger";
 import {
   generateRequestId,
   REQUEST_ID_HEADER,
   applyRequestIdToHeaders,
 } from "@/lib/observability/requestId";
+import {
+  normalizeRoutePath,
+  recordRateLimitRejection,
+} from "@/lib/observability/metrics";
+import { LOCALE_HEADER } from "@/lib/i18n/server";
+import { LOCALE_COOKIE_NAME, localeFromPathname, stripLocalePrefix } from "@/lib/i18n";
 
 /* ── CSP (Batch 72) ────────────────────────────────────────────────────── */
 
@@ -63,6 +69,8 @@ const REGISTER = { limit: 5, windowMs: 15 * 60_000 } as const;
 const INGESTION = { limit: 10, windowMs: 60_000 } as const;
 const API_MUTATION = { limit: 30, windowMs: 60_000 } as const;
 const MAINTENANCE = { limit: 3, windowMs: 5 * 60_000 } as const;
+const INGESTION_RUN = { limit: 5, windowMs: 5 * 60_000 } as const;
+const JOB_ALERTS = { limit: 5, windowMs: 5 * 60_000 } as const;
 const APPLICATIONS = { limit: 10, windowMs: 60_000 } as const;
 const RESUME_UPLOAD = { limit: 5, windowMs: 60 * 60_000 } as const;
 const BULK_APPLICATIONS = { limit: 5, windowMs: 60_000 } as const;
@@ -141,12 +149,25 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const method = request.method;
 
+  /* ── Locale resolution (Phase 7 Batch 5) ────────────────────────────── */
+  // The URL locale wins; the unprefixed/canonical English branch is always
+  // "en" (this preserves the canonical English URLs and Batch 4 SEO). Locale
+  // branches (/am, /om) are internally rewritten to their unprefixed route
+  // while a stable request header carries the resolved locale to the render.
+  const pathLocale = localeFromPathname(pathname);
+  const targetPathname = stripLocalePrefix(pathname);
+  const resolvedLocale = pathLocale ?? "en";
+
   /* ── Request correlation (Batch 76) ────────────────────────────────── */
   // Always generate a fresh server-side ID; never trust an inbound header.
   const requestId = generateRequestId();
   const startedAt = performance.now();
 
   const logRejected = (status: number, route: string, bucket: string): void => {
+    // Phase 16 Batch 2: also count the rejection in the in-process registry so
+    // legitimate-vs-abusive rejection rates can be reviewed without log
+    // parsing. Only bucket + normalized route are stored — never IP or key.
+    recordRateLimitRejection({ bucket, route: targetPathname });
     logWarn("rate_limit_rejected", {
       requestId,
       route,
@@ -157,12 +178,30 @@ export function middleware(request: NextRequest) {
     });
   };
 
+  /* ── Page request observability (Phase 16 Batch 2) ───────────────────── */
+  // One line per non-API request entering the page pipeline. Deliberately
+  // carries NO duration and NO status: middleware only measures its own slice
+  // of the request, so a middleware-derived latency would be misleading.
+  // Render status and render duration are not observable from a Next.js
+  // first-party hook — see OPERATIONS.md for the limitation.
+  if (!targetPathname.startsWith("/api/")) {
+    logInfo("page_request", {
+      requestId,
+      route: normalizeRoutePath(targetPathname),
+      method,
+      locale: resolvedLocale,
+    });
+  }
+
   /* ── Rate limiting ─────────────────────────────────────────────────── */
 
   // Login — only POST (Server Action submissions); GET navigation is open.
-  if (pathname === "/login" && method === "POST") {
+  if (targetPathname === "/login" && method === "POST") {
     const clientIp = resolveClientIp(request);
-    const result = checkRateLimit(buildRateLimitKey("login", clientIp), LOGIN);
+    const result = checkRateLimit(
+      buildRateLimitKey("login", clientIp),
+      LOGIN,
+    );
     if (!result.allowed) {
       logRejected(429, pathname, "login");
       return applyRequestId(
@@ -177,7 +216,7 @@ export function middleware(request: NextRequest) {
   }
 
   // Registration — only POST (Server Action submissions); GET is open.
-  if (pathname === "/register" && method === "POST") {
+  if (targetPathname === "/register" && method === "POST") {
     const clientIp = resolveClientIp(request);
     const result = checkRateLimit(
       buildRateLimitKey("register", clientIp),
@@ -197,14 +236,11 @@ export function middleware(request: NextRequest) {
   }
 
   // /api/* routes
-  if (pathname.startsWith("/api/")) {
+  if (targetPathname.startsWith("/api/")) {
     const clientIp = resolveClientIp(request);
 
     // Internal maintenance — rate-limited POST endpoint
-    if (
-      pathname === "/api/internal/maintenance/run" &&
-      method === "POST"
-    ) {
+    if (targetPathname === "/api/internal/maintenance/run" && method === "POST") {
       const result = checkRateLimit(
         buildRateLimitKey("maintenance", clientIp),
         MAINTENANCE,
@@ -222,81 +258,148 @@ export function middleware(request: NextRequest) {
       }
     }
 
-      // Application submission/withdrawal/status — tighten per-candidate limits
-      if (
-        (pathname === "/api/applications" ||
-          /^\/api\/applications\/[0-9a-f-]+$/i.test(pathname) ||
-          /^\/api\/applications\/[0-9a-f-]+\/status$/i.test(pathname)) &&
-        (method === "POST" || method === "PATCH")
-      ) {
-        const result = checkRateLimit(
-          buildRateLimitKey("applications", clientIp),
-          APPLICATIONS,
+    // Internal automated ingestion — rate-limited POST endpoints
+    if (
+      (targetPathname === "/api/internal/ingestion/run" ||
+        targetPathname === "/api/internal/ingestion/dry-run") &&
+      method === "POST"
+    ) {
+      const result = checkRateLimit(
+        buildRateLimitKey("ingestion-run", clientIp),
+        INGESTION_RUN,
+      );
+      if (!result.allowed) {
+        logRejected(429, pathname, "ingestion-run");
+        return applyRequestId(
+          applyCsp(
+            rateLimited(result.retryAfterSeconds!),
+            cspHeaderName,
+            cspValue,
+          ),
+          requestId,
         );
-        if (!result.allowed) {
-          logRejected(429, pathname, "applications");
-          return applyRequestId(
-            applyCsp(
-              rateLimited(result.retryAfterSeconds!),
-              cspHeaderName,
-              cspValue,
-            ),
-            requestId,
-          );
-        }
       }
+    }
 
-      // Resume upload — dedicated per-IP bucket (5 / 60 min)
-      if (/^\/api\/applications\/[0-9a-f-]+\/resume$/i.test(pathname) && method === "POST") {
-        const result = checkRateLimit(
-          buildRateLimitKey("resume", clientIp),
-          RESUME_UPLOAD,
+    // Internal job-alert digest — rate-limited POST endpoint
+    if (
+      targetPathname === "/api/internal/job-alerts/daily" &&
+      method === "POST"
+    ) {
+      const result = checkRateLimit(
+        buildRateLimitKey("job-alerts", clientIp),
+        JOB_ALERTS,
+      );
+      if (!result.allowed) {
+        logRejected(429, pathname, "job-alerts");
+        return applyRequestId(
+          applyCsp(
+            rateLimited(result.retryAfterSeconds!),
+            cspHeaderName,
+            cspValue,
+          ),
+          requestId,
         );
-        if (!result.allowed) {
-          logRejected(429, pathname, "resume");
-          return applyRequestId(
-            applyCsp(
-              rateLimited(result.retryAfterSeconds!),
-              cspHeaderName,
-              cspValue,
-            ),
-            requestId,
-          );
-        }
       }
+    }
 
-      // Bulk employer application status change — dedicated per-IP bucket
-      // (5 / 60s) because a single request can fan out up to 50 candidate emails.
-      if (
-        /^\/api\/employer\/applications\/status$/i.test(pathname) &&
-        method === "PATCH"
-      ) {
-        const result = checkRateLimit(
-          buildRateLimitKey("bulk", clientIp),
-          BULK_APPLICATIONS,
+    // Application submission/withdrawal/status — tighten per-candidate limits
+    if (
+      (targetPathname === "/api/applications" ||
+        /^\/api\/applications\/[0-9a-f-]+$/i.test(targetPathname) ||
+        /^\/api\/applications\/[0-9a-f-]+\/status$/i.test(targetPathname)) &&
+      (method === "POST" || method === "PATCH")
+    ) {
+      const result = checkRateLimit(
+        buildRateLimitKey("applications", clientIp),
+        APPLICATIONS,
+      );
+      if (!result.allowed) {
+        logRejected(429, pathname, "applications");
+        return applyRequestId(
+          applyCsp(
+            rateLimited(result.retryAfterSeconds!),
+            cspHeaderName,
+            cspValue,
+          ),
+          requestId,
         );
-        if (!result.allowed) {
-          logRejected(429, pathname, "bulk");
-          return applyRequestId(
-            applyCsp(
-              rateLimited(result.retryAfterSeconds!),
-              cspHeaderName,
-              cspValue,
-            ),
-            requestId,
-          );
-        }
       }
+    }
 
-      // Mutations — POST, PUT, PATCH, DELETE (GET is always open).
-      // Resume upload is excluded: it has its own dedicated per-IP bucket above.
-      if (
-        method !== "GET" &&
-        method !== "HEAD" &&
-        !/^\/api\/applications\/[0-9a-f-]+\/resume$/i.test(pathname)
-      ) {
-        // Job ingestion has its own tighter limit
-        if (pathname === "/api/jobs/ingest" && method === "POST") {
+    // Resume upload — dedicated per-IP bucket (5 / 60 min)
+    if (/^\/api\/applications\/[0-9a-f-]+\/resume$/i.test(targetPathname) && method === "POST") {
+      const result = checkRateLimit(
+        buildRateLimitKey("resume", clientIp),
+        RESUME_UPLOAD,
+      );
+      if (!result.allowed) {
+        logRejected(429, pathname, "resume");
+        return applyRequestId(
+          applyCsp(
+            rateLimited(result.retryAfterSeconds!),
+            cspHeaderName,
+            cspValue,
+          ),
+          requestId,
+        );
+      }
+    }
+
+    // Recommendation feedback — dedicated per-IP bucket (10 / 60s)
+    if (
+      /^\/api\/recommendations\/[0-9a-f-]+\/feedback$/i.test(targetPathname) &&
+      method === "POST"
+    ) {
+      const result = checkRateLimit(
+        buildRateLimitKey("applications", clientIp),
+        APPLICATIONS,
+      );
+      if (!result.allowed) {
+        logRejected(429, pathname, "applications");
+        return applyRequestId(
+          applyCsp(
+            rateLimited(result.retryAfterSeconds!),
+            cspHeaderName,
+            cspValue,
+          ),
+          requestId,
+        );
+      }
+    }
+
+    // Bulk employer application status change — dedicated per-IP bucket
+    // (5 / 60s) because a single request can fan out up to 50 candidate emails.
+    if (
+      /^\/api\/employer\/applications\/status$/i.test(targetPathname) &&
+      method === "PATCH"
+    ) {
+      const result = checkRateLimit(
+        buildRateLimitKey("bulk", clientIp),
+        BULK_APPLICATIONS,
+      );
+      if (!result.allowed) {
+        logRejected(429, pathname, "bulk");
+        return applyRequestId(
+          applyCsp(
+            rateLimited(result.retryAfterSeconds!),
+            cspHeaderName,
+            cspValue,
+          ),
+          requestId,
+        );
+      }
+    }
+
+    // Mutations — POST, PUT, PATCH, DELETE (GET is always open).
+    // Resume upload is excluded: it has its own dedicated per-IP bucket above.
+    if (
+      method !== "GET" &&
+      method !== "HEAD" &&
+      !/^\/api\/applications\/[0-9a-f-]+\/resume$/i.test(targetPathname)
+    ) {
+      // Job ingestion has its own tighter limit
+      if (targetPathname === "/api/jobs/ingest" && method === "POST") {
         const result = checkRateLimit(
           buildRateLimitKey("ingest", clientIp),
           INGESTION,
@@ -334,7 +437,13 @@ export function middleware(request: NextRequest) {
 
   /* ── Cookie-presence check (admin + organization) ────────────────────── */
 
-  if (pathname.startsWith("/admin") || pathname.startsWith("/organization")) {
+  const isAdminSection =
+    targetPathname === "/admin" || targetPathname.startsWith("/admin/");
+  const isOrganizationSection =
+    targetPathname === "/organization" ||
+    targetPathname.startsWith("/organization/");
+
+  if (isAdminSection || isOrganizationSection) {
     const hasToken = Boolean(
       request.cookies.get(SESSION_COOKIE_NAME)?.value,
     );
@@ -358,14 +467,35 @@ export function middleware(request: NextRequest) {
 
   // Clone the request headers so the downstream render can read the nonce
   // from the CSP header (Next 16.3.3 resolves the nonce at render time) and
-  // so route handlers can read the correlation ID.
+  // so route handlers can read the correlation ID + resolved locale.
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(cspHeaderName, cspValue);
   requestHeaders.set(REQUEST_ID_HEADER, requestId);
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  requestHeaders.set(LOCALE_HEADER, resolvedLocale);
+
+  const response =
+    pathLocale && targetPathname !== pathname
+      ? NextResponse.rewrite(
+          new URL(targetPathname, request.url),
+          { request: { headers: requestHeaders } },
+        )
+      : NextResponse.next({ request: { headers: requestHeaders } });
+
+  // Persist the resolved locale so a subsequent language change sticks. The
+  // guard tolerates tests that stub NextResponse with plain objects.
+  const responseHeaders = (response as { headers?: Headers }).headers;
+  if (responseHeaders && typeof responseHeaders.append === "function") {
+    responseHeaders.append(
+      "Set-Cookie",
+      `${LOCALE_COOKIE_NAME}=${resolvedLocale}; Path=/; HttpOnly; SameSite=Lax${withSecureFlag()}`,
+    );
+  }
+
   return applyRequestId(applyCsp(response, cspHeaderName, cspValue), requestId);
+}
+
+function withSecureFlag(): string {
+  return process.env.NODE_ENV === "production" ? "; Secure" : "";
 }
 
 export const config = {

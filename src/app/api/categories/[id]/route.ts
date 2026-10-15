@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
@@ -8,12 +9,13 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function GET(
+async function __wrapped_GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -39,7 +41,7 @@ export async function GET(
   }
 }
 
-export async function PUT(
+async function __wrapped_PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -111,17 +113,14 @@ export async function PUT(
 
     return NextResponse.json({ item: updated });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      err.message.includes("categories_slug_unique")
-    ) {
+    if (isPgUniqueViolation(err, "categories_slug_unique")) {
       return jsonError("Category slug already exists", 409);
     }
     return jsonError("Internal server error", 500);
   }
 }
 
-export async function DELETE(
+async function __wrapped_DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -167,3 +166,6 @@ export async function DELETE(
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/categories/[id]", "GET", __wrapped_GET);
+export const PUT = withRouteMetrics("/api/categories/[id]", "PUT", __wrapped_PUT);
+export const DELETE = withRouteMetrics("/api/categories/[id]", "DELETE", __wrapped_DELETE);

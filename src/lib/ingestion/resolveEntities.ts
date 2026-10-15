@@ -4,7 +4,11 @@ import { organizations } from "../../db/schema/organizations";
 import { locations } from "../../db/schema/locations";
 import { professions } from "../../db/schema/professions";
 import { categories } from "../../db/schema/categories";
-import { normalizeOrganization, normalizeLocation } from "../normalization";
+import {
+  normalizeOrganization,
+  normalizeLocation,
+  normalizeLocationName,
+} from "../normalization";
 import { generateSlug } from "./slug";
 
 /**
@@ -63,7 +67,7 @@ export async function resolveLocation(
   });
   if (existing) return existing.id;
 
-  const normalizedName = normalizeOrganization(name);
+  const normalizedName = normalizeLocationName(name);
 
   const [created] = await db
     .insert(locations)

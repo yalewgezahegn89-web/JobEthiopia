@@ -17,11 +17,11 @@ export default async function AdminProfessionCreatePage() {
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <Link href="/admin/taxonomy/professions" className="text-sm text-neutral-600 underline">
+      <main className="mx-auto w-full max-w-4xl px-4 py-8">
+        <Link href="/admin/taxonomy/professions" className="text-sm font-medium text-muted hover:text-primary">
           &larr; Back to professions
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold">Create Profession</h1>
+        <h1 className="mt-2 text-2xl font-semibold text-foreground">Create Profession</h1>
         <div className="mt-4">
           <CreateProfessionForm />
         </div>

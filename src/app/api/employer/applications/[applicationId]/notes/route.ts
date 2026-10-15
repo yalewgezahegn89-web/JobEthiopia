@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -32,7 +33,7 @@ function noteToJson(item: ApplicationNote) {
   };
 }
 
-export async function GET(
+async function __wrapped_GET(
   request: Request,
   { params }: { params: Promise<{ applicationId: string }> },
 ) {
@@ -86,7 +87,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function __wrapped_POST(
   request: Request,
   { params }: { params: Promise<{ applicationId: string }> },
 ) {
@@ -191,3 +192,5 @@ export async function POST(
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/employer/applications/[applicationId]/notes", "GET", __wrapped_GET);
+export const POST = withRouteMetrics("/api/employer/applications/[applicationId]/notes", "POST", __wrapped_POST);

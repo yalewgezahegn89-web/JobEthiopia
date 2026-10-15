@@ -4,6 +4,12 @@ import { users } from "@/db/schema/users";
 import { verifyPassword } from "./password";
 import { createSession, revokeSession } from "./session";
 import { writeAuditLog } from "./audit";
+import {
+  recordLoginFailure,
+  isAccountLocked,
+  resetLoginFailures,
+  hashAccountKey,
+} from "./loginFailures";
 
 /**
  * Precomputed scrypt hash of a fixed non-credential password.
@@ -16,7 +22,7 @@ const DUMMY_PASSWORD_HASH =
   "scrypt$16384$8$1$8eead91961399145fab4eeebf55ebbfe$73c90be53f277d16eb2bfe294507ca72b048f4199c208f938edc67ae9966e0aa19e318a2056dc2cd0465a6e3d9605c2d45af85980c7c55cd09c2c5116b835b17";
 
 export type LoginResult =
-  | { ok: true; userId: string; userEmail: string; rawToken: string; user: { role: string } }
+  | { ok: true; userId: string; userEmail: string | null; rawToken: string; user: { role: string } }
   | { ok: false };
 
 export function normalizeEmail(email: string): string {
@@ -32,9 +38,19 @@ export async function loginUser(
   rawEmail: string,
   rawPassword: string,
   currentRawToken?: string,
+  options: { ip?: string } = {},
 ): Promise<LoginResult> {
   const email = normalizeEmail(rawEmail);
   if (!email || !rawPassword) return { ok: false };
+
+  // Check account lockout (DB-backed sliding window)
+  const locked = await isAccountLocked(email);
+  if (locked) {
+    // Still burn scrypt to maintain timing equality
+    await verifyPassword(DUMMY_PASSWORD_HASH, rawPassword);
+    await recordLoginFailure(email, { ip: options.ip });
+    return { ok: false };
+  }
 
   const user = await db.query.users.findFirst({
     where: eq(users.email, email),
@@ -42,15 +58,17 @@ export async function loginUser(
 
   if (!user) {
     await verifyPassword(DUMMY_PASSWORD_HASH, rawPassword);
+    await recordLoginFailure(email, { ip: options.ip });
     await writeAuditLog({
       action: "LOGIN_FAILURE",
       targetType: "user",
-      metadata: { email },
+      metadata: { accountKeyHash: hashAccountKey(email) },
     });
     return { ok: false };
   }
 
   if (!user.isActive) {
+    await recordLoginFailure(email, { ip: options.ip });
     await writeAuditLog({
       action: "LOGIN_FAILURE",
       actorUserId: user.id,
@@ -61,8 +79,23 @@ export async function loginUser(
     return { ok: false };
   }
 
+  // A phone-only user (or any account without a stored password) cannot be
+  // authenticated with email/password. Fail opaquely so we never reveal why.
+  if (!user.passwordHash) {
+    await recordLoginFailure(email, { ip: options.ip });
+    await writeAuditLog({
+      action: "LOGIN_FAILURE",
+      actorUserId: user.id,
+      targetType: "user",
+      targetId: user.id,
+      metadata: { reason: "no_password_credential" },
+    });
+    return { ok: false };
+  }
+
   const valid = await verifyPassword(user.passwordHash, rawPassword);
   if (!valid) {
+    await recordLoginFailure(email, { ip: options.ip });
     await writeAuditLog({
       action: "LOGIN_FAILURE",
       actorUserId: user.id,
@@ -78,6 +111,9 @@ export async function loginUser(
   }
 
   const rawToken = await createSession(user.id);
+
+  // Reset login failures on successful login
+  await resetLoginFailures(email);
 
   await writeAuditLog({
     action: "LOGIN_SUCCESS",

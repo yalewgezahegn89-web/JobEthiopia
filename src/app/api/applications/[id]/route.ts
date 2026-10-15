@@ -1,11 +1,19 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { eq } from "drizzle-orm";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
 import { verifySession } from "@/lib/auth/session";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { applicationIdParamSchema } from "@/lib/validations";
 import { withdrawApplication, getOwnedApplication } from "@/lib/applications/dal";
 import { getEmployerApplication } from "@/lib/employer/applications";
+import { notifyEmployerApplicationWithdrawn } from "@/lib/notifications/events";
+import { db } from "@/db";
+import { applications } from "@/db/schema/applications";
+import { jobs } from "@/db/schema/jobs";
+import { organizationMembers } from "@/db/schema/organizationMembers";
+import { users } from "@/db/schema/users";
 import { logInfo, logWarn, logError } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
@@ -15,7 +23,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function GET(
+async function __wrapped_GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -101,7 +109,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function __wrapped_POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -166,6 +174,39 @@ export async function POST(
       durationMs: Math.round(performance.now() - start),
     });
 
+    // Notify employer members about the withdrawal
+    try {
+      const appWithJob = await db
+        .select({
+          jobTitle: jobs.title,
+          organizationId: jobs.organizationId,
+          candidateName: users.name,
+        })
+        .from(applications)
+        .innerJoin(jobs, eq(jobs.id, applications.jobId))
+        .innerJoin(users, eq(users.id, applications.candidateUserId))
+        .where(eq(applications.id, result.item.id))
+        .limit(1);
+
+      if (appWithJob.length > 0 && appWithJob[0].organizationId) {
+        const employerMembers = await db
+          .select({ userId: organizationMembers.userId })
+          .from(organizationMembers)
+          .where(eq(organizationMembers.organizationId, appWithJob[0].organizationId));
+
+        for (const member of employerMembers) {
+          await notifyEmployerApplicationWithdrawn({
+            employerUserId: member.userId,
+            applicationId: result.item.id,
+            jobTitle: appWithJob[0].jobTitle,
+            candidateName: appWithJob[0].candidateName ?? "Applicant",
+          });
+        }
+      }
+    } catch {
+      // Employer notification failure must not affect the response
+    }
+
     return NextResponse.json({ success: true }, { status: 200 });
   } catch {
     const durationMs = Math.round(performance.now() - start);
@@ -180,3 +221,5 @@ export async function POST(
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/applications/[id]", "GET", __wrapped_GET);
+export const POST = withRouteMetrics("/api/applications/[id]", "POST", __wrapped_POST);

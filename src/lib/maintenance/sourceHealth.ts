@@ -1,4 +1,4 @@
-import { and, eq, asc, sql } from "drizzle-orm";
+import { eq, asc, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { sources } from "@/db/schema/sources";
 import {
@@ -35,7 +35,7 @@ export type SourceHealthResult = {
  * @param now - Current timestamp for the run (injected for testing)
  * @returns Deterministic summary of source health processing
  */
-export async function checkDueSources(now: Date): Promise<SourceHealthResult> {
+export async function checkDueSources(_now: Date): Promise<SourceHealthResult> {
   const result: SourceHealthResult = {
     checked: 0,
     succeeded: 0,

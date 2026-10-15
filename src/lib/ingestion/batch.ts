@@ -1,5 +1,5 @@
 import { ingestJob } from "./ingest";
-import { recordSuccessfulCheck } from "../sources";
+import { recordSuccessfulCheck, recordFailedCheck } from "../sources";
 import type { RawJobInput, IngestionResult } from "./types";
 
 /**
@@ -123,7 +123,7 @@ export async function ingestJobs(
         err instanceof Error ? err.message : String(err);
 
       items.push({
-        outcome: "CREATED",
+        outcome: "FAILED",
         jobId: null,
         jobSourceId: null,
         matchedJobId: null,
@@ -139,8 +139,19 @@ export async function ingestJobs(
     }
   }
 
-  // Record successful source check — the batch was processed
-  await recordSuccessfulCheck(input.sourceId);
+  // Record source health:
+  // - Success when the batch was processed and at least one item succeeded
+  // - Failed check when every item failed (adapter returned data that all
+  //   failed validation/ingestion — the source is producing bad data)
+  // - Success for empty batches (adapter reached the source, returned 0 items)
+  if (input.jobs.length > 0 && failed === input.jobs.length) {
+    await recordFailedCheck(
+      input.sourceId,
+      `All ${input.jobs.length} items in batch failed to process`,
+    );
+  } else {
+    await recordSuccessfulCheck(input.sourceId);
+  }
 
   return {
     items,

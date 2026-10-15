@@ -1,13 +1,19 @@
 import type { MetadataRoute } from "next";
 import { getAppBaseUrl } from "@/lib/appBaseUrl";
+import { buildPublicSitemapUrls } from "@/lib/sitemap/publicSitemap";
 
-function siteUrl(): URL {
-  return new URL(getAppBaseUrl());
+// Generate sitemap entries at request time so CI builds do not require a live database.
+export const dynamic = "force-dynamic";
+
+function siteUrl(): string {
+  return getAppBaseUrl().replace(/\/$/, "");
 }
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = siteUrl();
-  return ["/", "/jobs", "/careers"].map((path) => ({
-    url: new URL(path, base).toString(),
+  const urls = await buildPublicSitemapUrls();
+  return urls.map((entry) => ({
+    url: `${base}${entry.path}`,
+    lastModified: entry.lastModified,
   }));
 }

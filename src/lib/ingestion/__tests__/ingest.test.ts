@@ -113,6 +113,7 @@ beforeEach(() => {
   mockResolveProfession.mockResolvedValue("prof-1");
   mockResolveCategory.mockResolvedValue("cat-1");
   mockUpsertJob.mockResolvedValue({ jobId: "job-1", jobSourceId: "js-1" });
+  mockUpdateJob.mockResolvedValue(true);
 });
 
 describe("ingestJob", () => {
@@ -210,6 +211,29 @@ describe("ingestJob", () => {
       expect(result.outcome).toBe("UPDATED");
       expect(mockUpdateJob).toHaveBeenCalledOnce();
     });
+
+    it("does not rewrite content and reports DUPLICATE when the matched job is PUBLISHED (moderation gate)", async () => {
+      mockDetectDuplicate.mockResolvedValue({
+        classification: "DUPLICATE",
+        level: "SOURCE_IDENTIFIER",
+        matchedJobId: "existing-job",
+        matchedJobSourceId: "existing-js",
+        confidence: 1.0,
+        reason: "Exact match",
+      });
+      mockGetStoredHash.mockResolvedValue("old-hash");
+      mockContentChanged.mockReturnValue(true);
+      mockUpdateJob.mockResolvedValue(false);
+
+      const result = await ingestJob({
+        ...validInput,
+        externalId: "ext-123",
+      });
+
+      expect(result.outcome).toBe("DUPLICATE");
+      expect(result.matchedJobId).toBe("existing-job");
+      expect(mockUpdateJob).toHaveBeenCalledOnce();
+    });
   });
 
   describe("SOURCE_URL duplicate", () => {
@@ -298,6 +322,26 @@ describe("ingestJob", () => {
       const result = await ingestJob(validInput);
 
       expect(result.outcome).toBe("UPDATED");
+      expect(mockUpdateJob).toHaveBeenCalledOnce();
+    });
+
+    it("reports DUPLICATE when the PUBLISHED gate blocks an L3 content update", async () => {
+      mockDetectDuplicate.mockResolvedValue({
+        classification: "DUPLICATE",
+        level: "CONTENT_HASH",
+        matchedJobId: "existing-job",
+        matchedJobSourceId: "existing-js",
+        confidence: 0.95,
+        reason: "Hash match",
+      });
+      mockCreateJobSource.mockResolvedValue("new-js");
+      mockGetStoredHash.mockResolvedValue("old-hash");
+      mockContentChanged.mockReturnValue(true);
+      mockUpdateJob.mockResolvedValue(false);
+
+      const result = await ingestJob(validInput);
+
+      expect(result.outcome).toBe("DUPLICATE");
       expect(mockUpdateJob).toHaveBeenCalledOnce();
     });
   });

@@ -50,74 +50,74 @@ export default async function AdminOrganizationsPage({
   return (
     <div>
       <AdminNav />
-      <main className="mx-auto w-full max-w-3xl px-4 py-8">
-        <h1 className="text-2xl font-semibold">Organizations</h1>
+      <main className="mx-auto w-full max-w-6xl px-4 py-8">
+        <h1 className="text-2xl font-semibold text-foreground">Organizations</h1>
 
-        <div className="mt-4 flex gap-2 text-sm">
+        <div className="mt-4 flex flex-wrap gap-2 text-sm">
           <Link
             href="/admin/organizations"
-            className={`rounded-md px-3 py-1 ${isVerified === undefined ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"}`}
+            className={`rounded-lg px-3 py-1 ${isVerified === undefined ? "bg-primary text-white shadow-sm" : "bg-surface border border-border text-muted hover:bg-surface-raised hover:text-foreground"}`}
           >
             All
           </Link>
           <Link
             href="/admin/organizations?isVerified=false"
-            className={`rounded-md px-3 py-1 ${isVerified === false ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"}`}
+            className={`rounded-lg px-3 py-1 ${isVerified === false ? "bg-primary text-white shadow-sm" : "bg-surface border border-border text-muted hover:bg-surface-raised hover:text-foreground"}`}
           >
             Unverified
           </Link>
           <Link
             href="/admin/organizations?isVerified=true"
-            className={`rounded-md px-3 py-1 ${isVerified === true ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-700 hover:bg-neutral-200"}`}
+            className={`rounded-lg px-3 py-1 ${isVerified === true ? "bg-primary text-white shadow-sm" : "bg-surface border border-border text-muted hover:bg-surface-raised hover:text-foreground"}`}
           >
             Verified
           </Link>
         </div>
 
         {loadError ? (
-          <p className="mt-4 text-neutral-600">
+          <p className="mt-4 text-sm text-destructive">
             We could not load organizations right now. Please try again shortly.
           </p>
         ) : (
           <>
-            <p className="mt-4 text-sm text-neutral-500">
+            <p className="mt-4 text-sm text-muted">
               {result.total} total organizations
             </p>
 
             {result.items.length === 0 ? (
-              <div className="mt-6 rounded-lg border border-dashed border-neutral-300 p-8 text-center">
-                <h2 className="text-lg font-semibold">No organizations found</h2>
-                <p className="mt-1 text-neutral-600">
+              <div className="mt-6 rounded-xl border border-dashed border-border p-8 text-center bg-surface">
+                <h2 className="text-lg font-semibold text-foreground">No organizations found</h2>
+                <p className="mt-1 text-muted">
                   There are no organizations matching this filter.
                 </p>
               </div>
             ) : (
-              <ul className="mt-4 space-y-2">
+              <ul className="mt-4 space-y-3">
                 {result.items.map((org) => (
                   <li key={org.id}>
                     <Link
                       href={`/admin/organizations/${org.id}`}
-                      className="block rounded-md border border-neutral-200 p-4 transition-colors hover:border-neutral-400 hover:bg-neutral-50"
+                      className="block rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md"
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <h2 className="font-semibold">{org.name}</h2>
-                          <p className="text-sm text-neutral-500">
+                          <h2 className="font-semibold text-foreground hover:text-primary">{org.name}</h2>
+                          <p className="text-sm text-muted">
                             {org.industry ?? "No industry"} · {org.status}
                           </p>
                         </div>
                         <div className="text-right text-sm">
                           <span
-                            className={`inline-block rounded-md px-2 py-0.5 text-xs font-semibold ${
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${
                               org.isVerified
-                                ? "bg-green-100 text-green-800"
-                                : "bg-yellow-100 text-yellow-800"
+                                ? "bg-success-light text-success"
+                                : "bg-warning-light text-warning"
                             }`}
                           >
                             {org.isVerified ? "Verified" : "Unverified"}
                           </span>
                           {org.verifiedAt && (
-                            <p className="mt-1 text-xs text-neutral-400">
+                            <p className="mt-1 text-xs text-subtle">
                               Verified {new Date(org.verifiedAt).toLocaleDateString()}
                             </p>
                           )}
@@ -137,29 +137,29 @@ export default async function AdminOrganizationsPage({
                 {result.page > 1 ? (
                   <Link
                     href={`?page=${result.page - 1}${isVerified !== undefined ? `&isVerified=${isVerified}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-semibold hover:bg-neutral-100"
+                    className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-muted hover:bg-surface-raised hover:text-foreground"
                   >
                     Previous
                   </Link>
                 ) : (
-                  <span className="rounded-md border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-400">
+                  <span className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-semibold text-subtle">
                     Previous
                   </span>
                 )}
 
-                <span className="text-sm text-neutral-600">
+                <span className="text-sm text-muted">
                   Page {result.page} of {result.totalPages}
                 </span>
 
                 {result.page < result.totalPages ? (
                   <Link
                     href={`?page=${result.page + 1}${isVerified !== undefined ? `&isVerified=${isVerified}` : ""}`}
-                    className="rounded-md border border-neutral-300 px-4 py-2 text-sm font-semibold hover:bg-neutral-100"
+                    className="rounded-lg border border-border px-4 py-2 text-sm font-semibold text-muted hover:bg-surface-raised hover:text-foreground"
                   >
                     Next
                   </Link>
                 ) : (
-                  <span className="rounded-md border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-400">
+                  <span className="rounded-lg border border-border-subtle px-4 py-2 text-sm font-semibold text-subtle">
                     Next
                   </span>
                 )}

@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -20,7 +21,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function GET(request: Request) {
+async function __wrapped_GET(request: Request) {
   const start = performance.now();
   const requestId = await getRequestId();
 
@@ -113,7 +114,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function __wrapped_POST(request: Request) {
   const start = performance.now();
   const requestId = await getRequestId();
 
@@ -213,7 +214,13 @@ export async function POST(request: Request) {
       durationMs,
     });
 
-    return NextResponse.json({ item: result.item }, { status: 201 });
+    return NextResponse.json(
+      {
+        item: result.item,
+        ...(result.warning ? { warning: result.warning } : {}),
+      },
+      { status: 201 },
+    );
   } catch {
     const durationMs = Math.round(performance.now() - start);
     logError("employer_job_created_failed", {
@@ -227,3 +234,5 @@ export async function POST(request: Request) {
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/employer/jobs", "GET", __wrapped_GET);
+export const POST = withRouteMetrics("/api/employer/jobs", "POST", __wrapped_POST);

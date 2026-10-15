@@ -1,5 +1,6 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { organizations } from "@/db/schema/organizations";
@@ -12,6 +13,10 @@ import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
+import { isPgUniqueViolation } from "@/lib/pgErrors";
+import { isJobStale } from "@/lib/jobs/public";
+import { validateJobForPublish } from "@/lib/admin/jobs";
+import { trackDiscoveryEvent } from "@/lib/analytics/events";
 
 type JobStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "EXPIRED" | "REMOVED";
 
@@ -27,7 +32,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function GET(
+async function __wrapped_GET(
   _request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -42,11 +47,31 @@ export async function GET(
 
   try {
     const job = await db.query.jobs.findFirst({
-      where: eq(jobs.id, parsed.data.id),
+      where: and(eq(jobs.id, parsed.data.id), eq(jobs.status, "PUBLISHED")),
     });
 
     if (!job) {
       return jsonError("Job not found", 404);
+    }
+
+    if (isJobStale(job.lastVerifiedAt as string | null)) {
+      return jsonError("Job not found", 404);
+    }
+
+    const now = new Date();
+    const deadline = job.deadline ? new Date(job.deadline) : null;
+    if (deadline && !Number.isNaN(deadline.getTime()) && deadline < now) {
+      return jsonError("Job not found", 404);
+    }
+
+    if (job.organizationId) {
+      const org = await db.query.organizations.findFirst({
+        columns: { status: true },
+        where: eq(organizations.id, job.organizationId),
+      });
+      if (!org || org.status !== "ACTIVE") {
+        return jsonError("Job not found", 404);
+      }
     }
 
     const organizationId = job.organizationId;
@@ -83,7 +108,7 @@ export async function GET(
         : Promise.resolve(null),
     ]);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       item: {
         ...job,
         organization: organization ?? null,
@@ -92,12 +117,24 @@ export async function GET(
         location: location ?? null,
       },
     });
+
+    // Best-effort discovery analytics (never impacts the response).
+    try {
+      await trackDiscoveryEvent({
+        event: "job_viewed",
+        jobId: parsed.data.id,
+      });
+    } catch {
+      // Analytics failures are isolated and swallowed.
+    }
+
+    return response;
   } catch {
     return jsonError("Internal server error", 500);
   }
 }
 
-export async function DELETE(
+async function __wrapped_DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -146,7 +183,7 @@ export async function DELETE(
   }
 }
 
-export async function PATCH(
+async function __wrapped_PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -188,7 +225,6 @@ export async function PATCH(
   try {
     const existing = await db.query.jobs.findFirst({
       where: eq(jobs.id, parsedId.data.id),
-      columns: { id: true, status: true },
     });
 
     if (!existing) {
@@ -208,11 +244,29 @@ export async function PATCH(
           );
         }
       }
+
+      if (requestedStatus === "PUBLISHED" && currentStatus !== "PUBLISHED") {
+        const validation = await validateJobForPublish(existing);
+        if (!validation.ok) {
+          return jsonError(validation.message, 422);
+        }
+      }
     }
+
+    const verifiedAt = new Date();
+
+    const updateData =
+      parsed.data.status === "PUBLISHED"
+        ? {
+            ...parsed.data,
+            verificationStatus: "VERIFIED" as const,
+            lastVerifiedAt: verifiedAt,
+          }
+        : parsed.data;
 
     const [updated] = await db
       .update(jobs)
-      .set(parsed.data)
+      .set(updateData)
       .where(eq(jobs.id, parsedId.data.id))
       .returning({
         id: jobs.id,
@@ -233,12 +287,12 @@ export async function PATCH(
 
     return NextResponse.json({ item: updated });
   } catch (err: unknown) {
-    if (
-      err instanceof Error &&
-      err.message.includes("jobs_slug_unique")
-    ) {
+    if (isPgUniqueViolation(err, "jobs_slug_unique")) {
       return jsonError("Job slug already exists", 409);
     }
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/jobs/[id]", "GET", __wrapped_GET);
+export const DELETE = withRouteMetrics("/api/jobs/[id]", "DELETE", __wrapped_DELETE);
+export const PATCH = withRouteMetrics("/api/jobs/[id]", "PATCH", __wrapped_PATCH);

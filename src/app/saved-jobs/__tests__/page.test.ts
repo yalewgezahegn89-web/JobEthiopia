@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { dictionaries } from "@/lib/i18n/dictionary";
 
 const mocks = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
@@ -28,6 +30,11 @@ vi.mock("@/lib/savedJobs/dal", () => ({
 vi.mock("@/components/saved-jobs/saved-job-list", () => ({
   SavedJobList: ({ items }: { items: unknown[] }) => createElement("ul", { "data-testid": "saved-list" }, String(items.length)),
 }));
+
+vi.mock("@/lib/i18n/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
+  return { ...actual, getI18n: async () => dictionaries.en };
+});
 
 import SavedJobsPage from "@/app/saved-jobs/page";
 
@@ -112,5 +119,37 @@ describe("SavedJobsPage", () => {
     mocks.mockList.mockRejectedValue(new Error("db down"));
     const element = await SavedJobsPage({ searchParams: Promise.resolve({}) });
     expect(element).toBeTruthy();
+  });
+
+  it("renders a single H1 with the page title", async () => {
+    const html = renderToStaticMarkup(
+      await SavedJobsPage({ searchParams: Promise.resolve({}) }),
+    );
+    expect(html).toContain("Saved Jobs");
+    const h1Count = (html.match(/<h1\b/g) ?? []).length;
+    expect(h1Count).toBe(1);
+  });
+
+  it("renders an empty state with a browse-jobs CTA", async () => {
+    mocks.mockList.mockResolvedValue({
+      items: [],
+      page: 1,
+      limit: 20,
+      total: 0,
+      totalPages: 1,
+    });
+    const html = renderToStaticMarkup(
+      await SavedJobsPage({ searchParams: Promise.resolve({}) }),
+    );
+    expect(html).toContain("Your saved jobs will appear here");
+    expect(html).toContain("Browse jobs");
+  });
+
+  it("passes saved items to the SavedJobList component", async () => {
+    const html = renderToStaticMarkup(
+      await SavedJobsPage({ searchParams: Promise.resolve({}) }),
+    );
+    expect(html).toContain('data-testid="saved-list"');
+    expect(html).toContain("1");
   });
 });

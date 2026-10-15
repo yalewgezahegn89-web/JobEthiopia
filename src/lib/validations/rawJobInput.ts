@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { RawJobInput } from "../ingestion/types";
+import { httpUrlSchema } from "./employerJob";
 
 const rawJobInputSchema = z.object({
   title: z.string().min(1, "Title is required"),
@@ -35,13 +36,7 @@ const rawJobInputSchema = z.object({
     .nullable()
     .optional(),
 
-  applicationUrl: z
-    .string()
-    .url({
-      message: "applicationUrl must be a valid URL",
-    })
-    .nullable()
-    .optional(),
+  applicationUrl: httpUrlSchema.nullable().optional(),
 
   externalId: z.string().nullable().optional(),
   sourceUrl: z.string().nullable().optional(),

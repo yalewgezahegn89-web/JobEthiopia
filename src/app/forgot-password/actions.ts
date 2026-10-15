@@ -43,7 +43,9 @@ export async function forgotPasswordAction(
 
     if (user && user.isActive) {
       const token = await requestPasswordReset(user.id);
-      if (token) {
+      // A phone-only account has no email, so no reset token is issued and no
+      // email is dispatched; the generic message keeps the account hidden.
+      if (token && token.email) {
         const resetUrl = `${getAppBaseUrl()}/reset-password?token=${token.rawToken}`;
         await dispatchPasswordResetEmail(token.email, resetUrl);
       }

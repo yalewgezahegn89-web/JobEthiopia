@@ -236,6 +236,11 @@ describe("normalizeSalary", () => {
     expect(normalizeSalary("5000 daily").salaryPeriod).toBe("DAILY");
   });
 
+  it("maps week/weekly to OTHER (no WEEKLY enum value)", () => {
+    expect(normalizeSalary("5000 weekly").salaryPeriod).toBe("OTHER");
+    expect(normalizeSalary("5000 week").salaryPeriod).toBe("OTHER");
+  });
+
   it("parses salary with decimal values", () => {
     const result = normalizeSalary("50.50-100.75");
     expect(result.salaryMin).toBe(50.5);

@@ -1,11 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { dictionaries } from "@/lib/i18n/dictionary";
+import { I18nProvider } from "@/lib/i18n/client";
 
 const mocks = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
   mockPathname: vi.fn(),
 }));
+
+vi.mock("@/lib/i18n/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/i18n/server")>();
+  return { ...actual, getI18n: async () => dictionaries.en };
+});
 
 vi.mock("@/lib/auth/context", () => ({
   getCurrentUser: () => mocks.mockGetCurrentUser(),
@@ -38,7 +46,10 @@ const STAFF = { ...CANDIDATE, id: "33333333-3333-4333-8333-333333333333", role: 
 
 async function renderHeader(): Promise<string> {
   const element = await SiteHeader();
-  return renderToStaticMarkup(element);
+  return renderToStaticMarkup(
+    // eslint-disable-next-line react/no-children-prop -- I18nProvider requires an explicit children prop in createElement
+    createElement(I18nProvider, { locale: "en", children: element }),
+  );
 }
 
 beforeEach(() => {
@@ -158,5 +169,18 @@ describe("SiteHeader", () => {
     mocks.mockPathname.mockReturnValue("/jobs");
     const html = await renderHeader();
     expect(html).toContain('aria-current="page"');
+  });
+
+  it("renders the mobile menu button with accessible attributes", async () => {
+    const html = await renderHeader();
+    expect(html).toContain('aria-controls="mobile-menu"');
+    expect(html).toContain('aria-label="Open menu"');
+    expect(html).toContain('aria-expanded="false"');
+  });
+
+  it("does not render the mobile menu panel when closed", async () => {
+    const html = await renderHeader();
+    expect(html).not.toContain("mobile-menu-panel");
+    expect(html).not.toContain('aria-modal="true"');
   });
 });

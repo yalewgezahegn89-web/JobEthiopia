@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { httpUrlSchema } from "./employerJob";
 
 const OrganizationStatus = z.enum(["ACTIVE", "INACTIVE"]);
 const LocationType = z.enum(["COUNTRY", "REGION", "CITY", "DISTRICT", "OTHER"]);
@@ -16,7 +17,6 @@ const EmploymentType = z.enum([
 ]);
 const SalaryPeriod = z.enum(["HOURLY", "DAILY", "MONTHLY", "YEARLY", "OTHER"]);
 const JobStatus = z.enum(["DRAFT", "PENDING_REVIEW", "PUBLISHED", "EXPIRED", "REMOVED"]);
-const VerificationStatus = z.enum(["PENDING", "VERIFIED", "NEEDS_REVIEW", "INVALID"]);
 const ArticleStatus = z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]);
 
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -41,7 +41,6 @@ export const createOrganizationSchema = z.object({
   websiteUrl: z.string().url().nullable().optional(),
   logoUrl: z.string().url().nullable().optional(),
   locationId: z.string().uuid().nullable().optional(),
-  isVerified: z.boolean().optional().default(false),
   status: OrganizationStatus.optional().default("ACTIVE"),
 });
 
@@ -84,7 +83,6 @@ export const createJobSchema = z
   .object({
     title: z.string().min(1, "Title is required"),
     slug: z.string().regex(slugRegex, "Slug must be lowercase alphanumeric with hyphens"),
-    organizationId: z.string().uuid("Organization ID must be a valid UUID"),
     categoryId: z.string().uuid().nullable().optional(),
     professionId: z.string().uuid().nullable().optional(),
     locationId: z.string().uuid().nullable().optional(),
@@ -102,10 +100,9 @@ export const createJobSchema = z
     salaryPeriod: SalaryPeriod.nullable().optional(),
     postedAt: z.string().datetime().nullable().optional(),
     deadline: z.string().datetime().nullable().optional(),
-    applicationUrl: z.string().url().nullable().optional(),
-    status: JobStatus.optional().default("DRAFT"),
-    verificationStatus: VerificationStatus.optional().default("PENDING"),
+    applicationUrl: httpUrlSchema.nullable().optional(),
   })
+  .strict()
   .refine(
     (data) =>
       data.salaryMin == null || data.salaryMax == null || data.salaryMax >= data.salaryMin,
@@ -117,15 +114,16 @@ export const createJobSchema = z
     { message: "experienceMax must be greater than or equal to experienceMin", path: ["experienceMax"] },
   );
 
-export const createCareerArticleSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  slug: z.string().regex(slugRegex, "Slug must be lowercase alphanumeric with hyphens"),
-  excerpt: z.string().nullable().optional(),
-  content: z.string().min(1, "Content is required"),
-  category: z.string().nullable().optional(),
-  status: ArticleStatus.optional().default("DRAFT"),
-  publishedAt: z.string().datetime().nullable().optional(),
-});
+export const createCareerArticleSchema = z
+  .object({
+    title: z.string().min(1, "Title is required"),
+    slug: z.string().regex(slugRegex, "Slug must be lowercase alphanumeric with hyphens"),
+    excerpt: z.string().nullable().optional(),
+    content: z.string().min(1, "Content is required"),
+    category: z.string().nullable().optional(),
+    status: ArticleStatus.optional().default("DRAFT"),
+  })
+  .strict();
 
 export const createJobSourceSchema = z.object({
   jobId: z.string().uuid("Job ID must be a valid UUID"),
@@ -154,9 +152,9 @@ export type UpdateSourceInput = z.infer<typeof updateSourceSchema>;
 export const updateJobSchema = z
   .object({
     status: JobStatus,
-    verificationStatus: VerificationStatus,
   })
-  .partial();
+  .partial()
+  .strict();
 
 export type UpdateJobInput = z.infer<typeof updateJobSchema>;
 export type CreateJobInput = z.infer<typeof createJobSchema>;
@@ -184,3 +182,5 @@ export { createSavedJobSchema, savedJobIdParamSchema } from "./savedJobs";
 export type { CreateSavedJobInput, SavedJobIdParam } from "./savedJobs";
 export { bulkApplicationStatusChangeSchema, BULK_STATUS_CHANGE_MAX_IDS } from "./applicationStatus";
 export type { BulkApplicationStatusChangeInput } from "./applicationStatus";
+export { createJobAlertSchema, updateJobAlertSchema, jobAlertIdParamSchema } from "./jobAlerts";
+export type { CreateJobAlertInput, UpdateJobAlertInput, JobAlertIdParam } from "./jobAlerts";

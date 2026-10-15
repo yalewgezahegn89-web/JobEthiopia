@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
@@ -14,6 +15,7 @@ import { employerStatusChangeSchema } from "@/lib/validations/applicationStatus"
 import { assertEmployerApplicationAccess } from "@/lib/auth/employerAccess";
 import { changeEmployerApplicationStatus } from "@/lib/employer/applications";
 import { dispatchApplicationStatusNotification } from "@/lib/email";
+import { notifyApplicationStatusChanged } from "@/lib/notifications/events";
 import { logInfo, logWarn, logError } from "@/lib/observability/logger";
 import { getRequestId } from "@/lib/observability/requestId";
 
@@ -23,7 +25,7 @@ function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
 
-export async function PATCH(
+async function __wrapped_PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -178,6 +180,7 @@ export async function PATCH(
       try {
         const candidateRow = await db
           .select({
+            candidateUserId: applications.candidateUserId,
             candidateEmail: users.email,
             candidateName: users.name,
             jobTitle: jobs.title,
@@ -202,6 +205,13 @@ export async function PATCH(
               newStatus: result.item.status,
             });
           }
+
+          await notifyApplicationStatusChanged({
+            candidateUserId: c.candidateUserId,
+            applicationId: result.item.id,
+            jobTitle: c.jobTitle,
+            newStatus: result.item.status,
+          });
         }
       } catch {
         // Notification failure must not affect the response
@@ -228,3 +238,4 @@ export async function PATCH(
     return jsonError("Internal server error", 500);
   }
 }
+export const PATCH = withRouteMetrics("/api/applications/[id]/status", "PATCH", __wrapped_PATCH);

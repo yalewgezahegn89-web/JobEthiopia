@@ -1,3 +1,4 @@
+import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/constants";
@@ -33,7 +34,7 @@ function contentDispositionHeader(name: string): string {
   return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 
-export async function GET(
+async function __wrapped_GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -134,7 +135,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function __wrapped_POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -257,7 +258,7 @@ export async function POST(
   }
 }
 
-export async function DELETE(
+async function __wrapped_DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
@@ -327,3 +328,6 @@ export async function DELETE(
     return jsonError("Internal server error", 500);
   }
 }
+export const GET = withRouteMetrics("/api/applications/[id]/resume", "GET", __wrapped_GET);
+export const POST = withRouteMetrics("/api/applications/[id]/resume", "POST", __wrapped_POST);
+export const DELETE = withRouteMetrics("/api/applications/[id]/resume", "DELETE", __wrapped_DELETE);

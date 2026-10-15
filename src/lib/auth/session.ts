@@ -114,3 +114,50 @@ export async function revokeSessionsForUser(
   const rows = await db.delete(sessions).where(where).returning({ id: sessions.id });
   return rows.length;
 }
+
+/**
+ * Lists a user's active sessions for the session-management surface.
+ * Ordered by most recently used first, then by creation time.
+ */
+export type UserSessionListItem = {
+  id: string;
+  createdAt: Date;
+  expiresAt: Date;
+  lastUsedAt: Date | null;
+};
+
+export async function listSessionsForUser(
+  userId: string,
+): Promise<UserSessionListItem[]> {
+  const rows = await db.query.sessions.findMany({
+    where: eq(sessions.userId, userId),
+    columns: { id: true, createdAt: true, expiresAt: true, lastUsedAt: true },
+    orderBy: (s, { desc, sql }) => [
+      sql`${s.lastUsedAt} DESC NULLS LAST`,
+      desc(s.createdAt),
+    ],
+  });
+  return rows.map((row) => ({
+    id: row.id,
+    createdAt: row.createdAt,
+    expiresAt: row.expiresAt,
+    lastUsedAt: row.lastUsedAt,
+  }));
+}
+
+/**
+ * Revokes a single session, scoped to the owning user so a caller can never
+ * revoke another user's session. Returns whether a session was deleted.
+ */
+export async function revokeSessionById(
+  sessionId: string,
+  userId: string,
+): Promise<boolean> {
+  if (!sessionId || !userId) return false;
+
+  const rows = await db
+    .delete(sessions)
+    .where(and(eq(sessions.id, sessionId), eq(sessions.userId, userId)))
+    .returning({ id: sessions.id });
+  return rows.length > 0;
+}

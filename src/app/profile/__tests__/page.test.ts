@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { en } from "@/lib/i18n/messages/en";
 
 const mocks = vi.hoisted(() => ({
   mockGetCurrentUser: vi.fn(),
@@ -26,6 +27,10 @@ vi.mock("@/lib/auth/context", () => ({
 
 vi.mock("@/lib/candidateProfile/dal", () => ({
   getCandidateProfile: (...args: unknown[]) => mocks.mockGetProfile(...args),
+}));
+
+vi.mock("@/lib/i18n/server", () => ({
+  getI18n: async () => en,
 }));
 
 vi.mock("@/db", () => ({
@@ -167,5 +172,31 @@ describe("ProfilePage", () => {
   it("does not render the password section for non-candidate roles", async () => {
     mocks.mockGetCurrentUser.mockResolvedValue({ ...CANDIDATE, role: "ADMIN" });
     await expect(ProfilePage()).rejects.toThrow("REDIRECT:/jobs");
+  });
+
+  it("renders a single H1 with the page title", async () => {
+    const html = renderToStaticMarkup(await ProfilePage());
+    expect(html).toContain("My Profile");
+    const h1Count = (html.match(/<h1\b/g) ?? []).length;
+    expect(h1Count).toBe(1);
+  });
+
+  it("renders a Security section with change password", async () => {
+    const html = renderToStaticMarkup(await ProfilePage());
+    expect(html).toContain("Security");
+    expect(html).toContain("Change password");
+  });
+
+  it("renders a sign-out form posting to /logout", async () => {
+    const html = renderToStaticMarkup(await ProfilePage());
+    expect(html).toContain('action="/logout"');
+    expect(html).toContain('method="POST"');
+    expect(html).toContain("Sign out");
+  });
+
+  it("does not leak any password value", async () => {
+    const html = renderToStaticMarkup(await ProfilePage());
+    expect(html).not.toContain("OldPassword");
+    expect(html).not.toContain("NewPassword");
   });
 });

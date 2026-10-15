@@ -65,12 +65,12 @@ export function JobStatusControls({
   }
 
   return (
-    <div className="mb-4 flex flex-wrap gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {allowed.includes("PENDING_REVIEW") && (
         <button
           onClick={() => changeStatus("PENDING_REVIEW")}
           disabled={isPending}
-          className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-success px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:opacity-90 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
         >
           Submit for Review
         </button>
@@ -79,7 +79,7 @@ export function JobStatusControls({
         <button
           onClick={() => changeStatus("DRAFT")}
           disabled={isPending}
-          className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300"
+          className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
         >
           Withdraw from Review
         </button>
@@ -88,13 +88,18 @@ export function JobStatusControls({
         <button
           onClick={removeJob}
           disabled={isPending}
-          className="rounded border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-700 dark:text-red-300"
+          className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg border border-destructive/40 bg-destructive-light/40 px-4 py-2 text-sm font-semibold text-destructive transition-colors hover:bg-destructive-light focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50"
         >
           Remove Job
         </button>
       )}
       {error && (
-        <p className="w-full text-sm text-red-600">{error}</p>
+        <p
+          role="alert"
+          className="w-full rounded-lg bg-destructive-light px-4 py-2.5 text-sm text-destructive"
+        >
+          {error}
+        </p>
       )}
     </div>
   );

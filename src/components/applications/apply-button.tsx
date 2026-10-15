@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useI18n } from "@/lib/i18n/client";
+import Link from "next/link";
 
 type ApplyState =
   | { kind: "idle" }
@@ -9,6 +11,7 @@ type ApplyState =
   | { kind: "error"; message: string };
 
 export function ApplyButton({ jobId, jobTitle }: { jobId: string; jobTitle: string }) {
+  const { t } = useI18n();
   const [state, setState] = useState<ApplyState>({ kind: "idle" });
   const [pending, startTransition] = useTransition();
 
@@ -26,18 +29,18 @@ export function ApplyButton({ jobId, jobTitle }: { jobId: string; jobTitle: stri
           return;
         }
         if (res.status === 409) {
-          setState({ kind: "error", message: "You have already applied to this job." });
+          setState({ kind: "error", message: t.apply.alreadyApplied });
           return;
         }
         const body = (await res.json().catch(() => null)) as { error?: string } | null;
         setState({
           kind: "error",
-          message: body?.error ?? "We could not submit your application. Please try again.",
+          message: body?.error ?? t.apply.submissionFailed,
         });
       } catch {
         setState({
           kind: "error",
-          message: "We could not submit your application. Please try again.",
+          message: t.apply.submissionFailed,
         });
       }
     });
@@ -45,27 +48,34 @@ export function ApplyButton({ jobId, jobTitle }: { jobId: string; jobTitle: stri
 
   if (state.kind === "success") {
     return (
-      <span className="inline-block rounded-md bg-green-100 px-6 py-3 text-base font-semibold text-green-800 dark:bg-green-900 dark:text-green-200">
-        Application submitted
-      </span>
+      <div className="text-center">
+        <span className="inline-block rounded-full bg-success-light px-6 py-3 text-base font-semibold text-success">
+          {t.apply.applicationSubmitted}
+        </span>
+        <p className="mt-2 text-xs text-muted">{t.jobs.applicationSubmittedHint}</p>
+        <Link
+          href="/applications"
+          className="mt-3 inline-flex items-center text-sm font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          {t.jobs.viewApplicationCta}
+        </Link>
+      </div>
     );
   }
 
   return (
-    <div className="mt-4 rounded-md border border-gray-200 p-4 text-center dark:border-gray-800">
+    <div className="mt-4 rounded-lg border border-border bg-surface p-4 text-center">
       <button
         type="button"
         onClick={submit}
         disabled={pending}
-        className="inline-flex w-full items-center justify-center rounded-md bg-blue-600 px-6 py-3 text-base font-semibold text-white hover:bg-blue-500 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-700 dark:hover:bg-blue-600 sm:w-auto"
+        className="inline-flex w-full items-center justify-center rounded-lg bg-primary px-6 py-3 text-base font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
       >
-        {pending ? "Applying…" : "Apply Now"}
+        {pending ? t.apply.applying : t.apply.applyNow}
       </button>
-      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-        Submits your application to this job directly.
-      </p>
+      <p className="mt-2 text-xs text-subtle">{t.apply.applyHint}</p>
       {state.kind === "error" && (
-        <p className="mt-2 text-sm font-medium text-red-700 dark:text-red-400">
+        <p className="mt-2 text-sm font-medium text-destructive" role="alert">
           {state.message}
         </p>
       )}

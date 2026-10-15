@@ -143,10 +143,8 @@ ALTER TABLE "organizations" ADD CONSTRAINT "organizations_location_id_locations_
 ALTER TABLE "professions" ADD CONSTRAINT "professions_category_id_categories_id_fk" FOREIGN KEY ("category_id") REFERENCES "public"."categories"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "career_articles_status_idx" ON "career_articles" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "career_articles_category_idx" ON "career_articles" USING btree ("category");--> statement-breakpoint
-CREATE UNIQUE INDEX "career_articles_slug_unique" ON "career_articles" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX "categories_parent_id_idx" ON "categories" USING btree ("parent_id");--> statement-breakpoint
 CREATE INDEX "categories_is_active_idx" ON "categories" USING btree ("is_active");--> statement-breakpoint
-CREATE UNIQUE INDEX "categories_slug_unique" ON "categories" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX "job_sources_job_id_idx" ON "job_sources" USING btree ("job_id");--> statement-breakpoint
 CREATE INDEX "job_sources_source_id_idx" ON "job_sources" USING btree ("source_id");--> statement-breakpoint
 CREATE INDEX "jobs_status_idx" ON "jobs" USING btree ("status");--> statement-breakpoint
@@ -157,17 +155,13 @@ CREATE INDEX "jobs_category_id_idx" ON "jobs" USING btree ("category_id");--> st
 CREATE INDEX "jobs_profession_id_idx" ON "jobs" USING btree ("profession_id");--> statement-breakpoint
 CREATE INDEX "jobs_location_id_idx" ON "jobs" USING btree ("location_id");--> statement-breakpoint
 CREATE INDEX "jobs_employment_type_idx" ON "jobs" USING btree ("employment_type");--> statement-breakpoint
-CREATE UNIQUE INDEX "jobs_slug_unique" ON "jobs" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX "locations_type_idx" ON "locations" USING btree ("type");--> statement-breakpoint
 CREATE INDEX "locations_parent_id_idx" ON "locations" USING btree ("parent_id");--> statement-breakpoint
 CREATE INDEX "locations_is_active_idx" ON "locations" USING btree ("is_active");--> statement-breakpoint
-CREATE UNIQUE INDEX "locations_slug_unique" ON "locations" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX "organizations_status_idx" ON "organizations" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "organizations_location_id_idx" ON "organizations" USING btree ("location_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "organizations_slug_unique" ON "organizations" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX "professions_category_id_idx" ON "professions" USING btree ("category_id");--> statement-breakpoint
 CREATE INDEX "professions_is_active_idx" ON "professions" USING btree ("is_active");--> statement-breakpoint
-CREATE UNIQUE INDEX "professions_slug_unique" ON "professions" USING btree ("slug");--> statement-breakpoint
 CREATE INDEX "sources_source_type_idx" ON "sources" USING btree ("source_type");--> statement-breakpoint
 CREATE INDEX "sources_is_active_idx" ON "sources" USING btree ("is_active");--> statement-breakpoint
 CREATE UNIQUE INDEX "sources_name_unique" ON "sources" USING btree ("name");

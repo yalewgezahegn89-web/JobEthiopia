@@ -6,42 +6,74 @@ import { isStaffRole } from "@/lib/auth/roles";
 import {
   getOwnedApplicationDetail,
   getCandidateApplicationHistory,
+  type ApplicationStatus,
 } from "@/lib/applications/dal";
 import { ApplicationWithdraw } from "@/components/applications/withdraw-button";
 import { ResumeForm } from "@/components/applications/resume-form";
+import { ApplicationStatusBadge, getStatusLabel } from "@/components/applications/status-badge";
+import { ApplicationStatusProgress } from "@/components/applications/status-progress";
 import { getOwnedCandidateResume } from "@/lib/resume/dal";
+import { Breadcrumb } from "@/components/public/breadcrumb";
+import {
+  BuildingIcon,
+  CalendarIcon,
+  CheckIcon,
+  ArrowRightIcon,
+} from "@/components/public/icons";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Application | JobEthiopia",
-  description: "Your application details on JobEthiopia.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getI18n();
+  return {
+    title: t.applications.detail.pageTitle,
+    description: t.applications.detail.metaDescription,
+  };
+}
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-function formatDateTime(value: Date): string {
+function formatDateTime(value: Date, locale: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return `${date.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  })} · ${date.toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  })}`;
+  try {
+    const intlLocale = locale === "am" ? "am-ET" : locale === "om" ? "om-ET" : "en-US";
+    return `${new Intl.DateTimeFormat(intlLocale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    }).format(date)} · ${new Intl.DateTimeFormat(intlLocale, {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date)}`;
+  } catch {
+    return "";
+  }
 }
 
-function actionLabel(action: string): string {
+function resolveLabel(key: string, t: Record<string, unknown>): string {
+  const parts = key.split(".");
+  let obj: unknown = t;
+  for (const p of parts) {
+    if (obj && typeof obj === "object" && p in obj) {
+      obj = (obj as Record<string, unknown>)[p];
+    } else {
+      return key;
+    }
+  }
+  return typeof obj === "string" ? obj : key;
+}
+
+function actionLabel(action: string, t: Record<string, unknown>): string {
   switch (action) {
     case "APPLICATION_SUBMITTED":
-      return "Application submitted";
+      return resolveLabel("applications.detail.submittedAction", t);
     case "APPLICATION_WITHDRAWN":
-      return "Application withdrawn";
+      return resolveLabel("applications.detail.withdrawnAction", t);
     case "APPLICATION_STATUS_CHANGED":
-      return "Status updated";
+      return resolveLabel("applications.detail.statusChangedAction", t);
     default:
       return action;
   }
@@ -49,12 +81,89 @@ function actionLabel(action: string): string {
 
 function historyDetail(
   entry: { action: string; previousStatus: string | null; newStatus: string | null },
+  t: Record<string, unknown>,
 ): string | null {
   if (entry.previousStatus && entry.newStatus) {
-    return `${entry.previousStatus} → ${entry.newStatus}`;
+    const prevLabel = getStatusLabel(entry.previousStatus as ApplicationStatus, (key: string) => resolveLabel(key, t));
+    const newLabel = getStatusLabel(entry.newStatus as ApplicationStatus, (key: string) => resolveLabel(key, t));
+    return `${prevLabel} → ${newLabel}`;
   }
-  if (entry.newStatus) return entry.newStatus;
+  if (entry.newStatus) {
+    return getStatusLabel(entry.newStatus as ApplicationStatus, (key: string) => resolveLabel(key, t));
+  }
   return null;
+}
+
+function actorInitials(name: string | null | undefined): string {
+  if (!name) return "?";
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+function TimelineMarker({
+  action,
+}: {
+  action: string;
+}) {
+  if (action === "APPLICATION_SUBMITTED") {
+    return (
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary-light text-primary">
+        <CheckIcon className="h-4 w-4" />
+      </span>
+    );
+  }
+  if (action === "APPLICATION_WITHDRAWN") {
+    return (
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-raised text-muted">
+        <MinusIcon className="h-4 w-4" />
+      </span>
+    );
+  }
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent-light text-warning">
+      <RefreshIcon className="h-4 w-4" />
+    </span>
+  );
+}
+
+function MinusIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M8 12h8" />
+    </svg>
+  );
+}
+
+function RefreshIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M3 21v-5h5" />
+    </svg>
+  );
 }
 
 export default async function ApplicationDetailPage({
@@ -63,6 +172,8 @@ export default async function ApplicationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const t = await getI18n();
+  const locale = await getCurrentLocale();
 
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -82,65 +193,153 @@ export default async function ApplicationDetailPage({
   const history = await getCandidateApplicationHistory(id);
   const resume = await getOwnedCandidateResume(id, user.id);
 
-  const canWithdraw = detail.status === "SUBMITTED" || detail.status === "REVIEWING";
+  const canWithdraw =
+    detail.status === "SUBMITTED" || detail.status === "REVIEWING";
+  const status = detail.status as ApplicationStatus;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-8">
-      <Link
-        href="/applications"
-        className="text-sm font-semibold text-blue-600 hover:underline dark:text-blue-400"
-      >
-        &larr; Back to My Applications
-      </Link>
+    <div className="mx-auto w-full max-w-3xl px-4 py-8 sm:py-10">
+      <Breadcrumb
+        items={[
+          { label: t.common.home, href: "/" },
+          { label: t.applications.breadcrumbMyApplications, href: "/applications" },
+          { label: detail.jobTitle },
+        ]}
+        t={t}
+      />
 
-      <article className="mt-4">
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">{detail.jobTitle}</h1>
-            <p className="mt-1 text-gray-700 dark:text-gray-200">
-              {detail.organizationName ?? "Unknown organization"}
-            </p>
+      <header className="mt-5 overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
+        <div className="h-1.5 w-full bg-primary" aria-hidden="true" />
+        <div className="p-6 sm:p-7">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary-light text-lg font-bold text-primary">
+                {actorInitials(detail.organizationName)}
+              </span>
+              <div className="min-w-0">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wider text-primary">
+                  {t.applications.detail.breadcrumbJobApplication}
+                </p>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                  {detail.jobTitle}
+                </h1>
+                <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">
+                  <BuildingIcon className="h-4 w-4 text-subtle" />
+                  {detail.organizationName ?? "Unknown organization"}
+                </p>
+              </div>
+            </div>
+            <ApplicationStatusBadge
+              status={status}
+              label={getStatusLabel(status, (key: string) => resolveLabel(key, t as unknown as Record<string, unknown>))}
+              className="shrink-0 text-sm"
+            />
           </div>
-          <span className="inline-flex rounded-md bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
-            {detail.status}
-          </span>
-        </header>
 
-        <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
-          <div className="flex justify-between gap-4 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-800">
-            <dt className="text-gray-500 dark:text-gray-400">Submitted</dt>
-            <dd className="font-semibold">{formatDateTime(detail.createdAt)}</dd>
-          </div>
-          <div className="flex justify-between gap-4 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-800">
-            <dt className="text-gray-500 dark:text-gray-400">Last updated</dt>
-            <dd className="font-semibold">{formatDateTime(detail.updatedAt)}</dd>
-          </div>
-        </dl>
-
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Link
-            href={`/jobs/${detail.jobId}`}
-            className="inline-flex items-center justify-center rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500 dark:bg-blue-700 dark:hover:bg-blue-600"
-          >
-            View job
-          </Link>
-          {canWithdraw && (
-            <ApplicationWithdraw applicationId={detail.id} />
-          )}
+          <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-subtle">
+                {t.applications.detail.submittedLabel}
+              </dt>
+              <dd className="mt-0.5 inline-flex items-center gap-1.5 font-medium text-foreground">
+                <CalendarIcon className="h-4 w-4 text-subtle" />
+                {formatDateTime(detail.createdAt, locale)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs font-medium uppercase tracking-wide text-subtle">
+                {t.applications.detail.lastUpdatedLabel}
+              </dt>
+              <dd className="mt-0.5 inline-flex items-center gap-1.5 font-medium text-foreground">
+                <CalendarIcon className="h-4 w-4 text-subtle" />
+                {formatDateTime(detail.updatedAt, locale)}
+              </dd>
+            </div>
+          </dl>
         </div>
+      </header>
 
-        {detail.coverLetter && (
-          <section className="mt-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-              Cover letter
-            </h2>
-            <p className="mt-2 whitespace-pre-line rounded-md border border-gray-200 p-4 text-sm leading-6 text-gray-700 dark:border-gray-800 dark:text-gray-200">
+      <section aria-labelledby="status-heading" className="mt-6">
+        <h2
+          id="status-heading"
+          className="text-base font-semibold tracking-tight text-foreground"
+        >
+          {t.applications.detail.statusHeading}
+        </h2>
+        <div className="mt-3">
+          <ApplicationStatusProgress
+            status={status}
+            t={(key: string) => resolveLabel(key, t as unknown as Record<string, unknown>)}
+          />
+        </div>
+      </section>
+
+      {history.length > 0 && (
+        <section aria-labelledby="history-heading" className="mt-8">
+          <h2
+            id="history-heading"
+            className="text-base font-semibold tracking-tight text-foreground"
+          >
+            {t.applications.detail.historyHeading}
+          </h2>
+          <ol
+            className="mt-4 space-y-0"
+            aria-label="Application history"
+          >
+            {history.map((entry, index) => {
+              const detailText = historyDetail(entry, t);
+              const isLast = index === history.length - 1;
+              return (
+                <li key={`${entry.action}-${index}`} className="relative flex gap-4">
+                  {!isLast && (
+                    <span
+                      aria-hidden="true"
+                      className="absolute left-4 top-8 h-full w-0.5 bg-border"
+                    />
+                  )}
+                  <TimelineMarker action={entry.action} />
+                  <div className="pb-6">
+                    <p className="text-sm font-semibold text-foreground">
+                      {actionLabel(entry.action, t)}
+                    </p>
+                    {detailText && (
+                      <p className="mt-0.5 text-sm text-muted">{detailText}</p>
+                    )}
+                    <p className="mt-1 text-xs text-subtle">
+                      {formatDateTime(entry.timestamp, locale)}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
+
+      {detail.coverLetter && (
+        <section aria-labelledby="cover-letter-heading" className="mt-8">
+          <h2
+            id="cover-letter-heading"
+            className="text-base font-semibold tracking-tight text-foreground"
+          >
+            {t.applications.detail.coverLetterHeading}
+          </h2>
+          <div className="mt-3 rounded-xl border border-border bg-surface px-5 py-4 shadow-sm">
+            <p className="whitespace-pre-line text-sm leading-7 text-foreground">
               {detail.coverLetter}
             </p>
-          </section>
-        )}
+          </div>
+        </section>
+      )}
 
-        <section className="mt-6 rounded-md border border-gray-200 p-4 dark:border-gray-800">
+      <section aria-labelledby="resume-heading" className="mt-8">
+        <h2
+          id="resume-heading"
+          className="text-base font-semibold tracking-tight text-foreground"
+        >
+          {t.applications.detail.resumeHeading}
+        </h2>
+        <div className="mt-3 rounded-xl border border-border bg-surface px-5 py-4 shadow-sm">
           <ResumeForm
             applicationId={detail.id}
             current={
@@ -153,39 +352,25 @@ export default async function ApplicationDetailPage({
                 : null
             }
           />
-        </section>
-      </article>
+        </div>
+      </section>
 
-      {history.length > 0 && (
-        <section className="mt-8">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-            Application history
-          </h2>
-          <ul className="mt-3 space-y-3">
-            {history.map((entry, index) => {
-              const detailText = historyDetail(entry);
-              return (
-                <li
-                  key={`${entry.action}-${index}`}
-                  className="flex items-start justify-between gap-4 rounded-lg border border-gray-200 p-4 dark:border-gray-800"
-                >
-                  <div>
-                    <p className="font-semibold">{actionLabel(entry.action)}</p>
-                    {detailText && (
-                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                        {detailText}
-                      </p>
-                    )}
-                  </div>
-                  <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                    {formatDateTime(entry.timestamp)}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      <section
+        aria-labelledby="application-actions-heading"
+        className="mt-8 flex flex-wrap items-center gap-3 border-t border-border pt-6"
+      >
+        <h2 id="application-actions-heading" className="sr-only">
+          {t.applications.detail.actionsHeading}
+        </h2>
+        <Link
+          href={`/jobs/${detail.jobId}`}
+          className="focus-visible:outline-2 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
+        >
+          {t.applications.detail.viewJobCta}
+          <ArrowRightIcon className="h-4 w-4" />
+        </Link>
+        {canWithdraw && <ApplicationWithdraw applicationId={detail.id} />}
+      </section>
     </div>
   );
 }

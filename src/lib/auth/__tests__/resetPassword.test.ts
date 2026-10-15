@@ -44,6 +44,7 @@ import {
   forgotPasswordRateLimited,
   resetAttemptRateLimited,
   equalizeUnknownEmailWork,
+  EQUALIZER_PASSWORD_HASH,
 } from "../resetPassword";
 import { hashPassword } from "../password";
 
@@ -148,6 +149,15 @@ describe("rate limiting", () => {
 describe("equalizeUnknownEmailWork", () => {
   it("resolves without throwing", async () => {
     await expect(equalizeUnknownEmailWork()).resolves.toBeUndefined();
+  });
+  it("uses a real scrypt hash so timing work is actually burned", () => {
+    const parts = EQUALIZER_PASSWORD_HASH.split("$");
+    expect(parts).toHaveLength(6);
+    expect(parts[0]).toBe("scrypt");
+    expect(Number(parts[1])).toBeGreaterThan(0);
+    expect(Number(parts[2])).toBeGreaterThan(0);
+    expect(parts[4].length).toBeGreaterThan(0);
+    expect(parts[5].length).toBeGreaterThan(0);
   });
 });
 
