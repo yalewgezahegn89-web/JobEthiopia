@@ -90,7 +90,7 @@ export default async function NotificationsPage({
               {t.notifications.subtitle}
             </p>
           </div>
-          {unreadCount > 0 && <MarkAllReadButton t={t.notifications} />}
+          {unreadCount > 0 && <MarkAllReadButton />}
         </div>
       </header>
 
@@ -169,7 +169,6 @@ export default async function NotificationsPage({
               readAt: n.readAt ? n.readAt.toISOString() : null,
               createdAt: n.createdAt.toISOString(),
             }))}
-            t={t.notifications}
           />
 
           {totalPages > 1 && (

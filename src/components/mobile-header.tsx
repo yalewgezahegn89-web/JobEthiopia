@@ -79,7 +79,7 @@ export function MobileHeader({
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 md:hidden" data-testid="mobile-menu-panel">
+        <div className="fixed inset-0 z-50 xl:hidden" data-testid="mobile-menu-panel">
           <div
             className="absolute inset-0 bg-black/20 backdrop-blur-sm"
             onClick={close}

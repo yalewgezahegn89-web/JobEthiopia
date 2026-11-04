@@ -190,6 +190,30 @@ describe("Homepage", () => {
     expect(html).toContain("Trusted Ethiopian job marketplace");
   });
 
+  it("hides the decorative hero grid below xl while keeping it aria-hidden", async () => {
+    const html = await renderHome();
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain("pointer-events-none absolute inset-0 -z-0");
+
+    const gridStart = html.indexOf('viewBox="0 0 200 200"');
+    expect(gridStart).toBeGreaterThan(-1);
+    const svgStart = html.lastIndexOf("<svg", gridStart);
+    const svgTag = html.slice(svgStart, html.indexOf(">", gridStart));
+    expect(svgTag).toContain("hidden");
+    expect(svgTag).toContain("xl:block");
+    expect(svgTag).toContain("text-primary/5");
+  });
+
+  it("keeps the hero heading, supporting paragraph, and search form visible", async () => {
+    const html = await renderHome();
+    expect(html).toContain("Find your next");
+    expect(html).toContain(
+      "Discover fresh, relevant, and trustworthy job openings",
+    );
+    expect(html).toContain('aria-label="Search jobs"');
+    expect(html).toContain('action="/jobs"');
+  });
+
   it("renders a working search form submitting to /jobs", async () => {
     const html = await renderHome();
     expect(html).toContain('action="/jobs"');

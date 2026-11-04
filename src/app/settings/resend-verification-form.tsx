@@ -3,15 +3,14 @@
 import { useActionState } from "react";
 import { resendEmailVerificationAction } from "./actions";
 import type { SettingsActionResult } from "./types";
-import type { Dictionary } from "@/lib/i18n/dictionary";
+import { useI18n } from "@/lib/i18n/client";
 
 export function ResendVerificationForm({
-  t,
   className = "",
 }: {
-  t: Dictionary;
   className?: string;
 }) {
+  const { t } = useI18n();
   const [state, formAction, isPending] = useActionState<
     SettingsActionResult,
     FormData

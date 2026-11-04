@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { resubmitEmployerOnboardingAction } from "./actions";
 import type { EmployerResubmitActionState } from "./actions";
-import type { Dictionary } from "@/lib/i18n/dictionary";
+import { useI18n } from "@/lib/i18n/client";
 
 const initialState: EmployerResubmitActionState = {};
 
@@ -12,7 +12,8 @@ const inputClass =
 
 const labelClass = "block text-sm font-medium text-foreground";
 
-export function EmployerResubmitForm({ t }: { t: Dictionary }) {
+export function EmployerResubmitForm() {
+  const { t } = useI18n();
   const [state, formAction, isPending] = useActionState<
     EmployerResubmitActionState,
     FormData

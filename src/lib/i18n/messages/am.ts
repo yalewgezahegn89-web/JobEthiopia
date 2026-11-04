@@ -1131,4 +1131,12 @@ primaryNavLabel: "ዋና",
   footer: {
     footerNavLabel: "የግርጌ አሰሳ",
   },
+  googleAuth: {
+    divider: "ወይም",
+    button: "በGoogle ይግቡ",
+    hint: "በGoogle መለያዎ በደህንነት ይግቡ።",
+    error: "በGoogle መግባት አልተሳካም። እንደገና ይሞክሩ ወይም በኢሜይል ይግቡ።",
+    conflict:
+      "በዚህ ኢሜይል የተመዘገበ መለያ አስቀድሞ አለ። እባክዎ በነባር መንገድዎ ይግቡ።",
+  },
 };

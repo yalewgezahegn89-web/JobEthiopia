@@ -68,6 +68,7 @@ const TOP_LEVEL_KEYS = [
   "loading",
   "settings",
   "verifyEmail",
+  "googleAuth",
 ] as const;
 
 describe("locale allowlist", () => {

@@ -1147,4 +1147,13 @@ export const en = {
   footer: {
     footerNavLabel: "Footer",
   },
+  googleAuth: {
+    divider: "OR",
+    button: "Continue with Google",
+    hint: "Sign in securely with your Google account.",
+    error:
+      "Google sign-in could not be completed. Please try again or use email and password.",
+    conflict:
+      "An account with this email already exists. Please sign in with your existing method.",
+  },
 };

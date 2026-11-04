@@ -7,7 +7,7 @@ import { listApplicationsForCandidate } from "@/lib/applications/dal";
 import { ApplicationHistory } from "@/components/applications/history";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { BuildingIcon } from "@/components/public/icons";
-import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import { getI18n } from "@/lib/i18n/server";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,6 @@ export default async function ApplicationsPage() {
     redirect("/jobs");
   }
   const t = await getI18n();
-  const locale = await getCurrentLocale();
 
   let items: Awaited<ReturnType<typeof listApplicationsForCandidate>>["items"] = [];
   let loadError = false;
@@ -83,7 +82,7 @@ export default async function ApplicationsPage() {
             </p>
           )}
 
-          <ApplicationHistory items={items} t={t} locale={locale} />
+          <ApplicationHistory items={items} />
         </>
       )}
     </div>

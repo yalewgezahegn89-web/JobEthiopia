@@ -17,7 +17,7 @@ export default async function EmployerRegisterPage() {
           {t.employerAuth.registerSubtitle}
         </p>
       </div>
-      <EmployerRegisterForm t={t} />
+      <EmployerRegisterForm />
       <div className="flex flex-col items-center gap-2">
         <Link href="/login" className="text-sm text-muted underline">
           {t.employerAuth.registerSignIn}

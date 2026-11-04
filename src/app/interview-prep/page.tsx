@@ -103,13 +103,6 @@ export default async function InterviewPrepPage({
         <PrepChecklist
           checklistId={jobId ? `job:${jobId}` : "generic"}
           sections={sections}
-          labels={{
-            title: ip.checklistTitle,
-            hint: ip.checklistHint,
-            progress: ip.progress,
-            reset: ip.resetCta,
-            done: ip.allDone,
-          }}
         />
       </div>
     </div>

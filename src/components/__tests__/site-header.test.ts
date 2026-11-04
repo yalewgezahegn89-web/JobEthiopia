@@ -1,6 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { dictionaries } from "@/lib/i18n/dictionary";
 import { I18nProvider } from "@/lib/i18n/client";
 
@@ -34,6 +36,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import SiteHeader from "@/components/site-header";
+import { MobileHeader } from "@/components/mobile-header";
 
 const CANDIDATE = {
   id: "11111111-1111-4111-8111-111111111111",
@@ -58,6 +61,10 @@ beforeEach(() => {
   mocks.mockPathname.mockReturnValue("/");
 });
 
+afterEach(() => {
+  cleanup();
+});
+
 describe("SiteHeader", () => {
   it("guest sees public navigation and Login", async () => {
     const html = await renderHeader();
@@ -80,6 +87,23 @@ describe("SiteHeader", () => {
     expect(html).toContain('href="/register"');
     expect(html).toContain("For Employers");
     expect(html).toContain('href="/employer/register"');
+  });
+
+  it("switches desktop navigation and actions on at xl only", async () => {
+    const html = await renderHeader();
+    expect(html).toContain("hidden min-w-0 items-center gap-1.5 xl:flex");
+    expect(html).toContain("hidden shrink-0 items-center gap-2 xl:flex");
+    expect(html).toContain('<div class="xl:hidden">');
+    expect(html).not.toContain("lg:flex");
+    expect(html).not.toContain("lg:hidden");
+  });
+
+  it("prevents desktop navigation and action labels from wrapping", async () => {
+    const html = await renderHeader();
+    for (const href of ["/", "/jobs", "/employer/register", "/login", "/register"]) {
+      const anchor = html.match(new RegExp(`<a[^>]*href="${href}"[^>]*>`))?.[0] ?? "";
+      expect(anchor).toContain("whitespace-nowrap");
+    }
   });
 
   it("candidate sees public navigation plus candidate links and Logout", async () => {
@@ -182,5 +206,28 @@ describe("SiteHeader", () => {
     const html = await renderHeader();
     expect(html).not.toContain("mobile-menu-panel");
     expect(html).not.toContain('aria-modal="true"');
+  });
+});
+
+describe("MobileHeader", () => {
+  it("uses the same xl breakpoint for the opened panel as its trigger", () => {
+    render(
+      // eslint-disable-next-line react/no-children-prop -- I18nProvider requires an explicit children prop in createElement
+      createElement(I18nProvider, {
+        locale: "en",
+        children: createElement(MobileHeader, {
+          userInfo: null,
+          roleLinks: [],
+          primaryLinks: [{ href: "/", label: "Home" }],
+          anonymousLinks: [{ href: "/login", label: "Login" }],
+        }),
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open menu" }));
+    const panel = screen.getByTestId("mobile-menu-panel");
+    expect(panel.className).toContain("xl:hidden");
+    expect(panel.className).not.toContain("md:hidden");
+    expect(panel.className).not.toContain("lg:hidden");
   });
 });

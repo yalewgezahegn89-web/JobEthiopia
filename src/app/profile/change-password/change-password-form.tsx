@@ -3,15 +3,14 @@
 import { useActionState } from "react";
 import { changePasswordAction } from "./actions";
 import type { ChangePasswordActionState } from "./types";
-import type { Dictionary } from "@/lib/i18n/dictionary";
+import { useI18n } from "@/lib/i18n/client";
 
 export default function ChangePasswordForm({
   initialState: initial = {},
-  t,
 }: {
   initialState?: ChangePasswordActionState;
-  t: Dictionary;
 }) {
+  const { t } = useI18n();
   const [state, formAction, isPending] = useActionState<
     ChangePasswordActionState,
     FormData

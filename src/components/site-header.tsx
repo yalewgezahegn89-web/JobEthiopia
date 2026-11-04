@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth/context";
 import { isStaffRole } from "@/lib/auth/roles";
-import { HeaderNavLink, HeaderNavItems } from "@/components/site-header-nav";
+import { HeaderNavLink } from "@/components/site-header-nav";
+import { AccountMenu } from "@/components/account-menu";
 import { BrandMark } from "@/components/ui/brand-mark";
 import { MobileHeader } from "@/components/mobile-header";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -72,11 +73,11 @@ const candidateLinks = [
     <>
       <header className="border-b border-border-subtle bg-background">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2.5">
+          <div className="flex shrink-0 items-center gap-2.5">
             <BrandMark size={28} />
             <Link
               href="/"
-              className="text-lg font-bold tracking-tight text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              className="whitespace-nowrap text-lg font-bold tracking-tight text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {t.common.brand}
             </Link>
@@ -84,7 +85,7 @@ const candidateLinks = [
 
           <nav
             aria-label={t.nav.primaryNavLabel}
-            className="hidden items-center gap-2 lg:flex"
+            className="hidden min-w-0 items-center gap-1.5 xl:flex"
           >
             <ul className="flex items-center">
               {primaryLinks.map((link) => (
@@ -105,57 +106,43 @@ const candidateLinks = [
             </ul>
           </nav>
 
-          <div className="hidden items-center gap-3 lg:flex">
+          <div className="hidden shrink-0 items-center gap-2 xl:flex">
             <LanguageSwitcher />
-            <nav aria-label={t.nav.accountNavLabel}>
-              <ul className="flex items-center gap-x-2">
-                {user ? (
-                  <>
-                    <HeaderNavItems links={roleLinks} />
-                    <li>
-                      <form action="/logout" method="POST">
-                        <button
-                          type="submit"
-                          className="text-sm font-medium text-muted hover:text-destructive transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                        >
-                          {t.nav.logOut}
-                        </button>
-                      </form>
-                    </li>
-                  </>
-                ) : (
-                  <>
-                    <li>
-                      <Link
-                        href="/employer/register"
-                        className="text-sm font-medium text-muted hover:text-foreground transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                      >
-                        {t.nav.forEmployers}
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        href="/login"
-                        className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised hover:border-border shadow-sm hover:shadow-md transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                      >
-                        {t.nav.login}
-                      </Link>
-                    </li>
-                    <li>
-                      <Link
-                        href="/register"
-                        className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover shadow-sm hover:shadow-md transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-                      >
-                        {t.nav.signUp}
-                      </Link>
-                    </li>
-                  </>
-                )}
-              </ul>
-            </nav>
+            {user ? (
+              <AccountMenu userName={user.name ?? ""} links={roleLinks} />
+            ) : (
+              <nav aria-label={t.nav.accountNavLabel}>
+                <ul className="flex items-center gap-x-2">
+                  <li>
+                    <Link
+                      href="/employer/register"
+                      className="whitespace-nowrap text-sm font-medium text-muted hover:text-foreground transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    >
+                      {t.nav.forEmployers}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/login"
+                      className="whitespace-nowrap rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised hover:border-border shadow-sm hover:shadow-md transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    >
+                      {t.nav.login}
+                    </Link>
+                  </li>
+                  <li>
+                    <Link
+                      href="/register"
+                      className="whitespace-nowrap rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover shadow-sm hover:shadow-md transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                    >
+                      {t.nav.signUp}
+                    </Link>
+                  </li>
+                </ul>
+              </nav>
+            )}
           </div>
 
-          <div className="lg:hidden">
+          <div className="xl:hidden">
             <MobileHeader
               userInfo={userInfo}
               roleLinks={roleLinks}

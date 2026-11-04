@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { revokeOtherSessionsAction, revokeSessionAction } from "./actions";
 import type { SettingsActionResult } from "./types";
+import { useI18n } from "@/lib/i18n/client";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 
 export type SettingsSession = {
@@ -75,12 +76,11 @@ function SessionRow({
 export function SessionsManager({
   sessions,
   currentSessionId,
-  t,
 }: {
   sessions: SettingsSession[];
   currentSessionId: string;
-  t: Dictionary;
 }) {
+  const { t } = useI18n();
   const [otherState, otherFormAction, otherPending] = useActionState<
     SettingsActionResult,
     FormData

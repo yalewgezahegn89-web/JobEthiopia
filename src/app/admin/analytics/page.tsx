@@ -48,7 +48,7 @@ export default async function AdminAnalyticsPage({
             {t.adminAnalytics.loadError}
           </p>
         ) : (
-          <AnalyticsDashboard summary={summary!} t={t} />
+          <AnalyticsDashboard summary={summary!} />
         )}
       </main>
     </div>

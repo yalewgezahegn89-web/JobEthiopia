@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { CandidateApplicationListItem } from "@/lib/applications/dal";
+import { useI18n } from "@/lib/i18n/client";
 import Link from "next/link";
 import { ApplicationStatusBadge, getStatusLabel } from "@/components/applications/status-badge";
 import { BuildingIcon, CalendarIcon, ArrowRightIcon } from "@/components/public/icons";
@@ -21,14 +22,11 @@ function resolveLabel(key: string, t: Record<string, unknown>): string {
 
 export function ApplicationHistory({
   items,
-  t,
-  locale = "en",
 }: {
   items: CandidateApplicationListItem[];
-  t: Record<string, unknown>;
-  locale?: string;
 }) {
-  const applications = t.applications as Record<string, unknown>;
+  const { t, locale } = useI18n();
+  const applications = t.applications;
   const [withdrawState, setWithdrawState] = useState<
     Record<string, "working" | "done" | "failed">
   >({});
@@ -118,7 +116,9 @@ export function ApplicationHistory({
               </div>
               <ApplicationStatusBadge
                 status={item.status}
-                label={getStatusLabel(item.status, (key: string) => resolveLabel(key, t) as string)}
+                label={getStatusLabel(item.status, (key: string) =>
+                  resolveLabel(key, t),
+                )}
                 className="shrink-0"
               />
             </div>
@@ -126,12 +126,12 @@ export function ApplicationHistory({
             <div className="mt-3 text-xs text-subtle">
               <span className="inline-flex items-center gap-1.5">
                 <CalendarIcon className="h-3.5 w-3.5" />
-                {(applications.appliedDate as (d: string) => string)(formatDateLocale(item.createdAt))}
+                {applications.appliedDate(formatDateLocale(item.createdAt))}
               </span>
               {item.status === "WITHDRAWN" && (
                 <span className="ml-3 inline-flex items-center gap-1.5">
                   <CalendarIcon className="h-3.5 w-3.5" />
-                  {(applications.withdrawnDate as (d: string) => string)(formatDateLocale(item.updatedAt))}
+                  {applications.withdrawnDate(formatDateLocale(item.updatedAt))}
                 </span>
               )}
             </div>

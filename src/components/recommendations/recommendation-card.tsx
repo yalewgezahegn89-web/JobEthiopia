@@ -137,7 +137,7 @@ export default function RecommendationCard({
       </div>
       <JobCard job={item.job} t={t} />
       <div className="mt-3 flex justify-end">
-        <RecommendationFeedback jobId={item.job.id} t={t} />
+        <RecommendationFeedback jobId={item.job.id} />
       </div>
     </section>
   );

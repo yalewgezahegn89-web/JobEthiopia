@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/lib/i18n/client";
 
-type Props = {
-  t: { markAllRead: string; markAllReadSuccess: string };
-};
-
-export function MarkAllReadButton({ t }: Props) {
+export function MarkAllReadButton() {
+  const { t: messages } = useI18n();
+  const t = messages.notifications;
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
 

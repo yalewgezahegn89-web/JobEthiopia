@@ -1134,4 +1134,12 @@ cv: {
   footer: {
     footerNavLabel: "Baqqii gubbaa",
   },
+  googleAuth: {
+    divider: "YKN",
+    button: "Google waliin seeni",
+    hint: "Herrega Google kee fayyadamuun nagaadhaan seeni.",
+    error: "Google waliin seenuun hin milkoofne. Irra deebi'ii yaali yookaan imeelii fi jecha icciitii fayyadami.",
+    conflict:
+      "Herregni email kanaan dursee jira. Mee mala itti fayyadamtu duraanii fayyadamuun seeni.",
+  },
 };

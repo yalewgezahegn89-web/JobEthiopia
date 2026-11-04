@@ -3,9 +3,10 @@
 import { useActionState } from "react";
 import { changeEmailAction } from "./actions";
 import type { SettingsActionResult } from "./types";
-import type { Dictionary } from "@/lib/i18n/dictionary";
+import { useI18n } from "@/lib/i18n/client";
 
-export function ChangeEmailForm({ t }: { t: Dictionary }) {
+export function ChangeEmailForm() {
+  const { t } = useI18n();
   const [state, formAction, isPending] = useActionState<
     SettingsActionResult,
     FormData
