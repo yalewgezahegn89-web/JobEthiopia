@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { GaxiosOptionsPrepared, GaxiosResponse } from "gaxios";
 import { NextRequest } from "next/server";
 import {
   GOOGLE_OAUTH_COOKIE_MAX_AGE,
@@ -198,6 +199,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
 });
 
 describe("GET /api/auth/google/start", () => {
@@ -346,6 +348,220 @@ describe("GET /api/auth/google/callback", () => {
     info.mockRestore();
     warn.mockRestore();
     error.mockRestore();
+  });
+
+  it("applies finite Google request timeouts and emits redacted stage diagnostics", async () => {
+    setOAuthCookies();
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await callbackGoogle(callbackSuccessRequest());
+
+    const logs = [...info.mock.calls, ...warn.mock.calls, ...error.mock.calls]
+      .map((call) => call.map(String).join(" "))
+      .join("\n");
+
+    expect(mocks.lastClientOptions).toMatchObject({
+      transporterOptions: {
+        timeout: 10_000,
+        retryConfig: { totalTimeout: 30_000 },
+      },
+    });
+    for (const stage of [
+      "validation",
+      "token_exchange",
+      "id_token_verification",
+      "account_lookup",
+      "account_creation",
+      "session_creation",
+      "redirect",
+    ]) {
+      expect(logs).toContain(`stage=${stage}`);
+    }
+    expect(logs).toMatch(
+      /stage=token_exchange event=completed elapsedMs=\d+/,
+    );
+    expect(logs).toContain(
+      "stage=redirect event=completed outcome=success destination=/jobs",
+    );
+    for (const secret of [
+      VALID_CODE,
+      VALID_STATE,
+      VALID_VERIFIER,
+      VALID_NONCE,
+      ID_TOKEN,
+      ACCESS_TOKEN,
+      "client-secret",
+    ]) {
+      expect(logs).not.toContain(secret);
+    }
+  });
+
+  it("applies the route transport options to the effective Gaxios request", async () => {
+    setOAuthCookies();
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await callbackGoogle(callbackSuccessRequest());
+
+    expect(mocks.lastClientOptions).not.toHaveProperty("transporter");
+
+    const routeOptions = mocks.lastClientOptions as {
+      clientId: string;
+      clientSecret: string;
+      redirectUri: string;
+      transporterOptions: {
+        timeout: number;
+        retryConfig: { totalTimeout: number };
+      };
+    };
+    const { OAuth2Client: RealOAuth2Client } = await vi.importActual<
+      typeof import("google-auth-library")
+    >("google-auth-library");
+    const captured: GaxiosOptionsPrepared[] = [];
+    const client = new RealOAuth2Client({
+      ...routeOptions,
+      transporterOptions: {
+        ...routeOptions.transporterOptions,
+        adapter: async <T,>(
+          requestOptions: GaxiosOptionsPrepared,
+        ): Promise<GaxiosResponse<T>> => {
+          captured.push(requestOptions);
+          return Object.assign(new Response(null, { status: 200 }), {
+            config: requestOptions,
+            data: {
+              id_token: ID_TOKEN,
+              access_token: ACCESS_TOKEN,
+            } as T,
+          });
+        },
+      },
+    });
+
+    await client.getToken({
+      code: VALID_CODE,
+      codeVerifier: VALID_VERIFIER,
+      redirect_uri: routeOptions.redirectUri,
+    });
+
+    expect(client.transporter.defaults).toMatchObject({
+      timeout: 10_000,
+      retryConfig: { totalTimeout: 30_000 },
+    });
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).toMatchObject({
+      method: "POST",
+      timeout: 10_000,
+      retry: true,
+      retryConfig: {
+        totalTimeout: 30_000,
+        httpMethodsToRetry: [
+          "GET",
+          "PUT",
+          "POST",
+          "HEAD",
+          "OPTIONS",
+          "DELETE",
+        ],
+      },
+    });
+    expect(captured[0].signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("logs a safe classification when token exchange times out", async () => {
+    setOAuthCookies();
+    const exchangeError = Object.assign(
+      new Error(
+        `failed ${VALID_CODE} ${VALID_STATE} ${VALID_VERIFIER} ${VALID_NONCE} ${ID_TOKEN} ${ACCESS_TOKEN} client-secret`,
+      ),
+      {
+        name: "TimeoutError",
+        code: "ETIMEDOUT",
+        status: 504,
+      },
+    );
+    mocks.getToken.mockRejectedValue(exchangeError);
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await callbackGoogle(callbackSuccessRequest());
+
+    const logs = [...info.mock.calls, ...error.mock.calls]
+      .map((call) => call.map(String).join(" "))
+      .join("\n");
+
+    expect(locationOf(response).searchParams.get("googleError")).toBe("1");
+    expect(logs).toContain("stage=token_exchange event=failed");
+    expect(logs).toContain("errorName=TimeoutError");
+    expect(logs).toContain("code=ETIMEDOUT");
+    expect(logs).toContain("status=504");
+    expect(logs).toContain(
+      "stage=redirect event=completed outcome=failure destination=/login",
+    );
+    for (const secret of [
+      VALID_CODE,
+      VALID_STATE,
+      VALID_VERIFIER,
+      VALID_NONCE,
+      ID_TOKEN,
+      ACCESS_TOKEN,
+      "client-secret",
+    ]) {
+      expect(logs).not.toContain(secret);
+    }
+  });
+
+  it("classifies ID-token verification failures using the nested HTTP status", async () => {
+    setOAuthCookies();
+    const verifyError = Object.assign(
+      new Error(`invalid id token ${ID_TOKEN}`),
+      {
+        name: "GaxiosError",
+        code: "ERR_BAD_RESPONSE",
+        response: { status: 503 },
+      },
+    );
+    mocks.verifyIdToken.mockRejectedValue(verifyError);
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await callbackGoogle(callbackSuccessRequest());
+
+    const logs = error.mock.calls
+      .map((call) => call.map(String).join(" "))
+      .join("\n");
+
+    expect(locationOf(response).searchParams.get("googleError")).toBe("1");
+    expect(logs).toContain("stage=id_token_verification event=failed");
+    expect(logs).toContain("errorName=GaxiosError");
+    expect(logs).toContain("code=ERR_BAD_RESPONSE");
+    expect(logs).toContain("status=503");
+    expect(logs).not.toContain(ID_TOKEN);
+  });
+
+  it("logs session creation failures and redirects safely", async () => {
+    setOAuthCookies();
+    mocks.createSession.mockRejectedValue(
+      Object.assign(new Error("database unavailable"), {
+        code: "ECONNREFUSED",
+      }),
+    );
+    const info = vi.spyOn(console, "info").mockImplementation(() => {});
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const response = await callbackGoogle(callbackSuccessRequest());
+
+    const logs = [...info.mock.calls, ...error.mock.calls]
+      .map((call) => call.map(String).join(" "))
+      .join("\n");
+
+    expect(locationOf(response).searchParams.get("googleError")).toBe("1");
+    expect(logs).toContain("stage=session_creation event=failed");
+    expect(logs).toContain("code=ECONNREFUSED");
+    expect(logs).toContain(
+      "stage=redirect event=completed outcome=failure destination=/login",
+    );
   });
 
   it("handles provider cancellation without exchanging a code", async () => {
