@@ -1,3 +1,4 @@
+import { normalizeTelegramApiBaseUrl } from "./config";
 import type { TelegramBotConfig } from "./config";
 
 export type TelegramSendResult =
@@ -40,7 +41,16 @@ export async function sendTelegramMessage(
   config: TelegramBotConfig,
   text: string,
 ): Promise<TelegramSendResult> {
-  const url = `${config.apiBaseUrl.replace(/\/+$/, "")}/bot${config.botToken}/sendMessage`;
+  const apiBase = normalizeTelegramApiBaseUrl(config.apiBaseUrl);
+  if (!apiBase.ok) {
+    return {
+      ok: false,
+      retryable: false,
+      error: "Telegram API base URL is not allowed",
+    };
+  }
+
+  const url = `${apiBase.baseUrl}/bot${config.botToken}/sendMessage`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);

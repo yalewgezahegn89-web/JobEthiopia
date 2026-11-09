@@ -150,6 +150,81 @@ export const updateSourceSchema = z
   })
   .partial();
 
+export interface SourceInvariantInput {
+  sourceType?: string | null;
+  baseUrl?: string | null;
+  facebookPageId?: string | null;
+  facebookPageKind?: string | null;
+  facebookApprovalState?: string | null;
+  facebookContentUseState?: string | null;
+}
+
+/**
+ * Checks the Facebook-specific invariants that must hold after a partial
+ * update is merged with the stored source. `.partial()` alone cannot enforce
+ * these because the missing fields come from the existing row.
+ */
+export function sourceInvariantIssues(
+  source: SourceInvariantInput,
+): string[] {
+  if (source.sourceType !== "FACEBOOK") return [];
+
+  const issues: string[] = [];
+  if (!source.facebookPageId) {
+    issues.push("Facebook Page ID is required for Facebook sources");
+  }
+  if (!source.facebookPageKind) {
+    issues.push("Facebook Page kind is required for Facebook sources");
+  }
+  if (!source.baseUrl) {
+    issues.push("Facebook Page URL is required for Facebook sources");
+  }
+  if (
+    source.facebookPageKind === "EXTERNAL_PAGE" &&
+    (!source.facebookApprovalState || !source.facebookContentUseState)
+  ) {
+    issues.push(
+      "External Facebook Pages require approval and content-use metadata",
+    );
+  }
+  return issues;
+}
+
+export type MergedSourceValidation =
+  | { ok: true }
+  | { ok: false; issues: string[] };
+
+/** Validates the existing source and proposed patch as a single record. */
+export function validateMergedSourceUpdate(
+  existing: SourceInvariantInput,
+  patch: UpdateSourceInput,
+): MergedSourceValidation {
+  const merged: SourceInvariantInput = {
+    sourceType: patch.sourceType ?? existing.sourceType ?? null,
+    baseUrl:
+      patch.baseUrl !== undefined ? patch.baseUrl : (existing.baseUrl ?? null),
+    facebookPageId:
+      patch.facebookPageId !== undefined
+        ? patch.facebookPageId
+        : (existing.facebookPageId ?? null),
+    facebookPageKind:
+      patch.facebookPageKind !== undefined
+        ? patch.facebookPageKind
+        : (existing.facebookPageKind ?? null),
+    facebookApprovalState:
+      patch.facebookApprovalState !== undefined
+        ? patch.facebookApprovalState
+        : (existing.facebookApprovalState ?? null),
+    facebookContentUseState:
+      patch.facebookContentUseState !== undefined
+        ? patch.facebookContentUseState
+        : (existing.facebookContentUseState ?? null),
+  };
+
+  const issues = sourceInvariantIssues(merged);
+  return issues.length === 0 ? { ok: true } : { ok: false, issues };
+}
+
 export const createJobSchema = z
   .object({
     title: z.string().min(1, "Title is required"),

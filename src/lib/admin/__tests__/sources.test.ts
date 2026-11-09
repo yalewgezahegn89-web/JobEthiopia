@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   mockUpdate: vi.fn(),
   mockInsert: vi.fn(),
   mockDelete: vi.fn(),
+  mockMergedValidation: vi.fn(),
 }));
 
 vi.mock("@/db", () => {
@@ -55,6 +56,8 @@ vi.mock("@/lib/validations", () => ({
   updateSourceSchema: {
     safeParse: (input: unknown) => ({ success: true, data: input }),
   },
+  validateMergedSourceUpdate: (...args: unknown[]) =>
+    mocks.mockMergedValidation(...args),
 }));
 
 import {
@@ -117,6 +120,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.mockCountRows.mockResolvedValue([{ count: 0 }]);
   mocks.mockUsersSelect.mockResolvedValue([]);
+  mocks.mockMergedValidation.mockReturnValue({ ok: true });
   mocks.mockDelete.mockImplementation((_table: unknown) => ({
     where: vi.fn().mockResolvedValue(undefined),
   }));
@@ -261,6 +265,33 @@ describe("updateSource", () => {
     const result = await updateSource(VALID_ID, { name: "Dup" }, ACTOR_ID);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe("DUPLICATE");
+  });
+
+  it("returns VALIDATION when the merged source breaks Facebook invariants", async () => {
+    mocks.mockSourcesFindFirst.mockResolvedValue({
+      id: VALID_ID,
+      name: "Facebook Page",
+      sourceType: "FACEBOOK",
+      baseUrl: "https://www.facebook.com/example",
+      facebookPageId: "page-1",
+      facebookPageKind: "OWNED_PAGE",
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+    });
+    mocks.mockMergedValidation.mockReturnValue({
+      ok: false,
+      issues: ["Facebook Page ID is required for Facebook sources"],
+    });
+
+    const result = await updateSource(
+      VALID_ID,
+      { facebookPageId: null },
+      ACTOR_ID,
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("VALIDATION");
+    expect(mocks.mockMergedValidation).toHaveBeenCalled();
   });
 });
 

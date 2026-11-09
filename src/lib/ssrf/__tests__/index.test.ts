@@ -124,6 +124,7 @@ type CapturedRequestOpts = {
   path?: string;
   method?: string;
   rejectUnauthorized?: unknown;
+  headers?: Record<string, string>;
   lookup?: CapturedLookupFn;
 };
 
@@ -482,6 +483,73 @@ describe("ssrfFetch", () => {
       );
       setupRedirectThen(301, "http://evil.com/admin", 200);
       await expect(ssrfFetch("http://a.com")).rejects.toThrow(SsrfError);
+    });
+  });
+
+  describe("credential header forwarding", () => {
+    const HEADERS = { Authorization: "Bearer secret-token" };
+
+    function resolvePublic() {
+      mocks.mockResolve4.mockImplementation(
+        (h: string, cb: (err: Error | null, addrs?: string[]) => void) => {
+          if (h === "a.com") cb(null, ["8.8.8.8"]);
+          else if (h === "b.com") cb(null, ["1.1.1.1"]);
+          else cb(new Error("ENOTFOUND"));
+        },
+      );
+    }
+
+    it("forwards headers on a same-origin redirect", async () => {
+      resolvePublic();
+      const captured = setupCapturingHttp([
+        { statusCode: 302, headers: { location: "http://a.com/final" } },
+        { statusCode: 200, headers: {} },
+      ]);
+
+      await ssrfFetch("http://a.com/start", { headers: HEADERS });
+
+      expect(captured).toHaveLength(2);
+      expect(captured[0].headers).toEqual(HEADERS);
+      expect(captured[1].headers).toEqual(HEADERS);
+    });
+
+    it("drops headers when the redirect changes scheme", async () => {
+      resolvePublic();
+      const captured = setupCapturingHttp([
+        { statusCode: 302, headers: { location: "https://a.com/final" } },
+        { statusCode: 200, headers: {} },
+      ]);
+
+      await ssrfFetch("http://a.com/start", { headers: HEADERS });
+
+      expect(captured[0].headers).toEqual(HEADERS);
+      expect(captured[1].headers).toBeUndefined();
+    });
+
+    it("drops headers when the redirect changes port", async () => {
+      resolvePublic();
+      const captured = setupCapturingHttp([
+        { statusCode: 302, headers: { location: "http://a.com:8443/final" } },
+        { statusCode: 200, headers: {} },
+      ]);
+
+      await ssrfFetch("http://a.com/start", { headers: HEADERS });
+
+      expect(captured[0].headers).toEqual(HEADERS);
+      expect(captured[1].headers).toBeUndefined();
+    });
+
+    it("drops headers on a cross-host redirect", async () => {
+      resolvePublic();
+      const captured = setupCapturingHttp([
+        { statusCode: 302, headers: { location: "http://b.com/final" } },
+        { statusCode: 200, headers: {} },
+      ]);
+
+      await ssrfFetch("http://a.com/start", { headers: HEADERS });
+
+      expect(captured[0].headers).toEqual(HEADERS);
+      expect(captured[1].headers).toBeUndefined();
     });
   });
 

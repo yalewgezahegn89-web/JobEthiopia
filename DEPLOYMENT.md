@@ -23,11 +23,11 @@
 | `TRUSTED_CLIENT_IP_HEADER` | Header name overwritten by a trusted reverse proxy with the real client IP (e.g. `x-real-ip`). Only set when a proxy is in use. | No | No |
 | `INTERNAL_INGESTION_API_KEY` | Route-dedicated key for the internal ingestion endpoint (sent as `x-maintenance-key`). Falls back to `MAINTENANCE_API_KEY` when unset. | No | Yes |
 | `INTERNAL_JOB_ALERTS_API_KEY` | Route-dedicated key for the internal job-alert digest endpoint (sent as `x-maintenance-key`). Falls back to `MAINTENANCE_API_KEY` when unset. | No | Yes |
-| `INTERNAL_TELEGRAM_API_KEY` | Route-dedicated key for the internal Telegram outbox endpoint (sent as `x-maintenance-key`). Falls back to `MAINTENANCE_API_KEY` when unset. | No | Yes |
+| `INTERNAL_TELEGRAM_API_KEY` | Route-dedicated key for the internal Telegram outbox endpoint (sent as `x-maintenance-key`). Falls back to `MAINTENANCE_API_KEY` when unset or blank. | No | Yes |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token for channel publishing (not the OIDC client secret). Unset means publications stay queued. | No | Yes |
 | `TELEGRAM_CHANNEL_ID` | Target channel username (e.g. `@jobs`) or numeric chat ID. The bot must be a channel administrator. | No | No |
-| `TELEGRAM_API_BASE_URL` | Optional Bot API base URL override; defaults to `https://api.telegram.org`. | No | No |
-| `ENABLE_FACEBOOK_INGESTION` | Set to exactly `true` to sweep Facebook Page sources and allow Facebook auto-publishing. Disabled by default. | No | No |
+| `TELEGRAM_API_BASE_URL` | Optional override; must be the official `https://api.telegram.org` origin. Invalid values disable sending. | No | No |
+| `ENABLE_FACEBOOK_INGESTION` | Set to exactly `true` to sweep Facebook Page sources. Facebook auto-publishing remains disabled pending category mapping. | No | No |
 | `FACEBOOK_PAGE_ACCESS_TOKEN` | Page access token for the owned JobEthiopia Page. Never stored in the database. | For owned Pages | Yes |
 | `FACEBOOK_APP_ACCESS_TOKEN` | App access token for approved external Page reads. Alternative to the app id/secret pair. | For external Pages | Yes |
 | `FACEBOOK_APP_ID` | Meta app id used to derive the external app access token. | For external Pages | No |
@@ -413,10 +413,13 @@ that are already published are never silently rewritten by automated ingestion
 Auto-publishing is opt-in per source and requires **all** of: `autoPublish`,
 `trustLevel = HIGH`, a supported adapter, a newly created `DRAFT` job, explicit
 applicant eligibility (`ETHIOPIAN_APPLICANTS_CONFIRMED` or
-`INTERNATIONAL_APPLICANTS_ACCEPTED` - never inferred from location), an
-unexpired deadline, a safe http(s) application URL, a passing publication
-validation, and a configured Telegram channel. Otherwise the import stays as a
-draft for manual review. See [Telegram Publishing](#telegram-publishing-outbox).
+`INTERNATIONAL_APPLICANTS_ACCEPTED` - never inferred from location), a deadline
+that is not in the past (missing deadlines are allowed but normally stay in
+review), a safe http(s) application URL, and a passing publication validation.
+Telegram is optional: when a channel is configured the job is also queued, and
+when it is not the website publication still succeeds. Otherwise the import
+stays as a draft for manual review. See
+[Telegram Publishing](#telegram-publishing-outbox).
 
 - **Repository configuration** — interval/git: **Secret** `MAINTENANCE_API_KEY`
   (and optionally `INTERNAL_INGESTION_API_KEY`); **Variable**
@@ -456,12 +459,20 @@ calls `POST /api/internal/telegram/publish` every 5 minutes. The endpoint claims
 due rows with `FOR UPDATE SKIP LOCKED`, sends one escaped HTML message per job,
 and records `SENT`, `RETRY`, `FAILED` or `SKIPPED`. HTTP 429/5xx responses are
 retried with exponential backoff (`retry_after` respected); permanent 4xx
-errors fail the row. The unique `(job_id, channel)` index guarantees at most one
-publication per job and channel.
+errors fail the row. The unique `(job_id, channel)` index prevents duplicate
+queue rows for the same job and channel.
 
+- **Delivery semantics:** at-least-once. A row left in `SENDING` for 10 minutes
+  or more is reclaimed atomically at the start of the next run (attempt
+  incremented, then `RETRY` or `FAILED` at the retry limit). If Telegram
+  accepted a message before the worker died, that recovery can produce a
+  duplicate in the channel; this window cannot be eliminated without
+  Telegram-side idempotency.
 - **Configuration:** `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHANNEL_ID` (and
-  optionally `TELEGRAM_API_BASE_URL`). These are **separate** from Telegram
-  OIDC login; never use `TELEGRAM_CLIENT_SECRET` as the bot token.
+  optionally `TELEGRAM_API_BASE_URL`, restricted to the official HTTPS origin).
+  These are **separate** from Telegram OIDC login; never use
+  `TELEGRAM_CLIENT_SECRET` as the bot token. An invalid API base URL is
+  rejected before a request is made, so it cannot receive the token.
 - **Language:** publications are English-only. Templates use English headings
   and labels, and the original official English job content is published
   unchanged. No translation provider or translation API is called. The website
@@ -477,9 +488,10 @@ publication per job and channel.
 - **Monitoring:** review state and retry permanently failed rows from
   `/admin/telegram`. Audit events: `JOB_AUTO_PUBLISHED`,
   `TELEGRAM_OUTBOX_RUN`, and terminal publication outcomes.
-- **Expected success:** `{"configured":true,"claimed":n,"sent":n,"retried":n,
-  "failed":n,"skipped":n}`. Missing config returns `configured: false` with a
-  reason instead of failing the workflow.
+- **Expected success:** `{"configured":true,"recovered":n,"claimed":n,"sent":n,
+  "retried":n,"failed":n,"skipped":n}`. `recovered` counts stale `SENDING` rows
+  reclaimed by the lease. Missing config returns `configured: false` with a
+  reason instead of failing the workflow; stale-row recovery still runs.
 
 Full operator details: [`docs/telegram-publishing.md`](./docs/telegram-publishing.md).
 
@@ -499,14 +511,25 @@ their draft jobs cannot auto-publish.
   `FACEBOOK_APP_ID` + `FACEBOOK_APP_SECRET` is configured.
 - **Data scope:** published posts only; only `id`, `message`, `created_time`
   and `permalink_url` are requested. No comments, DMs, or personal data.
-- **Publishing:** auto-publish still requires HIGH trust, an explicit opt-in,
-  confirmed applicant eligibility, a future deadline, a safe application URL,
-  and full publication validation. An external Page additionally requires the
-  approval and authorization above. Website publishing no longer depends on a
-  configured Telegram channel; outbox rows are queued only when it is.
+- **Publishing:** Facebook auto-publication is intentionally disabled.
+  Extraction never invents a category, and publication validation requires
+  one, so even an opted-in HIGH-trust Facebook source fails validation and
+  stays a draft. Do not enable it by inventing a category; wait for an
+  explicit, reviewed category/profession mapping. If that gating were
+  satisfied, auto-publish would still require HIGH trust, explicit opt-in,
+  confirmed applicant eligibility, a non-past deadline, a safe application
+  URL, and full publication validation. An external Page additionally requires
+  the approval and authorization above. Website publishing does not depend on
+  a configured Telegram channel; outbox rows are queued only when it is.
 - **Safety:** incomplete posts are retained as `DRAFT` with
-  `NEEDS_REVIEW` and deterministic reasons in the audit log. Published jobs
-  that disappear or change are flagged `NEEDS_REVIEW`; nothing is deleted.
+  `NEEDS_REVIEW` and deterministic reasons in the audit log. Posts without a
+  deadline stay in review. An empty fetch does not flag previously imported
+  posts as missing; reconciliation is skipped and logged. Published jobs that
+  disappear or change are flagged `NEEDS_REVIEW`; nothing is deleted.
+- **Graph API transport:** `FACEBOOK_GRAPH_API_BASE_URL` is restricted to the
+  official HTTPS origin; non-HTTPS, alternate hosts/ports, userinfo, query
+  strings, fragments, and paths fail closed. Authorization headers are dropped
+  on any cross-origin redirect.
 - **Operator flow:** create a `FACEBOOK` source under `/admin/sources`, record
   the Page id/kind and authorization, then use **Sync now** on the source
   detail page. Health shows the last check and last error.

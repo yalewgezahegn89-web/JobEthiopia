@@ -12,7 +12,11 @@ import { sources } from "@/db/schema/sources";
 import { auditLog } from "@/db/schema/auditLog";
 import { users } from "@/db/schema/users";
 import { isPgForeignKeyViolation, isPgUniqueViolation } from "@/lib/pgErrors";
-import { createSourceSchema, updateSourceSchema } from "@/lib/validations";
+import {
+  createSourceSchema,
+  updateSourceSchema,
+  validateMergedSourceUpdate,
+} from "@/lib/validations";
 
 export type SourceAdminSummary = {
   id: string;
@@ -248,7 +252,16 @@ export async function updateSource(
 
   const existing = await db.query.sources.findFirst({
     where: eq(sources.id, sourceId),
-    columns: { id: true, name: true },
+    columns: {
+      id: true,
+      name: true,
+      sourceType: true,
+      baseUrl: true,
+      facebookPageId: true,
+      facebookPageKind: true,
+      facebookApprovalState: true,
+      facebookContentUseState: true,
+    },
   });
   if (!existing) {
     return { ok: false, code: "NOT_FOUND" };
@@ -257,6 +270,13 @@ export async function updateSource(
   const data = parsed.data;
   if (Object.keys(data).length === 0) {
     return { ok: true };
+  }
+
+  // A partial patch must not invalidate the stored Facebook configuration
+  // (for example by removing the Page ID or downgrading required metadata).
+  const merged = validateMergedSourceUpdate(existing, data);
+  if (!merged.ok) {
+    return { ok: false, code: "VALIDATION" };
   }
 
   try {

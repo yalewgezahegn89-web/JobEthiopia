@@ -225,7 +225,8 @@ export interface SsrfFetchOptions {
   /**
    * Optional request headers for authenticated, server-side API calls (for
    * example a Graph API bearer token). Headers are only forwarded to the
-   * originally requested host, never to a cross-host redirect.
+   * exact originally requested origin (scheme + host + port), never to a
+   * cross-origin redirect.
    */
   headers?: Record<string, string>;
 }
@@ -268,8 +269,11 @@ export async function ssrfFetch(
     let hops = 0;
 
     while (hops <= MAX_REDIRECTS) {
+      // Only forward credentials to the exact original origin. A redirect
+      // that changes scheme or port (even on the same hostname) must not
+      // receive the Authorization header.
       const hopHeaders =
-        requestHeaders && currentUrl.hostname === parsed.hostname
+        requestHeaders && currentUrl.origin === parsed.origin
           ? requestHeaders
           : undefined;
 

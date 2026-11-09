@@ -124,6 +124,15 @@ export async function reconcileFacebookObserved(
   sourceId: string,
   observedExternalIds: string[],
 ): Promise<number> {
+  // An empty observation set is ambiguous: the Page may genuinely have no
+  // posts, or the response may be incomplete. Treating it as "everything
+  // disappeared" would flag every published listing for review, so skip
+  // reconciliation until we have at least one observed post to compare.
+  if (observedExternalIds.length === 0) {
+    logInfo("facebook_reconciliation_skipped_empty_observation", { sourceId });
+    return 0;
+  }
+
   const staleJobs = await db
     .select({ jobId: jobSources.jobId })
     .from(jobSources)
@@ -133,9 +142,7 @@ export async function reconcileFacebookObserved(
         eq(jobSources.sourceId, sourceId),
         eq(jobs.status, "PUBLISHED"),
         isNotNull(jobSources.externalId),
-        observedExternalIds.length > 0
-          ? notInArray(jobSources.externalId, observedExternalIds)
-          : undefined,
+        notInArray(jobSources.externalId, observedExternalIds),
       ),
     );
 

@@ -44,6 +44,7 @@ async function __wrapped_POST(request: Request) {
       metadata: {
         configured: result.configured,
         reason: result.reason,
+        recovered: result.recovered,
         claimed: result.claimed,
         sent: result.sent,
         retried: result.retried,

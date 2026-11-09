@@ -160,11 +160,9 @@ async function applyFacebookBookkeeping(
   }
 
   try {
-    if (fetch.metadata?.observedExternalIds) {
-      await reconcileFacebookObserved(
-        sourceId,
-        fetch.metadata.observedExternalIds,
-      );
+    const observedExternalIds = fetch.metadata?.observedExternalIds ?? [];
+    if (observedExternalIds.length > 0) {
+      await reconcileFacebookObserved(sourceId, observedExternalIds);
     }
   } catch (err: unknown) {
     logWarn("facebook_reconciliation_failed", {

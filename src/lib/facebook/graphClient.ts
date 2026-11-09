@@ -81,6 +81,27 @@ function buildGraphUrl(path: string): string {
 }
 
 /**
+ * True only for HTTPS URLs on the exact configured Graph origin. This guards
+ * every request that carries the bearer token, independent of how the URL was
+ * built.
+ */
+function isAllowedGraphUrl(raw: string): boolean {
+  const config = getFacebookGraphConfig();
+  let url: URL;
+  let base: URL;
+  try {
+    url = new URL(raw);
+    base = new URL(config.apiBaseUrl);
+  } catch {
+    return false;
+  }
+
+  if (url.protocol !== "https:") return false;
+  if (url.username || url.password) return false;
+  return url.origin === base.origin;
+}
+
+/**
  * Validates a `paging.next` URL. It must stay on the configured Graph host
  * and point at our Graph API version. Any `access_token` query parameter is
  * removed because authentication is header-based.
@@ -98,8 +119,17 @@ function sanitizeNextUrl(
     return { ok: false, reason: "Invalid pagination URL" };
   }
 
-  if (nextUrl.hostname.toLowerCase() !== baseUrl.hostname.toLowerCase()) {
-    return { ok: false, reason: "Pagination URL host mismatch" };
+  if (nextUrl.protocol !== "https:") {
+    return { ok: false, reason: "Pagination URL must use HTTPS" };
+  }
+  if (nextUrl.username || nextUrl.password) {
+    return {
+      ok: false,
+      reason: "Pagination URL must not contain credentials",
+    };
+  }
+  if (nextUrl.origin !== baseUrl.origin) {
+    return { ok: false, reason: "Pagination URL origin mismatch" };
   }
   if (!nextUrl.pathname.includes(`/${config.apiVersion}/`)) {
     return { ok: false, reason: "Pagination URL version mismatch" };
@@ -113,6 +143,14 @@ async function graphGet<T>(
   url: string,
   accessToken: string,
 ): Promise<GraphResult<T>> {
+  if (!isAllowedGraphUrl(url)) {
+    return {
+      ok: false,
+      error: "Graph API request blocked: untrusted origin",
+      retryable: false,
+    };
+  }
+
   let lastError = "Graph API request failed";
   let lastRetryable = false;
 

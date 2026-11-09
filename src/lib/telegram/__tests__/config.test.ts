@@ -41,18 +41,36 @@ describe("getTelegramBotConfig", () => {
     });
   });
 
-  it("honours an overridden API base URL", () => {
+  it("accepts the official API origin with an explicit 443 port", () => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", "123:abc");
     vi.stubEnv("TELEGRAM_CHANNEL_ID", "@jobs");
-    vi.stubEnv("TELEGRAM_API_BASE_URL", "https://telegram.internal");
+    vi.stubEnv("TELEGRAM_API_BASE_URL", "https://api.telegram.org:443/");
     expect(getTelegramBotConfig()).toEqual({
       ok: true,
       config: {
         botToken: "123:abc",
         channelId: "@jobs",
-        apiBaseUrl: "https://telegram.internal",
+        apiBaseUrl: "https://api.telegram.org",
       },
     });
+  });
+
+  it.each([
+    ["plaintext HTTP", "http://api.telegram.org"],
+    ["an unexpected host", "https://telegram.internal"],
+    ["a lookalike host", "https://api.telegram.org.evil.example"],
+    ["an alternate port", "https://api.telegram.org:8443"],
+    ["credentials in the URL", "https://user:pass@api.telegram.org"],
+    ["a query string", "https://api.telegram.org?x=1"],
+    ["a fragment", "https://api.telegram.org#fragment"],
+    ["a path", "https://api.telegram.org/bot"],
+  ])("rejects %s before any request can be sent", (_label, raw) => {
+    vi.stubEnv("TELEGRAM_BOT_TOKEN", "123:abc");
+    vi.stubEnv("TELEGRAM_CHANNEL_ID", "@jobs");
+    vi.stubEnv("TELEGRAM_API_BASE_URL", raw);
+    const result = getTelegramBotConfig();
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toContain("TELEGRAM_API_BASE_URL");
   });
 
   it("does not use the OIDC client secret as a bot token", () => {

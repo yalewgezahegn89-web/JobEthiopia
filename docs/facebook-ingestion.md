@@ -40,9 +40,9 @@ Without both approval and authorization, the adapter refuses to fetch.
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `ENABLE_FACEBOOK_INGESTION` | `false` | Must be exactly `true` to sweep Facebook sources and allow Facebook auto-publishing |
+| `ENABLE_FACEBOOK_INGESTION` | `false` | Must be exactly `true` to sweep Facebook sources. It does not enable Facebook auto-publishing, which is currently disabled pending category mapping. |
 | `FACEBOOK_GRAPH_API_VERSION` | `v23.0` | Graph API version (`v<major>.<minor>`) |
-| `FACEBOOK_GRAPH_API_BASE_URL` | `https://graph.facebook.com` | Optional base URL override |
+| `FACEBOOK_GRAPH_API_BASE_URL` | `https://graph.facebook.com` | Optional override; must be the official HTTPS origin. Invalid values fail closed. |
 | `FACEBOOK_PAGE_ACCESS_TOKEN` | unset | Owned Page token |
 | `FACEBOOK_APP_ACCESS_TOKEN` | unset | External app token |
 | `FACEBOOK_APP_ID` / `FACEBOOK_APP_SECRET` | unset | Alternative external app token source |
@@ -52,6 +52,13 @@ database, returned by an API, or rendered in the admin UI. The Graph client
 sends the token as `Authorization: Bearer <token>` (never as a query
 parameter), strips any `access_token` from pagination URLs, and redacts
 credentials from errors.
+
+`FACEBOOK_GRAPH_API_BASE_URL` is normalized to the official
+`https://graph.facebook.com` origin. Non-HTTPS values, alternate hosts or ports,
+userinfo, query strings, fragments, and paths are rejected, and the client
+further refuses any request or pagination URL whose origin differs from the
+configured one. Authorization headers are forwarded across redirects only when
+the origin is identical; a scheme, port, or host change drops them.
 
 ## Creating a source
 
@@ -82,6 +89,8 @@ Missing details are never invented.
   post links, `m.me`, and Messenger links are not used.
 - Applicant eligibility uses the existing explicit classifier and defaults to
   `NOT_STATED`. It is never inferred from location or employer.
+- No category or profession is guessed from the post text. The extracted job
+  keeps `categoryName: null` and must be classified by a moderator.
 - Posts without a recognizable vacancy signal, or without a title, are skipped
   with a reason.
 
@@ -90,17 +99,24 @@ Missing details are never invented.
 - Incomplete job posts are still ingested as `DRAFT`, but marked
   `NEEDS_REVIEW` with deterministic reasons written to the audit log (for
   example missing application URL, missing deadline, or unstated eligibility).
+  Posts without a deadline stay in review; publication validation accepts a
+  null deadline, but the missing field is still recorded for the moderator.
 - Facebook sources default to manual review: `MEDIUM` trust and no
   auto-publish. A moderator must assign category/profession and complete any
   missing fields before publication.
-- Auto-publishing requires all existing gates: HIGH trust, explicit opt-in,
-  confirmed applicant eligibility, a future deadline, a safe application
-  URL, and full publication validation. External Pages additionally require
-  approval and authorization.
+- **Facebook auto-publication is intentionally disabled.** Even with
+  `ENABLE_FACEBOOK_INGESTION=true` and `autoPublish` on the source, extraction
+  never invents a category and `validateJobForPublish` requires a category, so
+  the job fails validation and remains a draft. This is the safe behavior until
+  an explicit category/profession mapping is reviewed and approved.
+- If that gating were satisfied, auto-publishing would still require HIGH
+  trust, explicit opt-in, confirmed applicant eligibility, a non-past deadline,
+  a safe application URL, and full publication validation. External Pages
+  additionally require approval and authorization. Facebook jobs are never
+  auto-classified as HIGH trust.
 - Website publishing is independent of Telegram. When a Telegram channel is
   configured, the job is also queued in the outbox; when it is not, the
   website publication still succeeds.
-- Facebook jobs are never auto-classified as HIGH trust.
 
 ## Reconciliation
 
@@ -110,6 +126,9 @@ need review.
 - Published jobs that changed upstream are flagged `NEEDS_REVIEW`.
 - Published jobs that were not observed in the latest fetch (deleted or
   edited-away posts) are flagged `NEEDS_REVIEW`.
+- An empty observation is never treated as "everything disappeared". If a
+  successful fetch returns zero posts, reconciliation is skipped (and logged)
+  instead of flagging every previously imported post.
 - Nothing is deleted, and the existing job lifecycle owns any subsequent
   unpublishing.
 - Bookkeeping failures never fail an otherwise successful ingestion run.
@@ -136,6 +155,8 @@ Relevant tests:
 - `src/lib/sources/adapters/__tests__/facebookPage.test.ts`
 - `src/lib/ingestion/__tests__/autoPublish.test.ts`
 - `src/lib/ingestion/__tests__/runSource.test.ts`
+- `src/lib/ingestion/__tests__/facebookSync.test.ts`
+- `src/lib/validations/__tests__/sourceUpdate.test.ts`
 - `src/lib/sources/adapters/__tests__/index.test.ts`
 
 ## Known limitations
@@ -143,6 +164,8 @@ Relevant tests:
 - Only the most recent bounded set of Page posts is read per run
   (up to 100 posts, 10 Graph pages).
 - Free-form posts without labels rely on conservative heuristics; ambiguous
-  posts stay `NOT_A_STATED` eligibility and require moderator review.
+  posts stay `NOT_STATED` eligibility and require moderator review.
+- Facebook auto-publication is disabled until an explicit, reviewed
+  category/profession mapping exists. Do not enable it by inventing a category.
 - Meta app review, Page owner permission, and production credentials are
   operator responsibilities and are not automated here.

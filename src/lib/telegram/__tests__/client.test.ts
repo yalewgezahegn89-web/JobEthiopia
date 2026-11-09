@@ -99,6 +99,31 @@ describe("sendTelegramMessage", () => {
     expect(JSON.stringify(result)).not.toContain(CONFIG.botToken);
   });
 
+  it.each([
+    ["plaintext HTTP", "http://api.telegram.org"],
+    ["an unexpected host", "https://telegram.internal"],
+    ["an alternate port", "https://api.telegram.org:8443"],
+    ["credentials in the URL", "https://user:pass@api.telegram.org"],
+    ["a query string", "https://api.telegram.org?x=1"],
+    ["a path", "https://api.telegram.org/bot"],
+  ])("refuses to send with %s and never exposes the token", async (_label, apiBaseUrl) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendTelegramMessage(
+      { ...CONFIG, apiBaseUrl },
+      "hi",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      retryable: false,
+      error: "Telegram API base URL is not allowed",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain(CONFIG.botToken);
+  });
+
   it("treats a missing message id as a retryable failure", async () => {
     vi.stubGlobal(
       "fetch",

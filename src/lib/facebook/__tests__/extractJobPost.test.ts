@@ -37,6 +37,8 @@ describe("extractFacebookJobPost", () => {
       externalId: "page-1:post-1",
       sourceUrl: "https://www.facebook.com/example/posts/1",
       postedAt: "2026-01-02T10:00:00.000Z",
+      professionName: null,
+      categoryName: null,
     });
     expect(result.job.deadline).toBe("2026-01-31T23:59:59.999Z");
     expect(result.job.description).toContain("Source: Example Employer");

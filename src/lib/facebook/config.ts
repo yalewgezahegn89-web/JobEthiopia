@@ -10,8 +10,30 @@
 export const FACEBOOK_DEFAULT_GRAPH_API_VERSION = "v23.0";
 export const FACEBOOK_DEFAULT_GRAPH_API_BASE_URL =
   "https://graph.facebook.com";
+export const FACEBOOK_GRAPH_API_ORIGIN = "https://graph.facebook.com";
 
 const GRAPH_VERSION_PATTERN = /^v\d+\.\d+$/;
+
+/**
+ * Token-bearing Graph requests may only target the official Graph origin over
+ * HTTPS. Overrides must match the exact scheme, hostname and port; anything
+ * else (plaintext HTTP, alternate ports, userinfo, other hosts) is rejected.
+ */
+export function isTrustedGraphBaseUrl(raw: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return false;
+  }
+
+  if (parsed.protocol !== "https:") return false;
+  if (parsed.username || parsed.password) return false;
+  if (parsed.port !== "" && parsed.port !== "443") return false;
+  if (parsed.search || parsed.hash) return false;
+  if (parsed.pathname !== "/" && parsed.pathname !== "") return false;
+  return parsed.origin === FACEBOOK_GRAPH_API_ORIGIN;
+}
 
 export interface FacebookGraphConfig {
   apiBaseUrl: string;
@@ -36,15 +58,10 @@ function resolveGraphApiVersion(): string {
 function resolveGraphApiBaseUrl(): string {
   const raw = process.env.FACEBOOK_GRAPH_API_BASE_URL?.trim();
   if (!raw) return FACEBOOK_DEFAULT_GRAPH_API_BASE_URL;
-  try {
-    const parsed = new URL(raw);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-      return FACEBOOK_DEFAULT_GRAPH_API_BASE_URL;
-    }
-    return parsed.toString().replace(/\/+$/, "");
-  } catch {
-    return FACEBOOK_DEFAULT_GRAPH_API_BASE_URL;
-  }
+  // Fall back to the trusted official origin rather than ever sending a
+  // bearer token to a misconfigured host, port or plaintext endpoint.
+  if (!isTrustedGraphBaseUrl(raw)) return FACEBOOK_DEFAULT_GRAPH_API_BASE_URL;
+  return new URL(raw).origin;
 }
 
 export function getFacebookGraphConfig(): FacebookGraphConfig {

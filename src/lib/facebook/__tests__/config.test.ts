@@ -68,6 +68,29 @@ describe("Facebook config", () => {
     });
   });
 
+  it.each([
+    ["plaintext HTTP", "http://graph.facebook.com"],
+    ["an alternate port", "https://graph.facebook.com:8443"],
+    ["credentials in the URL", "https://user:pass@graph.facebook.com"],
+    ["a lookalike host", "https://graph.facebook.com.evil.example"],
+    ["a query string", "https://graph.facebook.com?x=1"],
+    ["a fragment", "https://graph.facebook.com#fragment"],
+    ["a non-root path", "https://graph.facebook.com/graphql"],
+  ])("ignores an untrusted Graph base URL (%s)", (_label, raw) => {
+    process.env.FACEBOOK_GRAPH_API_BASE_URL = raw;
+    expect(getFacebookGraphConfig().apiBaseUrl).toBe(
+      FACEBOOK_DEFAULT_GRAPH_API_BASE_URL,
+    );
+  });
+
+  it("accepts the official Graph origin with an explicit 443 port", () => {
+    process.env.FACEBOOK_GRAPH_API_BASE_URL =
+      "https://graph.facebook.com:443/";
+    expect(getFacebookGraphConfig().apiBaseUrl).toBe(
+      FACEBOOK_DEFAULT_GRAPH_API_BASE_URL,
+    );
+  });
+
   it("redacts access tokens and bearer headers", () => {
     expect(
       redactFacebookSecrets(
