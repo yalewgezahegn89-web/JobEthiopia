@@ -152,6 +152,7 @@ function fetchOnce(
   signal: AbortSignal,
   validatedAddresses: string[],
   maxBytes?: number,
+  headers?: Record<string, string>,
 ): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders; body?: string }> {
   return new Promise((resolve, reject) => {
     const mod = url.protocol === "https:" ? https : http;
@@ -163,6 +164,7 @@ function fetchOnce(
       signal,
       timeout: TIMEOUT_MS,
       lookup: buildValidatedLookup(validatedAddresses),
+      ...(headers ? { headers } : {}),
     };
     const req = mod.request(opts, (res) => {
       if (maxBytes === undefined) {
@@ -220,6 +222,24 @@ export interface SsrfFetchOptions {
    * option the body is discarded and no `text` key is present.
    */
   maxBytes?: number;
+  /**
+   * Optional request headers for authenticated, server-side API calls (for
+   * example a Graph API bearer token). Headers are only forwarded to the
+   * originally requested host, never to a cross-host redirect.
+   */
+  headers?: Record<string, string>;
+}
+
+function sanitizeHeaders(
+  headers: Record<string, string> | undefined,
+): Record<string, string> | undefined {
+  if (!headers) return undefined;
+  const safe: Record<string, string> = {};
+  for (const [name, value] of Object.entries(headers)) {
+    if (/[\r\n]/.test(name) || /[\r\n]/.test(value)) continue;
+    safe[name] = value;
+  }
+  return Object.keys(safe).length > 0 ? safe : undefined;
 }
 
 export interface SsrfFetchResult {
@@ -235,6 +255,7 @@ export async function ssrfFetch(
 ): Promise<SsrfFetchResult> {
   const parsed = validateScheme(rawUrl);
   const method = (options.method ?? "GET").toUpperCase();
+  const requestHeaders = sanitizeHeaders(options.headers);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -247,12 +268,18 @@ export async function ssrfFetch(
     let hops = 0;
 
     while (hops <= MAX_REDIRECTS) {
+      const hopHeaders =
+        requestHeaders && currentUrl.hostname === parsed.hostname
+          ? requestHeaders
+          : undefined;
+
       const result = await fetchOnce(
         currentUrl,
         method,
         controller.signal,
         validatedAddresses,
         options.maxBytes,
+        hopHeaders,
       );
 
       if (

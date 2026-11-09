@@ -21,9 +21,15 @@ export type SourceAdminSummary = {
   baseUrl: string | null;
   isActive: boolean;
   trustLevel: string;
+  autoPublish: boolean;
+  checkFrequencyMinutes: number | null;
   lastSuccessfulCheck: string | null;
   consecutiveFailures: number;
   createdAt: string;
+  facebookPageId: string | null;
+  facebookPageKind: string | null;
+  facebookApprovalState: string | null;
+  facebookContentUseState: string | null;
 };
 
 export type SourceAdminPaginated = {
@@ -85,9 +91,15 @@ export async function listSources(input: {
         baseUrl: true,
         isActive: true,
         trustLevel: true,
+        autoPublish: true,
+        checkFrequencyMinutes: true,
         lastSuccessfulCheck: true,
         consecutiveFailures: true,
         createdAt: true,
+        facebookPageId: true,
+        facebookPageKind: true,
+        facebookApprovalState: true,
+        facebookContentUseState: true,
       },
     }),
     db
@@ -105,9 +117,15 @@ export async function listSources(input: {
       baseUrl: r.baseUrl,
       isActive: r.isActive,
       trustLevel: r.trustLevel,
+      autoPublish: r.autoPublish,
+      checkFrequencyMinutes: r.checkFrequencyMinutes,
       lastSuccessfulCheck: r.lastSuccessfulCheck ? r.lastSuccessfulCheck.toISOString() : null,
       consecutiveFailures: r.consecutiveFailures,
       createdAt: r.createdAt.toISOString(),
+      facebookPageId: r.facebookPageId,
+      facebookPageKind: r.facebookPageKind,
+      facebookApprovalState: r.facebookApprovalState,
+      facebookContentUseState: r.facebookContentUseState,
     })),
     page,
     limit,
@@ -134,7 +152,20 @@ export async function getSource(id: string): Promise<(typeof sources.$inferSelec
  *   throws  on an unexpected DB error
  */
 export async function createSource(
-  input: { name: string; sourceType: string; baseUrl?: string | null; isActive?: boolean; trustLevel?: string },
+  input: {
+    name: string;
+    sourceType: string;
+    baseUrl?: string | null;
+    isActive?: boolean;
+    trustLevel?: string;
+    autoPublish?: boolean;
+    checkFrequencyMinutes?: number | null;
+    facebookPageId?: string | null;
+    facebookPageKind?: string | null;
+    facebookApprovalState?: string | null;
+    facebookContentUseState?: string | null;
+    facebookAuthorizationNote?: string | null;
+  },
   actorUserId: string,
 ): Promise<{ ok: true; id: string } | { ok: false; code: "VALIDATION" | "DUPLICATE" }> {
   const parsed = createSourceSchema.safeParse(input);
@@ -155,6 +186,15 @@ export async function createSource(
           baseUrl: data.baseUrl ?? null,
           isActive: data.isActive ?? true,
           trustLevel: (data.trustLevel ?? "MEDIUM") as never,
+          autoPublish: data.autoPublish ?? false,
+          checkFrequencyMinutes: data.checkFrequencyMinutes ?? null,
+          facebookPageId: data.facebookPageId ?? null,
+          facebookPageKind: (data.facebookPageKind ?? null) as never,
+          facebookApprovalState: (data.facebookApprovalState ??
+            "NOT_REQUESTED") as never,
+          facebookContentUseState: (data.facebookContentUseState ??
+            "NOT_RECORDED") as never,
+          facebookAuthorizationNote: data.facebookAuthorizationNote ?? null,
         })
         .returning({ id: sources.id });
 
@@ -174,7 +214,10 @@ export async function createSource(
 
     return { ok: true, id: sourceId };
   } catch (err: unknown) {
-    if (isPgUniqueViolation(err, "sources_name_unique")) {
+    if (
+      isPgUniqueViolation(err, "sources_name_unique") ||
+      isPgUniqueViolation(err, "sources_facebook_page_id_unique")
+    ) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;
@@ -226,6 +269,25 @@ export async function updateSource(
           ...(data.baseUrl !== undefined && { baseUrl: data.baseUrl }),
           ...(data.isActive !== undefined && { isActive: data.isActive }),
           ...(data.trustLevel !== undefined && { trustLevel: data.trustLevel as never }),
+          ...(data.autoPublish !== undefined && { autoPublish: data.autoPublish }),
+          ...(data.checkFrequencyMinutes !== undefined && {
+            checkFrequencyMinutes: data.checkFrequencyMinutes,
+          }),
+          ...(data.facebookPageId !== undefined && {
+            facebookPageId: data.facebookPageId,
+          }),
+          ...(data.facebookPageKind !== undefined && {
+            facebookPageKind: data.facebookPageKind as never,
+          }),
+          ...(data.facebookApprovalState !== undefined && {
+            facebookApprovalState: data.facebookApprovalState as never,
+          }),
+          ...(data.facebookContentUseState !== undefined && {
+            facebookContentUseState: data.facebookContentUseState as never,
+          }),
+          ...(data.facebookAuthorizationNote !== undefined && {
+            facebookAuthorizationNote: data.facebookAuthorizationNote,
+          }),
           updatedAt: new Date(),
         })
         .where(eq(sources.id, sourceId));
@@ -243,7 +305,10 @@ export async function updateSource(
 
     return { ok: true };
   } catch (err: unknown) {
-    if (isPgUniqueViolation(err, "sources_name_unique")) {
+    if (
+      isPgUniqueViolation(err, "sources_name_unique") ||
+      isPgUniqueViolation(err, "sources_facebook_page_id_unique")
+    ) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;

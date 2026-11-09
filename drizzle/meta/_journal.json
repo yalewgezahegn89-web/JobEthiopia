@@ -169,6 +169,20 @@
       "when": 1790227291805,
       "tag": "0023_add_candidate_cover_letters",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794061339472,
+      "tag": "0024_add_airline_ingestion_telegram",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794120646719,
+      "tag": "0025_add_facebook_page_ingestion",
+      "breakpoints": true
     }
   ]
 }

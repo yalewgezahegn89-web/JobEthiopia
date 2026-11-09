@@ -206,8 +206,8 @@ describe("seed taxonomy — idempotency pattern (Phase 6 Step 6)", () => {
       ...categoriesBlocks,
       ...professionsBlocks,
     ];
-    // 5 locations + 4 categories + 5 professions.
-    expect(taxonomyInserts.length).toBe(14);
+    // 5 locations + 5 categories + 5 professions.
+    expect(taxonomyInserts.length).toBe(15);
   });
 
   it("provides a slug-keyed lookup fallback after each captured insert", () => {

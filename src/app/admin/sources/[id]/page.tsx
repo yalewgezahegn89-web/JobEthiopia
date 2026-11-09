@@ -110,9 +110,43 @@ export default async function AdminSourceDetailPage({
               <dd className="text-sm font-medium text-foreground">{source.checkFrequencyMinutes ?? "Not configured"}</dd>
             </div>
             <div>
+              <dt className="text-sm text-muted">Auto-publish</dt>
+              <dd className={`text-sm font-medium ${source.autoPublish ? "text-success" : "text-foreground"}`}>
+                {source.autoPublish ? "Enabled (policy-gated)" : "Disabled"}
+              </dd>
+            </div>
+            <div>
               <dt className="text-sm text-muted">Base URL</dt>
               <dd className="text-sm font-medium text-foreground">{source.baseUrl ?? "Not configured"}</dd>
             </div>
+            {source.sourceType === "FACEBOOK" && (
+              <>
+                <div>
+                  <dt className="text-sm text-muted">Facebook Page ID</dt>
+                  <dd className="text-sm font-medium text-foreground">
+                    {source.facebookPageId ?? "Not configured"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-muted">Facebook Page kind</dt>
+                  <dd className="text-sm font-medium text-foreground">
+                    {source.facebookPageKind ?? "Not configured"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-muted">Meta approval</dt>
+                  <dd className="text-sm font-medium text-foreground">
+                    {source.facebookApprovalState ?? "NOT_REQUESTED"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm text-muted">Content-use authorization</dt>
+                  <dd className="text-sm font-medium text-foreground">
+                    {source.facebookContentUseState ?? "NOT_RECORDED"}
+                  </dd>
+                </div>
+              </>
+            )}
           </dl>
         </section>
 

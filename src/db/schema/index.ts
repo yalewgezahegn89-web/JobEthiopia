@@ -2,11 +2,16 @@ export {
   organizationStatusEnum,
   locationTypeEnum,
   sourceTypeEnum,
+  facebookPageKindEnum,
+  facebookApprovalStateEnum,
+  facebookContentUseStateEnum,
   trustLevelEnum,
   employmentTypeEnum,
   salaryPeriodEnum,
   jobStatusEnum,
   verificationStatusEnum,
+  applicantEligibilityEnum,
+  telegramPublicationStateEnum,
   articleStatusEnum,
   userRoleEnum,
   applicationStatusEnum,
@@ -24,6 +29,7 @@ export { professions } from "./professions";
 export { sources } from "./sources";
 export { jobs } from "./jobs";
 export { jobSources } from "./jobSources";
+export { telegramPublications } from "./telegramPublications";
 export { careerArticles } from "./careerArticles";
 export { users } from "./users";
 export { emailVerifications } from "./emailVerifications";

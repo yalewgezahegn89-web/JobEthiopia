@@ -3,8 +3,29 @@ import { httpUrlSchema } from "./employerJob";
 
 const OrganizationStatus = z.enum(["ACTIVE", "INACTIVE"]);
 const LocationType = z.enum(["COUNTRY", "REGION", "CITY", "DISTRICT", "OTHER"]);
-const SourceType = z.enum(["MANUAL", "WEBSITE", "API", "FEED", "EMPLOYER", "OTHER"]);
+const SourceType = z.enum([
+  "MANUAL",
+  "WEBSITE",
+  "API",
+  "FEED",
+  "EMPLOYER",
+  "OTHER",
+  "FACEBOOK",
+]);
 const TrustLevel = z.enum(["HIGH", "MEDIUM", "LOW"]);
+const FacebookPageKind = z.enum(["OWNED_PAGE", "EXTERNAL_PAGE"]);
+const FacebookApprovalState = z.enum([
+  "NOT_REQUESTED",
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+]);
+const FacebookContentUseState = z.enum([
+  "NOT_RECORDED",
+  "PENDING",
+  "AUTHORIZED",
+  "DENIED",
+]);
 const EmploymentType = z.enum([
   "FULL_TIME",
   "PART_TIME",
@@ -61,13 +82,60 @@ export const createProfessionSchema = z.object({
   isActive: z.boolean().optional().default(true),
 });
 
-export const createSourceSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  sourceType: SourceType,
-  baseUrl: z.string().url().nullable().optional(),
-  isActive: z.boolean().optional().default(true),
-  trustLevel: TrustLevel.optional().default("MEDIUM"),
-});
+const facebookSourceFields = {
+  facebookPageId: z.string().trim().min(1).max(200).nullable().optional(),
+  facebookPageKind: FacebookPageKind.nullable().optional(),
+  facebookApprovalState: FacebookApprovalState.optional(),
+  facebookContentUseState: FacebookContentUseState.optional(),
+  facebookAuthorizationNote: z
+    .string()
+    .trim()
+    .max(2000)
+    .nullable()
+    .optional(),
+};
+
+export const createSourceSchema = z
+  .object({
+    name: z.string().min(1, "Name is required"),
+    sourceType: SourceType,
+    baseUrl: z.string().url().nullable().optional(),
+    isActive: z.boolean().optional().default(true),
+    trustLevel: TrustLevel.optional().default("MEDIUM"),
+    autoPublish: z.boolean().optional().default(false),
+    checkFrequencyMinutes: z
+      .number()
+      .int()
+      .min(5)
+      .max(10080)
+      .nullable()
+      .optional(),
+    ...facebookSourceFields,
+  })
+  .superRefine((data, ctx) => {
+    if (data.sourceType !== "FACEBOOK") return;
+    if (!data.facebookPageId) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Facebook Page ID is required for Facebook sources",
+        path: ["facebookPageId"],
+      });
+    }
+    if (!data.facebookPageKind) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Facebook Page kind is required for Facebook sources",
+        path: ["facebookPageKind"],
+      });
+    }
+    if (!data.baseUrl) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Facebook Page URL is required for Facebook sources",
+        path: ["baseUrl"],
+      });
+    }
+  });
 
 export const updateSourceSchema = z
   .object({
@@ -76,6 +144,9 @@ export const updateSourceSchema = z
     baseUrl: z.string().url().nullable(),
     isActive: z.boolean(),
     trustLevel: TrustLevel,
+    autoPublish: z.boolean(),
+    checkFrequencyMinutes: z.number().int().min(5).max(10080).nullable(),
+    ...facebookSourceFields,
   })
   .partial();
 

@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../db";
 import { jobs } from "../../db/schema/jobs";
 import { jobSources } from "../../db/schema/jobSources";
+import { normalizeApplicantEligibility } from "../jobs/applicantEligibility";
 
 const PUBLISHED_STATUS = "PUBLISHED";
 
@@ -26,6 +27,7 @@ export interface UpdateJobInput {
   benefits: string | null;
   postedAt: Date | null;
   deadline: Date | null;
+  applicantEligibility?: string;
   applicationUrl: string | null;
   rawHash: string;
 }
@@ -117,6 +119,9 @@ export async function updateJob(input: UpdateJobInput): Promise<boolean> {
           benefits: input.benefits,
           postedAt: input.postedAt,
           deadline: input.deadline,
+          applicantEligibility: normalizeApplicantEligibility(
+            input.applicantEligibility,
+          ) as never,
           applicationUrl: input.applicationUrl,
         })
         .where(eq(jobs.id, input.jobId));

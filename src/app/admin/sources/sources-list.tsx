@@ -3,7 +3,15 @@
 import Link from "next/link";
 import type { SourceAdminPaginated } from "@/lib/admin/sources";
 
-const SOURCE_TYPES = ["MANUAL", "WEBSITE", "API", "FEED", "EMPLOYER", "OTHER"];
+const SOURCE_TYPES = [
+  "MANUAL",
+  "WEBSITE",
+  "API",
+  "FEED",
+  "EMPLOYER",
+  "OTHER",
+  "FACEBOOK",
+];
 
 export default function SourcesList({
   result,
@@ -95,6 +103,11 @@ export default function SourcesList({
                       {source.sourceType}
                     </span>
                     <span className="text-sm text-muted">Trust: {source.trustLevel}</span>
+                    {source.autoPublish && (
+                      <span className="rounded-full bg-success-light px-2.5 py-0.5 text-xs font-semibold text-success">
+                        Auto-publish
+                      </span>
+                    )}
                     {source.baseUrl && (
                       <span className="truncate max-w-xs text-xs text-subtle">{source.baseUrl}</span>
                     )}

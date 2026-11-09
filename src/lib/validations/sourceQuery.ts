@@ -7,6 +7,7 @@ const sourceTypeValues = [
   "FEED",
   "EMPLOYER",
   "OTHER",
+  "FACEBOOK",
 ] as const;
 
 export const sourceListQuerySchema = z.object({

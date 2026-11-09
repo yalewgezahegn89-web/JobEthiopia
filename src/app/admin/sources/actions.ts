@@ -31,6 +31,33 @@ export type SourceActionResult = {
 
 const GENERIC_ERROR = "Unable to update this source. Please try again.";
 const GENERIC_FK_ERROR = "This source cannot be deleted because it is linked to existing jobs.";
+const INVALID_FREQUENCY =
+  "Check frequency must be a whole number between 5 and 10080 minutes, or blank.";
+
+function parseCheckFrequency(raw: string): number | null | undefined {
+  const value = raw.trim();
+  if (!value) return null;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 5 || parsed > 10080) {
+    return undefined;
+  }
+  return parsed;
+}
+
+function readFacebookFields(formData: FormData) {
+  return {
+    facebookPageId:
+      String(formData.get("facebookPageId") ?? "").trim() || null,
+    facebookPageKind:
+      String(formData.get("facebookPageKind") ?? "").trim() || null,
+    facebookApprovalState:
+      String(formData.get("facebookApprovalState") ?? "").trim() || null,
+    facebookContentUseState:
+      String(formData.get("facebookContentUseState") ?? "").trim() || null,
+    facebookAuthorizationNote:
+      String(formData.get("facebookAuthorizationNote") ?? "").trim() || null,
+  };
+}
 
 export async function createSourceAction(
   _prevState: SourceActionResult,
@@ -40,9 +67,17 @@ export async function createSourceAction(
   const sourceType = String(formData.get("sourceType") ?? "");
   const baseUrl = String(formData.get("baseUrl") ?? "").trim() || undefined;
   const trustLevel = String(formData.get("trustLevel") ?? "").trim() || undefined;
+  const autoPublish = formData.get("autoPublish") === "true";
+  const checkFrequencyMinutes = parseCheckFrequency(
+    String(formData.get("checkFrequencyMinutes") ?? ""),
+  );
+  const facebook = readFacebookFields(formData);
 
   if (!name || !sourceType) {
     return { ok: false, error: GENERIC_ERROR };
+  }
+  if (checkFrequencyMinutes === undefined) {
+    return { ok: false, error: INVALID_FREQUENCY };
   }
 
   const guard = await requireStaffAdmin();
@@ -67,6 +102,9 @@ export async function createSourceAction(
         sourceType,
         baseUrl: baseUrl || null,
         trustLevel: trustLevel || undefined,
+        autoPublish,
+        checkFrequencyMinutes,
+        ...facebook,
       },
       actor.id,
     );
@@ -89,9 +127,17 @@ export async function updateSourceAction(
   const sourceType = String(formData.get("sourceType") ?? "");
   const baseUrl = String(formData.get("baseUrl") ?? "").trim();
   const trustLevel = String(formData.get("trustLevel") ?? "").trim();
+  const autoPublish = formData.get("autoPublish") === "true";
+  const checkFrequencyMinutes = parseCheckFrequency(
+    String(formData.get("checkFrequencyMinutes") ?? ""),
+  );
+  const facebook = readFacebookFields(formData);
 
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sourceId)) {
     return { ok: false, error: GENERIC_ERROR };
+  }
+  if (checkFrequencyMinutes === undefined) {
+    return { ok: false, error: INVALID_FREQUENCY };
   }
 
   const guard = await requireStaffAdmin();
@@ -115,6 +161,17 @@ export async function updateSourceAction(
   if (baseUrl) input.baseUrl = baseUrl;
   if (baseUrl === "") input.baseUrl = null;
   if (trustLevel) input.trustLevel = trustLevel;
+  input.autoPublish = autoPublish;
+  input.checkFrequencyMinutes = checkFrequencyMinutes;
+  if (sourceType) {
+    input.facebookPageId = facebook.facebookPageId;
+    input.facebookPageKind = facebook.facebookPageKind;
+    input.facebookApprovalState =
+      facebook.facebookApprovalState ?? "NOT_REQUESTED";
+    input.facebookContentUseState =
+      facebook.facebookContentUseState ?? "NOT_RECORDED";
+    input.facebookAuthorizationNote = facebook.facebookAuthorizationNote;
+  }
 
   try {
     const result = await updateSource(sourceId, input, actor.id);

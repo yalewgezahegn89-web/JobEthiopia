@@ -171,6 +171,25 @@ async function seed() {
     transportLogisticsId = existing!.id;
   }
 
+  const [aviationAirline] = await db
+    .insert(categories)
+    .values({
+      name: "Aviation & Airline Jobs",
+      slug: "aviation-airline-jobs",
+      description: "Airline, airport, and aviation operations roles",
+      sortOrder: 5,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let aviationAirlineId = aviationAirline?.id;
+  if (!aviationAirlineId) {
+    const existing = await db.query.categories.findFirst({
+      where: (cats, { eq }) => eq(cats.slug, "aviation-airline-jobs"),
+    });
+    aviationAirlineId = existing!.id;
+  }
+
   console.log("Categories seeded.");
 
   // Professions

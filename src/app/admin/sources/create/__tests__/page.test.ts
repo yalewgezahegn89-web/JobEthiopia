@@ -118,9 +118,10 @@ describe("CreateSourceForm", () => {
     }
   });
 
-  it("does not invent unsupported source fields", () => {
+  it("includes the automation controls", () => {
     const html = renderToStaticMarkup(createElement(CreateSourceForm));
-    expect(html).not.toContain("checkFrequencyMinutes");
+    expect(html).toContain('id="checkFrequencyMinutes"');
+    expect(html).toContain('name="autoPublish"');
   });
 });
 

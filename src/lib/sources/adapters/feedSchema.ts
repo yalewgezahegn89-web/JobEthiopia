@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { APPLICANT_ELIGIBILITY_VALUES } from "@/lib/jobs/applicantEligibility";
 import { httpUrlSchema } from "@/lib/validations/employerJob";
 
 /**
@@ -37,6 +38,11 @@ export const jsonFeedItemSchema = z.object({
   deadline: z
     .string()
     .datetime({ message: "deadline must be a valid ISO 8601 datetime" })
+    .nullable()
+    .optional(),
+
+  applicantEligibility: z
+    .enum(APPLICANT_ELIGIBILITY_VALUES)
     .nullable()
     .optional(),
 

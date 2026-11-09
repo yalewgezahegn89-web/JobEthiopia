@@ -23,6 +23,17 @@
 | `TRUSTED_CLIENT_IP_HEADER` | Header name overwritten by a trusted reverse proxy with the real client IP (e.g. `x-real-ip`). Only set when a proxy is in use. | No | No |
 | `INTERNAL_INGESTION_API_KEY` | Route-dedicated key for the internal ingestion endpoint (sent as `x-maintenance-key`). Falls back to `MAINTENANCE_API_KEY` when unset. | No | Yes |
 | `INTERNAL_JOB_ALERTS_API_KEY` | Route-dedicated key for the internal job-alert digest endpoint (sent as `x-maintenance-key`). Falls back to `MAINTENANCE_API_KEY` when unset. | No | Yes |
+| `INTERNAL_TELEGRAM_API_KEY` | Route-dedicated key for the internal Telegram outbox endpoint (sent as `x-maintenance-key`). Falls back to `MAINTENANCE_API_KEY` when unset. | No | Yes |
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token for channel publishing (not the OIDC client secret). Unset means publications stay queued. | No | Yes |
+| `TELEGRAM_CHANNEL_ID` | Target channel username (e.g. `@jobs`) or numeric chat ID. The bot must be a channel administrator. | No | No |
+| `TELEGRAM_API_BASE_URL` | Optional Bot API base URL override; defaults to `https://api.telegram.org`. | No | No |
+| `ENABLE_FACEBOOK_INGESTION` | Set to exactly `true` to sweep Facebook Page sources and allow Facebook auto-publishing. Disabled by default. | No | No |
+| `FACEBOOK_PAGE_ACCESS_TOKEN` | Page access token for the owned JobEthiopia Page. Never stored in the database. | For owned Pages | Yes |
+| `FACEBOOK_APP_ACCESS_TOKEN` | App access token for approved external Page reads. Alternative to the app id/secret pair. | For external Pages | Yes |
+| `FACEBOOK_APP_ID` | Meta app id used to derive the external app access token. | For external Pages | No |
+| `FACEBOOK_APP_SECRET` | Meta app secret used to derive the external app access token. | For external Pages | Yes |
+| `FACEBOOK_GRAPH_API_VERSION` | Graph API version; defaults to `v23.0`. Must match `v<major>.<minor>`. | No | No |
+| `FACEBOOK_GRAPH_API_BASE_URL` | Optional Graph API base URL override; defaults to `https://graph.facebook.com`. | No | No |
 
 ### Bootstrap-Only
 
@@ -339,7 +350,7 @@ summary.
 
 ## Internal Automation Endpoints
 
-Three cron-driven internal endpoints share one authentication contract and must
+Four cron-driven internal endpoints share one authentication contract and must
 never be publicly reachable (they are POST-only and rate-limited):
 
 | Endpoint | Workflow | Schedule (UTC) |
@@ -348,17 +359,20 @@ never be publicly reachable (they are POST-only and rate-limited):
 | `POST /api/internal/ingestion/run` | [`.github/workflows/ingestion.yml`](./.github/workflows/ingestion.yml) | `30 3 * * *` — daily 03:30 (after maintenance) |
 | `POST /api/internal/job-alerts/daily` | [`.github/workflows/job-alerts.yml`](./.github/workflows/job-alerts.yml) | `0 4 * * *` — daily 04:00 (after ingestion) |
 
+| `POST /api/internal/telegram/publish` | [`.github/workflows/telegram.yml`](./.github/workflows/telegram.yml) | `*/5 * * * *` - every 5 minutes |
+
 `POST /api/internal/ingestion/dry-run?sourceId=<id>` is the on-demand (non-cron)
 sibling of the ingestion endpoint: it fetches a single source, validates and
 normalizes each item, and runs the read-only dedup cascade **without writing any
 rows** — it is the operator preview to run before enabling a new source.
 
-**Authentication:** all three cron endpoints (and the dry-run sibling) verify the
+**Authentication:** all cron endpoints (and the dry-run sibling) verify the
 `x-maintenance-key` header in constant time. Key resolution is rollout-safe:
 
 1. Route-dedicated key when configured —
    `INTERNAL_INGESTION_API_KEY` (ingestion), `INTERNAL_JOB_ALERTS_API_KEY`
-   (job alerts), or `MAINTENANCE_API_KEY` (maintenance).
+   (job alerts), `INTERNAL_TELEGRAM_API_KEY` (Telegram outbox), or
+   `MAINTENANCE_API_KEY` (maintenance).
 2. Otherwise the shared `MAINTENANCE_API_KEY` fallback.
 
 Until the dedicated keys are set in an environment, every route accepts
@@ -388,10 +402,21 @@ Production ingestion is scheduled by
 `03:30 UTC` daily. It invokes `POST /api/internal/ingestion/run`, which sweeps
 sources whose `check_frequency_minutes` interval is due, applies the four-level
 dedup ladder, auto-creates entities and locations, and publishes only through
-the moderation-first gate. The sweep is bounded to the source types with an
-adapter (`API`/`FEED`); manual/website/employer sources are never polled. Jobs
-that are already published are never silently rewritten by automated ingestion —
-their content stays as the moderator approved it (see `updateJob`).
+the moderation-first gate. The sweep covers `API`/`FEED` sources plus
+`WEBSITE` sources whose host is an allow-listed airline career page (for
+example `ethiopianairlines.com`); all other website, employer and manual
+sources are never polled. Feed bodies are parsed as the documented JSON feed,
+schema.org `JobPosting` JSON-LD, or RSS/Atom/RDF with one SSRF-safe fetch. Jobs
+that are already published are never silently rewritten by automated ingestion
+- their content stays as the moderator approved it (see `updateJob`).
+
+Auto-publishing is opt-in per source and requires **all** of: `autoPublish`,
+`trustLevel = HIGH`, a supported adapter, a newly created `DRAFT` job, explicit
+applicant eligibility (`ETHIOPIAN_APPLICANTS_CONFIRMED` or
+`INTERNATIONAL_APPLICANTS_ACCEPTED` - never inferred from location), an
+unexpired deadline, a safe http(s) application URL, a passing publication
+validation, and a configured Telegram channel. Otherwise the import stays as a
+draft for manual review. See [Telegram Publishing](#telegram-publishing-outbox).
 
 - **Repository configuration** — interval/git: **Secret** `MAINTENANCE_API_KEY`
   (and optionally `INTERNAL_INGESTION_API_KEY`); **Variable**
@@ -421,6 +446,72 @@ concurrent/repeated runs safe.
   them the digest runs and reports `emailsSent: 0` (noop transport).
 - **Expected success:** the endpoint returns
   `{"alertsProcessed":n,"sent":n,"skippedNoEmail":n,"failed":n,...}`.
+
+## Telegram Publishing (Outbox)
+
+Successful auto-publications are written to the `telegram_publications`
+outbox and delivered asynchronously by
+[`.github/workflows/telegram.yml`](./.github/workflows/telegram.yml), which
+calls `POST /api/internal/telegram/publish` every 5 minutes. The endpoint claims
+due rows with `FOR UPDATE SKIP LOCKED`, sends one escaped HTML message per job,
+and records `SENT`, `RETRY`, `FAILED` or `SKIPPED`. HTTP 429/5xx responses are
+retried with exponential backoff (`retry_after` respected); permanent 4xx
+errors fail the row. The unique `(job_id, channel)` index guarantees at most one
+publication per job and channel.
+
+- **Configuration:** `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHANNEL_ID` (and
+  optionally `TELEGRAM_API_BASE_URL`). These are **separate** from Telegram
+  OIDC login; never use `TELEGRAM_CLIENT_SECRET` as the bot token.
+- **Language:** publications are English-only. Templates use English headings
+  and labels, and the original official English job content is published
+  unchanged. No translation provider or translation API is called. The website
+  keeps its existing Amharic and Afaan Oromo interface localization.
+- **Channel access:** add the bot as an administrator of the target channel.
+  Without configuration the worker returns `configured: false` and queued rows
+  remain pending; the rest of the application keeps working.
+- **Repository configuration:** **Secret** `MAINTENANCE_API_KEY` (and
+  optionally `INTERNAL_TELEGRAM_API_KEY`); **Variable**
+  `MAINTENANCE_TARGET_URL`.
+- **Manual drain:** `POST /api/internal/telegram/publish?limit=20` with the
+  `x-maintenance-key` header.
+- **Monitoring:** review state and retry permanently failed rows from
+  `/admin/telegram`. Audit events: `JOB_AUTO_PUBLISHED`,
+  `TELEGRAM_OUTBOX_RUN`, and terminal publication outcomes.
+- **Expected success:** `{"configured":true,"claimed":n,"sent":n,"retried":n,
+  "failed":n,"skipped":n}`. Missing config returns `configured: false` with a
+  reason instead of failing the workflow.
+
+Full operator details: [`docs/telegram-publishing.md`](./docs/telegram-publishing.md).
+
+## Facebook Page Ingestion
+
+Facebook Page ingestion is **disabled by default**. Set
+`ENABLE_FACEBOOK_INGESTION=true` to include `FACEBOOK` sources in the due
+sweep; when the flag is off, Facebook sources are skipped without failing and
+their draft jobs cannot auto-publish.
+
+- **Owned Pages** read published posts with a Page access token
+  (`FACEBOOK_PAGE_ACCESS_TOKEN`). No token is ever stored in the database.
+- **External Pages** stay blocked until both
+  `facebook_approval_state = APPROVED` (Meta Page Public Content Access) and
+  `facebook_content_use_state = AUTHORIZED` (documented Page-owner permission)
+  are recorded, and either `FACEBOOK_APP_ACCESS_TOKEN` or
+  `FACEBOOK_APP_ID` + `FACEBOOK_APP_SECRET` is configured.
+- **Data scope:** published posts only; only `id`, `message`, `created_time`
+  and `permalink_url` are requested. No comments, DMs, or personal data.
+- **Publishing:** auto-publish still requires HIGH trust, an explicit opt-in,
+  confirmed applicant eligibility, a future deadline, a safe application URL,
+  and full publication validation. An external Page additionally requires the
+  approval and authorization above. Website publishing no longer depends on a
+  configured Telegram channel; outbox rows are queued only when it is.
+- **Safety:** incomplete posts are retained as `DRAFT` with
+  `NEEDS_REVIEW` and deterministic reasons in the audit log. Published jobs
+  that disappear or change are flagged `NEEDS_REVIEW`; nothing is deleted.
+- **Operator flow:** create a `FACEBOOK` source under `/admin/sources`, record
+  the Page id/kind and authorization, then use **Sync now** on the source
+  detail page. Health shows the last check and last error.
+
+Full operator details: [`docs/facebook-ingestion.md`](./docs/facebook-ingestion.md).
 
 ## Operations Requirements
 

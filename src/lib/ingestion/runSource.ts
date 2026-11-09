@@ -2,8 +2,12 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { sources } from "@/db/schema/sources";
 import { ingestJobs } from "@/lib/ingestion/batch";
-import { getAdapterForSource } from "@/lib/sources/adapters";
-import { SUPPORTED_ADAPTER_SOURCE_TYPES } from "@/lib/sources/adapters";
+import { autoPublishIngestedJob } from "@/lib/ingestion/autoPublish";
+import {
+  getAdapterForSourceRecord,
+  SWEEP_SOURCE_TYPES,
+  type SourceAdapter,
+} from "@/lib/sources/adapters";
 import {
   recordSuccessfulCheck,
   recordFailedCheck,
@@ -11,6 +15,12 @@ import {
   autoDeactivateIfUnhealthy,
 } from "@/lib/sources/health";
 import { logInfo, logWarn } from "@/lib/observability/logger";
+import { isFacebookIngestionEnabled } from "@/lib/facebook/config";
+import {
+  flagFacebookChangedJobs,
+  flagFacebookReviewItems,
+  reconcileFacebookObserved,
+} from "@/lib/ingestion/facebookSync";
 
 const MAX_SOURCES_PER_RUN = 100;
 
@@ -121,6 +131,61 @@ async function recordSuccessfulCheckSafe(sourceId: string): Promise<void> {
   }
 }
 
+type SuccessfulFetch = Extract<
+  Awaited<ReturnType<SourceAdapter["fetchJobs"]>>,
+  { success: true }
+>;
+
+/**
+ * Facebook-only reconciliation. Best-effort: a bookkeeping failure must not
+ * fail an otherwise successful ingestion run.
+ */
+async function applyFacebookBookkeeping(
+  sourceId: string,
+  sourceType: string,
+  fetch: SuccessfulFetch,
+): Promise<void> {
+  if (sourceType !== "FACEBOOK") return;
+
+  try {
+    const reviewItems = fetch.metadata?.reviewItems ?? [];
+    if (reviewItems.length > 0) {
+      await flagFacebookReviewItems(sourceId, reviewItems);
+    }
+  } catch (err: unknown) {
+    logWarn("facebook_review_flagging_failed", {
+      sourceId,
+      reason: errorMessage(err),
+    });
+  }
+
+  try {
+    if (fetch.metadata?.observedExternalIds) {
+      await reconcileFacebookObserved(
+        sourceId,
+        fetch.metadata.observedExternalIds,
+      );
+    }
+  } catch (err: unknown) {
+    logWarn("facebook_reconciliation_failed", {
+      sourceId,
+      reason: errorMessage(err),
+    });
+  }
+}
+
+async function flagChangedFacebookJobs(
+  sourceType: string,
+  updatedJobIds: string[],
+): Promise<void> {
+  if (sourceType !== "FACEBOOK" || updatedJobIds.length === 0) return;
+  try {
+    await flagFacebookChangedJobs(updatedJobIds);
+  } catch {
+    // Best-effort review flagging.
+  }
+}
+
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return "Connection failed";
@@ -148,7 +213,13 @@ export async function runSourceIngestion(
 
   const source = await db.query.sources.findFirst({
     where: eq(sources.id, sourceId),
-    columns: { id: true, name: true, sourceType: true, isActive: true },
+    columns: {
+      id: true,
+      name: true,
+      sourceType: true,
+      baseUrl: true,
+      isActive: true,
+    },
   });
 
   if (!source) {
@@ -173,7 +244,18 @@ export async function runSourceIngestion(
     };
   }
 
-  const adapter = getAdapterForSource(source.sourceType);
+  if (source.sourceType === "FACEBOOK" && !isFacebookIngestionEnabled()) {
+    return {
+      sourceId,
+      status: "SKIPPED",
+      reason: "Facebook ingestion is disabled",
+      ...zeroCounts(),
+      durationMs: elapsedMs(start),
+      deactivated: false,
+    };
+  }
+
+  const adapter = getAdapterForSourceRecord(source);
   if (!adapter) {
     return {
       sourceId,
@@ -222,6 +304,7 @@ export async function runSourceIngestion(
   }
 
   if (fetch.jobs.length === 0) {
+    await applyFacebookBookkeeping(sourceId, source.sourceType, fetch);
     await recordSuccessfulCheckSafe(sourceId);
     return {
       sourceId,
@@ -235,6 +318,32 @@ export async function runSourceIngestion(
 
   try {
     const result = await ingestJobs({ sourceId, jobs: fetch.jobs });
+
+    const updatedJobIds = result.items
+      .filter((item) => item.outcome === "UPDATED" && item.jobId)
+      .map((item) => item.jobId as string);
+    await applyFacebookBookkeeping(sourceId, source.sourceType, fetch);
+    await flagChangedFacebookJobs(source.sourceType, updatedJobIds);
+
+    let autoPublished = 0;
+    for (const item of result.items) {
+      if (item.outcome !== "CREATED" || !item.jobId) continue;
+      try {
+        const publication = await autoPublishIngestedJob(
+          item.jobId,
+          sourceId,
+        );
+        if (publication.published) autoPublished += 1;
+      } catch (err: unknown) {
+        // Auto-publication must never fail ingestion or health recording.
+        logWarn("ingestion_auto_publish_failed", {
+          sourceId,
+          jobId: item.jobId,
+          reason: errorMessage(err),
+        });
+      }
+    }
+
     logInfo("ingestion_source_completed", {
       sourceId,
       total: result.summary.total,
@@ -244,6 +353,7 @@ export async function runSourceIngestion(
       linked: result.summary.linked,
       possibleDuplicate: result.summary.possibleDuplicate,
       failed: result.summary.failed,
+      autoPublished,
       durationMs: elapsedMs(start),
     });
     return {
@@ -299,6 +409,10 @@ export async function runSourcesIngestion(): Promise<SourcesIngestionResult> {
     ...zeroAggregates(),
   };
 
+  const sweepTypes = isFacebookIngestionEnabled()
+    ? SWEEP_SOURCE_TYPES
+    : SWEEP_SOURCE_TYPES.filter((type) => type !== "FACEBOOK");
+
   const activeSources = await db
     .select({
       id: sources.id,
@@ -310,7 +424,7 @@ export async function runSourcesIngestion(): Promise<SourcesIngestionResult> {
     .where(
       and(
         eq(sources.isActive, true),
-        inArray(sources.sourceType, SUPPORTED_ADAPTER_SOURCE_TYPES),
+        inArray(sources.sourceType, sweepTypes),
       ),
     )
     .orderBy(asc(sources.lastSuccessfulCheck), sql`consecutive_failures DESC`)
