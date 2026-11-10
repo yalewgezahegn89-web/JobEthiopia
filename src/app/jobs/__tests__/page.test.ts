@@ -3,47 +3,24 @@ import { createElement, Fragment, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { dictionaries } from "@/lib/i18n/dictionary";
 
+const CATEGORY_ID = "11111111-1111-4111-8111-111111111111";
+const PROFESSION_ID = "22222222-2222-4222-8222-222222222222";
+const LOCATION_ID = "33333333-3333-4333-8333-333333333333";
+
 const mocks = vi.hoisted(() => ({
-  mockFetchJobs: vi.fn(),
-  mockFetchCategories: vi.fn(),
-  mockFetchProfessions: vi.fn(),
-  mockFetchLocations: vi.fn(),
+  mockListPublicJobSummaries: vi.fn(),
+  mockListActiveTaxonomyOptions: vi.fn(),
 }));
 
-vi.mock("@/lib/jobs/public", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/jobs/public")>();
-  return {
-    ...actual,
-    fetchJobs: (...a: unknown[]) => mocks.mockFetchJobs(...a),
-  };
-});
+vi.mock("@/lib/jobs/listPublicJobs", () => ({
+  listPublicJobSummaries: (...args: unknown[]) =>
+    mocks.mockListPublicJobSummaries(...args),
+}));
 
-vi.mock("@/lib/categories/public", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/lib/categories/public")>();
-  return {
-    ...actual,
-    fetchCategories: (...a: unknown[]) => mocks.mockFetchCategories(...a),
-  };
-});
-
-vi.mock("@/lib/professions/public", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/lib/professions/public")>();
-  return {
-    ...actual,
-    fetchProfessions: (...a: unknown[]) => mocks.mockFetchProfessions(...a),
-  };
-});
-
-vi.mock("@/lib/locations/public", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("@/lib/locations/public")>();
-  return {
-    ...actual,
-    fetchLocations: (...a: unknown[]) => mocks.mockFetchLocations(...a),
-  };
-});
+vi.mock("@/lib/taxonomy/server", () => ({
+  listActiveTaxonomyOptions: (...args: unknown[]) =>
+    mocks.mockListActiveTaxonomyOptions(...args),
+}));
 
 vi.mock("next/link", () => ({
   default: ({ href, children }: { href: string; children: ReactNode }) =>
@@ -67,9 +44,9 @@ function makeJob(overrides: Record<string, unknown> = {}) {
     title: "Senior Accountant",
     slug: "senior-accountant",
     organizationId: null,
-    categoryId: "cat-1",
-    professionId: "prof-1",
-    locationId: "loc-1",
+    categoryId: CATEGORY_ID,
+    professionId: PROFESSION_ID,
+    locationId: LOCATION_ID,
     organizationName: "ACME Plc",
     locationName: "Addis Ababa",
     categoryName: "Finance",
@@ -87,42 +64,32 @@ function makeJob(overrides: Record<string, unknown> = {}) {
 
 function makeCategory(overrides: Record<string, unknown> = {}) {
   return {
-    id: "cat-1",
+    id: CATEGORY_ID,
     name: "Finance",
-    slug: "finance",
-    description: null,
-    parentId: null,
-    isActive: true,
-    sortOrder: null,
     ...overrides,
   };
 }
 
 function makeProfession(overrides: Record<string, unknown> = {}) {
   return {
-    id: "prof-1",
+    id: PROFESSION_ID,
     name: "Accounting",
-    slug: "accounting",
-    description: null,
-    categoryId: null,
-    isActive: true,
     ...overrides,
   };
 }
 
 function makeLocation(overrides: Record<string, unknown> = {}) {
   return {
-    id: "loc-1",
+    id: LOCATION_ID,
     name: "Addis Ababa",
-    slug: "addis-ababa",
-    type: "CITY",
-    parentId: null,
-    isActive: true,
     ...overrides,
   };
 }
 
-function makeResult(items = [makeJob()], paginationOverrides: Record<string, unknown> = {}) {
+function makeResult(
+  items = [makeJob()],
+  paginationOverrides: Record<string, unknown> = {},
+) {
   return {
     items,
     pagination: {
@@ -135,25 +102,22 @@ function makeResult(items = [makeJob()], paginationOverrides: Record<string, unk
   };
 }
 
-async function renderJobs(searchParams: Record<string, string | undefined> = {}): Promise<string> {
-  const element = await JobsPage({ searchParams: Promise.resolve(searchParams) });
+async function renderJobs(
+  searchParams: Record<string, string | undefined> = {},
+): Promise<string> {
+  const element = await JobsPage({
+    searchParams: Promise.resolve(searchParams),
+  });
   return renderToStaticMarkup(element);
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.mockFetchJobs.mockResolvedValue(makeResult());
-  mocks.mockFetchCategories.mockResolvedValue({
-    items: [makeCategory()],
-    pagination: { page: 1, limit: 200, total: 1, totalPages: 1 },
-  });
-  mocks.mockFetchProfessions.mockResolvedValue({
-    items: [makeProfession()],
-    pagination: { page: 1, limit: 200, total: 1, totalPages: 1 },
-  });
-  mocks.mockFetchLocations.mockResolvedValue({
-    items: [makeLocation()],
-    pagination: { page: 1, limit: 200, total: 1, totalPages: 1 },
+  mocks.mockListPublicJobSummaries.mockResolvedValue(makeResult());
+  mocks.mockListActiveTaxonomyOptions.mockResolvedValue({
+    categories: [makeCategory()],
+    professions: [makeProfession()],
+    locations: [makeLocation()],
   });
 });
 
@@ -167,7 +131,7 @@ describe("JobsPage", () => {
   it("renders a search form that preserves GET parameters and route", async () => {
     const html = await renderJobs();
     expect(html).toContain('action="/jobs"');
-    expect(html).toContain("method=\"get\"");
+    expect(html).toContain('method="get"');
     expect(html).toContain('name="q"');
     expect(html).toContain("Search jobs by keyword");
   });
@@ -187,18 +151,18 @@ describe("JobsPage", () => {
   });
 
   it("preserves selected filter values", async () => {
-    mocks.mockFetchJobs.mockResolvedValue(
+    mocks.mockListPublicJobSummaries.mockResolvedValue(
       makeResult([makeJob()], { total: 1, totalPages: 1 }),
     );
     const html = await renderJobs({
-      categoryId: "cat-1",
-      professionId: "prof-1",
-      locationId: "loc-1",
+      categoryId: CATEGORY_ID,
+      professionId: PROFESSION_ID,
+      locationId: LOCATION_ID,
       employmentType: "FULL_TIME",
     });
-    expect(html).toContain('value="cat-1"');
-    expect(html).toContain('value="prof-1"');
-    expect(html).toContain('value="loc-1"');
+    expect(html).toContain(`value="${CATEGORY_ID}"`);
+    expect(html).toContain(`value="${PROFESSION_ID}"`);
+    expect(html).toContain(`value="${LOCATION_ID}"`);
     expect(html).toContain('value="FULL_TIME"');
   });
 
@@ -210,7 +174,7 @@ describe("JobsPage", () => {
   });
 
   it("renders a plural result count for multiple jobs", async () => {
-    mocks.mockFetchJobs.mockResolvedValue(
+    mocks.mockListPublicJobSummaries.mockResolvedValue(
       makeResult([makeJob(), { ...makeJob(), id: "job-2" }], {
         page: 2,
         limit: 20,
@@ -232,14 +196,16 @@ describe("JobsPage", () => {
   });
 
   it("shows an empty state when no jobs match the filters", async () => {
-    mocks.mockFetchJobs.mockResolvedValue(makeResult([], { total: 0, totalPages: 0 }));
+    mocks.mockListPublicJobSummaries.mockResolvedValue(
+      makeResult([], { total: 0, totalPages: 0 }),
+    );
     const html = await renderJobs({ q: "zzz" });
     expect(html).toContain("No jobs found");
     expect(html).toContain("Browse all jobs");
   });
 
-  it("renders the localized empty state (not load error) when HTTP 200 returns zero eligible jobs", async () => {
-    mocks.mockFetchJobs.mockResolvedValue(
+  it("renders the localized empty state (not load error) when a successful query returns zero eligible jobs", async () => {
+    mocks.mockListPublicJobSummaries.mockResolvedValue(
       makeResult([], { total: 0, totalPages: 0, page: 1, limit: 20 }),
     );
     const html = await renderJobs();
@@ -248,23 +214,25 @@ describe("JobsPage", () => {
   });
 
   it("renders pagination with previous/next and current page", async () => {
-    mocks.mockFetchJobs.mockResolvedValue(
+    mocks.mockListPublicJobSummaries.mockResolvedValue(
       makeResult([makeJob()], { page: 3, total: 55, totalPages: 3 }),
     );
     const html = await renderJobs({ page: "3" });
     expect(html).toContain('aria-label="Pagination"');
     expect(html).toContain("Previous");
-    expect(html).toContain("aria-current=\"page\"");
+    expect(html).toContain('aria-current="page"');
   });
 
-  it("shows an error state when the fetch fails", async () => {
-    mocks.mockFetchJobs.mockRejectedValue(new Error("boom"));
+  it("shows an error state when the listing query fails", async () => {
+    mocks.mockListPublicJobSummaries.mockRejectedValue(new Error("boom"));
     const html = await renderJobs();
     expect(html).toContain("We could not load jobs");
   });
 
-  it("renders the localized load-error state for a genuine API failure", async () => {
-    mocks.mockFetchJobs.mockRejectedValue(new Error("500 Internal Server Error"));
+  it("renders the localized load-error state for a genuine query failure", async () => {
+    mocks.mockListPublicJobSummaries.mockRejectedValue(
+      new Error("500 Internal Server Error"),
+    );
     const html = await renderJobs();
     expect(html).toContain(dictionaries.en.jobs.loadErrorHeading);
     expect(html).toContain(dictionaries.en.jobs.loadErrorBody);
@@ -272,7 +240,7 @@ describe("JobsPage", () => {
   });
 
   it("renders a plural result count from the available total", async () => {
-    mocks.mockFetchJobs.mockResolvedValue(
+    mocks.mockListPublicJobSummaries.mockResolvedValue(
       makeResult([makeJob(), { ...makeJob(), id: "job-2" }], {
         page: 1,
         limit: 20,
@@ -286,7 +254,7 @@ describe("JobsPage", () => {
   });
 
   it("populates filter dropdowns from taxonomy data, not just job results", async () => {
-    mocks.mockFetchJobs.mockResolvedValue(
+    mocks.mockListPublicJobSummaries.mockResolvedValue(
       makeResult([
         makeJob({
           categoryId: "cat-a",
@@ -298,28 +266,21 @@ describe("JobsPage", () => {
         }),
       ]),
     );
-    mocks.mockFetchCategories.mockResolvedValue({
-      items: [
+    mocks.mockListActiveTaxonomyOptions.mockResolvedValue({
+      categories: [
         makeCategory({ id: "cat-a", name: "Category A" }),
         makeCategory({ id: "cat-b", name: "Category B" }),
         makeCategory({ id: "cat-c", name: "Category C" }),
       ],
-      pagination: { page: 1, limit: 200, total: 3, totalPages: 1 },
-    });
-    mocks.mockFetchProfessions.mockResolvedValue({
-      items: [
+      professions: [
         makeProfession({ id: "prof-a", name: "Profession A" }),
         makeProfession({ id: "prof-b", name: "Profession B" }),
       ],
-      pagination: { page: 1, limit: 200, total: 2, totalPages: 1 },
-    });
-    mocks.mockFetchLocations.mockResolvedValue({
-      items: [
+      locations: [
         makeLocation({ id: "loc-a", name: "Location A" }),
         makeLocation({ id: "loc-b", name: "Location B" }),
         makeLocation({ id: "loc-c", name: "Location C" }),
       ],
-      pagination: { page: 1, limit: 200, total: 3, totalPages: 1 },
     });
 
     const html = await renderJobs();
@@ -332,16 +293,16 @@ describe("JobsPage", () => {
   });
 
   it("preserves selected filter values after navigation", async () => {
-    mocks.mockFetchJobs.mockResolvedValue(makeResult());
+    mocks.mockListPublicJobSummaries.mockResolvedValue(makeResult());
     const html = await renderJobs({
-      categoryId: "cat-1",
-      professionId: "prof-1",
-      locationId: "loc-1",
+      categoryId: CATEGORY_ID,
+      professionId: PROFESSION_ID,
+      locationId: LOCATION_ID,
       employmentType: "FULL_TIME",
     });
-    expect(html).toContain('value="cat-1"');
-    expect(html).toContain('value="prof-1"');
-    expect(html).toContain('value="loc-1"');
+    expect(html).toContain(`value="${CATEGORY_ID}"`);
+    expect(html).toContain(`value="${PROFESSION_ID}"`);
+    expect(html).toContain(`value="${LOCATION_ID}"`);
     expect(html).toContain('value="FULL_TIME"');
   });
 
@@ -350,12 +311,54 @@ describe("JobsPage", () => {
     expect(html).toContain('aria-label="Search jobs"');
   });
 
-  it("renders jobs when taxonomy fetches fail", async () => {
-    mocks.mockFetchCategories.mockRejectedValue(new Error("taxonomy boom"));
-    mocks.mockFetchProfessions.mockRejectedValue(new Error("taxonomy boom"));
-    mocks.mockFetchLocations.mockRejectedValue(new Error("taxonomy boom"));
+  it("renders jobs when taxonomy loading fails", async () => {
+    mocks.mockListActiveTaxonomyOptions.mockRejectedValue(
+      new Error("taxonomy boom"),
+    );
     const html = await renderJobs();
     expect(html).toContain("Senior Accountant");
     expect(html).not.toContain("We could not load jobs");
+  });
+
+  it("passes parsed filters, sorting, and pagination to the shared listing", async () => {
+    await renderJobs({
+      q: "nurse",
+      categoryId: CATEGORY_ID,
+      professionId: PROFESSION_ID,
+      locationId: LOCATION_ID,
+      employmentType: "FULL_TIME",
+      sort: "deadline",
+      salaryMin: "1000",
+      salaryMax: "2000",
+      page: "3",
+    });
+
+    expect(mocks.mockListPublicJobSummaries).toHaveBeenCalledWith({
+      page: 3,
+      limit: 20,
+      categoryId: CATEGORY_ID,
+      professionId: PROFESSION_ID,
+      locationId: LOCATION_ID,
+      employmentType: "FULL_TIME",
+      q: "nurse",
+      sort: "deadline",
+      salaryMin: 1000,
+      salaryMax: 2000,
+    });
+  });
+
+  it("does not make an unauthenticated HTTP self-fetch during render", async () => {
+    const fetchSpy = vi.fn(() =>
+      Promise.reject(new Error("unexpected HTTP fetch")),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      const html = await renderJobs();
+      expect(html).toContain("Senior Accountant");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

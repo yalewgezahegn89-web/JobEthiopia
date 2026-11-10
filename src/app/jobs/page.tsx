@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  fetchJobs,
+  listPublicJobSummaries,
   type PublicJobList,
-} from "@/lib/jobs/public";
-import { fetchCategories } from "@/lib/categories/public";
-import { fetchProfessions } from "@/lib/professions/public";
-import { fetchLocations } from "@/lib/locations/public";
+} from "@/lib/jobs/listPublicJobs";
+import { listActiveTaxonomyOptions } from "@/lib/taxonomy/server";
+import { jobListQuerySchema } from "@/lib/validations/jobQuery";
 import {
   EMPLOYMENT_TYPE_OPTIONS,
   formatEmploymentType,
@@ -87,29 +86,30 @@ export default async function JobsPage({
   const salaryMax = toSalaryNumber(firstValue(params.salaryMax));
   const page = toPositiveInteger(firstValue(params.page), 1);
 
+  const parsedQuery = jobListQuerySchema.safeParse({
+    page,
+    limit: 20,
+    categoryId: categoryId || undefined,
+    professionId: professionId || undefined,
+    locationId: locationId || undefined,
+    employmentType: employmentType || undefined,
+    q: q || undefined,
+    sort,
+    salaryMin,
+    salaryMax,
+  });
+
   let result: PublicJobList | null = null;
   let loadError = false;
 
-  const [jobsResult, categoriesResult, professionsResult, locationsResult] =
-    await Promise.all([
-      fetchJobs({
-        q: q || undefined,
-        categoryId,
-        professionId,
-        locationId,
-        employmentType,
-        sort,
-        salaryMin,
-        salaryMax,
-        page,
-        limit: 20,
-      }).catch(() => null),
-      fetchCategories({ limit: 200 }).catch(() => null),
-      fetchProfessions({ limit: 200 }).catch(() => null),
-      fetchLocations({ limit: 200 }).catch(() => null),
-    ]);
+  const [jobsResult, taxonomyResult] = await Promise.all([
+    parsedQuery.success
+      ? listPublicJobSummaries(parsedQuery.data).catch(() => null)
+      : Promise.resolve(null),
+    listActiveTaxonomyOptions().catch(() => null),
+  ]);
 
-  if (jobsResult === null) {
+  if (!parsedQuery.success || jobsResult === null) {
     loadError = true;
   } else {
     result = jobsResult;
@@ -139,14 +139,14 @@ export default async function JobsPage({
   const total = pagination.total;
   const totalPages = pagination.totalPages;
 
-  const categories = (categoriesResult?.items ?? [])
-    .map((c) => ({ id: c.id, name: c.name }))
+  const categories = (taxonomyResult?.categories ?? [])
+    .slice()
     .sort((a, b) => a.name.localeCompare(b.name));
-  const professions = (professionsResult?.items ?? [])
-    .map((p) => ({ id: p.id, name: p.name }))
+  const professions = (taxonomyResult?.professions ?? [])
+    .slice()
     .sort((a, b) => a.name.localeCompare(b.name));
-  const locations = (locationsResult?.items ?? [])
-    .map((l) => ({ id: l.id, name: l.name }))
+  const locations = (taxonomyResult?.locations ?? [])
+    .slice()
     .sort((a, b) => a.name.localeCompare(b.name));
   const employmentTypes = EMPLOYMENT_TYPE_OPTIONS;
 

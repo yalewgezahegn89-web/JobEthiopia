@@ -72,9 +72,9 @@ export function buildRelevanceOrderExpression(
         similarity(${jobs.title}, ${q}),
         similarity(${jobs.description}, ${q}) * ${RELEVANCE_WEIGHTS.description},
         CASE
-          WHEN ${jobs.organizationId} = ANY(${organizationIds})
+          WHEN ${jobs.organizationId} = ANY(${drizzleSql.param(organizationIds)})
             THEN ${RELEVANCE_WEIGHTS.organization}
-          ELSE 0
+          ELSE 0.0
         END
       )
     `
@@ -97,9 +97,9 @@ export function buildRelevanceOrderExpression(
       WHEN LOWER(${jobs.title}) = LOWER(${q}) THEN ${RELEVANCE_WEIGHTS.exactTitle}
       WHEN ${jobs.title} ILIKE ${prefixPattern} THEN ${RELEVANCE_WEIGHTS.prefixTitle}
       WHEN ${jobs.title} ILIKE ${containsPattern} THEN ${RELEVANCE_WEIGHTS.substringTitle}
-      WHEN ${jobs.organizationId} = ANY(${organizationIds}) THEN ${RELEVANCE_WEIGHTS.organization}
+      WHEN ${jobs.organizationId} = ANY(${drizzleSql.param(organizationIds)}) THEN ${RELEVANCE_WEIGHTS.organization}
       WHEN ${jobs.description} ILIKE ${containsPattern} THEN ${RELEVANCE_WEIGHTS.description}
-      ELSE 0
+      ELSE 0.0
     END
   `
     : drizzleSql`
@@ -108,7 +108,7 @@ export function buildRelevanceOrderExpression(
       WHEN ${jobs.title} ILIKE ${prefixPattern} THEN ${RELEVANCE_WEIGHTS.prefixTitle}
       WHEN ${jobs.title} ILIKE ${containsPattern} THEN ${RELEVANCE_WEIGHTS.substringTitle}
       WHEN ${jobs.description} ILIKE ${containsPattern} THEN ${RELEVANCE_WEIGHTS.description}
-      ELSE 0
+      ELSE 0.0
     END
   `;
 }
