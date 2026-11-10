@@ -66,7 +66,8 @@ export function buildRelevanceOrderExpression(
   const { q, organizationIds, trgm } = input;
 
   if (trgm) {
-    return drizzleSql`
+    return organizationIds.length > 0
+      ? drizzleSql`
       GREATEST(
         similarity(${jobs.title}, ${q}),
         similarity(${jobs.description}, ${q}) * ${RELEVANCE_WEIGHTS.description},
@@ -76,6 +77,13 @@ export function buildRelevanceOrderExpression(
           ELSE 0
         END
       )
+    `
+      : drizzleSql`
+      GREATEST(
+        similarity(${jobs.title}, ${q}),
+        similarity(${jobs.description}, ${q}) * ${RELEVANCE_WEIGHTS.description},
+        0
+      )
     `;
   }
 
@@ -83,12 +91,22 @@ export function buildRelevanceOrderExpression(
   const containsPattern = `%${escaped}%`;
   const prefixPattern = `${escaped}%`;
 
-  return drizzleSql`
+  return organizationIds.length > 0
+    ? drizzleSql`
     CASE
       WHEN LOWER(${jobs.title}) = LOWER(${q}) THEN ${RELEVANCE_WEIGHTS.exactTitle}
       WHEN ${jobs.title} ILIKE ${prefixPattern} THEN ${RELEVANCE_WEIGHTS.prefixTitle}
       WHEN ${jobs.title} ILIKE ${containsPattern} THEN ${RELEVANCE_WEIGHTS.substringTitle}
       WHEN ${jobs.organizationId} = ANY(${organizationIds}) THEN ${RELEVANCE_WEIGHTS.organization}
+      WHEN ${jobs.description} ILIKE ${containsPattern} THEN ${RELEVANCE_WEIGHTS.description}
+      ELSE 0
+    END
+  `
+    : drizzleSql`
+    CASE
+      WHEN LOWER(${jobs.title}) = LOWER(${q}) THEN ${RELEVANCE_WEIGHTS.exactTitle}
+      WHEN ${jobs.title} ILIKE ${prefixPattern} THEN ${RELEVANCE_WEIGHTS.prefixTitle}
+      WHEN ${jobs.title} ILIKE ${containsPattern} THEN ${RELEVANCE_WEIGHTS.substringTitle}
       WHEN ${jobs.description} ILIKE ${containsPattern} THEN ${RELEVANCE_WEIGHTS.description}
       ELSE 0
     END

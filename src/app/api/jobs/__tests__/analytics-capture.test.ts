@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => ({
   queryJobsFindFirst: vi.fn(),
   selectRows: vi.fn(),
   insertValues: vi.fn(),
+  isPgTrgmAvailable: vi.fn(),
+}));
+
+vi.mock("@/lib/search/trgm", () => ({
+  isPgTrgmAvailable: (...args: unknown[]) => mocks.isPgTrgmAvailable(...args),
 }));
 
 vi.mock("@/db", () => ({
@@ -86,6 +91,7 @@ beforeEach(() => {
   mocks.queryJobsFindFirst.mockResolvedValue(PUBLISHED_JOB);
   mocks.selectRows.mockResolvedValue([{ count: 5 }]);
   mocks.insertValues.mockResolvedValue(undefined);
+  mocks.isPgTrgmAvailable.mockResolvedValue(false);
 });
 
 describe("GET /api/jobs discovery events", () => {
@@ -141,6 +147,41 @@ describe("GET /api/jobs discovery events", () => {
     mocks.insertValues.mockRejectedValue(new Error("db down"));
     const response = await GET(listRequest("/api/jobs"));
     expect(response.status).toBe(200);
+  });
+
+  it("returns 200 for keyword relevance search when no organization names match (substring tier)", async () => {
+    mocks.isPgTrgmAvailable.mockResolvedValue(false);
+    mocks.queryFindMany.mockImplementation(async () => []);
+    const response = await GET(
+      listRequest("/api/jobs?q=engineer&sort=relevance"),
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { items: unknown[] };
+    expect(Array.isArray(body.items)).toBe(true);
+  });
+
+  it("returns 200 for keyword relevance search when no organization names match (trgm tier)", async () => {
+    mocks.isPgTrgmAvailable.mockResolvedValue(true);
+    mocks.queryFindMany.mockImplementation(async () => []);
+    const response = await GET(
+      listRequest("/api/jobs?q=engineer&sort=relevance"),
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { items: unknown[] };
+    expect(Array.isArray(body.items)).toBe(true);
+  });
+
+  it("returns 200 with zero eligible jobs for a successful public list response", async () => {
+    mocks.selectRows.mockResolvedValue([{ count: 0 }]);
+    mocks.queryJobsFindMany.mockResolvedValue([]);
+    const response = await GET(listRequest("/api/jobs"));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      items: unknown[];
+      pagination: { total: number };
+    };
+    expect(body.items).toEqual([]);
+    expect(body.pagination.total).toBe(0);
   });
 });
 

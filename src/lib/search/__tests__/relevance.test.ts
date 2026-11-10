@@ -132,10 +132,22 @@ describe("buildRelevanceOrderExpression", () => {
     expect(rendered).not.toContain("similarity");
   });
 
-  it("prefers exact-title over prefix, substring, org and description in one pass", () => {
+  it("omits the organization-match branch for empty organizationIds in substring tier", () => {
     const expression = buildRelevanceOrderExpression({
       q: "nurse",
       organizationIds: [],
+      trgm: false,
+    });
+    const rendered = sqlRendered(expression);
+    expect(rendered).not.toContain("ANY");
+    expect(rendered).not.toContain("()");
+    expect(rendered).toContain(String(RELEVANCE_WEIGHTS.description));
+  });
+
+  it("prefers exact-title over prefix, substring, org and description in one pass", () => {
+    const expression = buildRelevanceOrderExpression({
+      q: "nurse",
+      organizationIds: ["org-1"],
       trgm: false,
     });
     const rendered = sqlRendered(expression);
@@ -158,13 +170,38 @@ describe("buildRelevanceOrderExpression", () => {
     expect(rendered).not.toContain("ILIKE");
   });
 
-  it("keeps the org boost as an ANY clause when ids are provided", () => {
+  it("omits the organization-match branch for empty organizationIds in trgm tier", () => {
     const expression = buildRelevanceOrderExpression({
       q: "nurse",
-      organizationIds: ["org-1"],
+      organizationIds: [],
       trgm: true,
     });
-    expect(sqlRendered(expression)).toContain("ANY");
+    const rendered = sqlRendered(expression);
+    expect(rendered).toContain("GREATEST");
+    expect(rendered).toContain("similarity");
+    expect(rendered).not.toContain("ANY");
+    expect(rendered).not.toContain("()");
+  });
+
+  it("retains organization relevance weighting when organizationIds are non-empty", () => {
+    const substring = sqlRendered(
+      buildRelevanceOrderExpression({
+        q: "nurse",
+        organizationIds: ["org-1"],
+        trgm: false,
+      }),
+    );
+    const trgm = sqlRendered(
+      buildRelevanceOrderExpression({
+        q: "nurse",
+        organizationIds: ["org-1"],
+        trgm: true,
+      }),
+    );
+    expect(substring).toContain("ANY");
+    expect(substring).toContain(String(RELEVANCE_WEIGHTS.organization));
+    expect(trgm).toContain("ANY");
+    expect(trgm).toContain(String(RELEVANCE_WEIGHTS.organization));
   });
 
   it("keeps MIN_TRGM_SIMILARITY in a dedicated exported constant", () => {

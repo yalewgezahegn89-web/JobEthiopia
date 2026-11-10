@@ -238,6 +238,15 @@ describe("JobsPage", () => {
     expect(html).toContain("Browse all jobs");
   });
 
+  it("renders the localized empty state (not load error) when HTTP 200 returns zero eligible jobs", async () => {
+    mocks.mockFetchJobs.mockResolvedValue(
+      makeResult([], { total: 0, totalPages: 0, page: 1, limit: 20 }),
+    );
+    const html = await renderJobs();
+    expect(html).toContain(dictionaries.en.jobs.noFiltersHeading);
+    expect(html).not.toContain(dictionaries.en.jobs.loadErrorHeading);
+  });
+
   it("renders pagination with previous/next and current page", async () => {
     mocks.mockFetchJobs.mockResolvedValue(
       makeResult([makeJob()], { page: 3, total: 55, totalPages: 3 }),
@@ -252,6 +261,14 @@ describe("JobsPage", () => {
     mocks.mockFetchJobs.mockRejectedValue(new Error("boom"));
     const html = await renderJobs();
     expect(html).toContain("We could not load jobs");
+  });
+
+  it("renders the localized load-error state for a genuine API failure", async () => {
+    mocks.mockFetchJobs.mockRejectedValue(new Error("500 Internal Server Error"));
+    const html = await renderJobs();
+    expect(html).toContain(dictionaries.en.jobs.loadErrorHeading);
+    expect(html).toContain(dictionaries.en.jobs.loadErrorBody);
+    expect(html).not.toContain(dictionaries.en.jobs.noFiltersHeading);
   });
 
   it("renders a plural result count from the available total", async () => {
