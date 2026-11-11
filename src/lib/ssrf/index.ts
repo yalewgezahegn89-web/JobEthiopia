@@ -153,9 +153,22 @@ function fetchOnce(
   validatedAddresses: string[],
   maxBytes?: number,
   headers?: Record<string, string>,
+  body?: string,
 ): Promise<{ statusCode: number; headers: http.IncomingHttpHeaders; body?: string }> {
   return new Promise((resolve, reject) => {
     const mod = url.protocol === "https:" ? https : http;
+    // Only copy the headers when present so callers that forwarded none keep
+    // observing `headers: undefined` on the underlying request options.
+    let requestHeaders: Record<string, string> | undefined =
+      headers === undefined ? undefined : { ...headers };
+    // A known-length body avoids chunked encoding and lets servers reject
+    // oversized payloads up front. Never overrides an explicit header.
+    if (body !== undefined && !hasHeader(requestHeaders ?? {}, "content-length")) {
+      requestHeaders = {
+        ...(requestHeaders ?? {}),
+        "content-length": String(Buffer.byteLength(body, "utf8")),
+      };
+    }
     const opts: http.RequestOptions = {
       hostname: url.hostname,
       port: url.port || (url.protocol === "https:" ? 443 : 80),
@@ -164,7 +177,7 @@ function fetchOnce(
       signal,
       timeout: TIMEOUT_MS,
       lookup: buildValidatedLookup(validatedAddresses),
-      ...(headers ? { headers } : {}),
+      headers: requestHeaders,
     };
     const req = mod.request(opts, (res) => {
       if (maxBytes === undefined) {
@@ -202,8 +215,20 @@ function fetchOnce(
       req.destroy();
       reject(new SsrfError("Request timed out"));
     });
-    req.end();
+    if (body !== undefined) {
+      req.end(body);
+    } else {
+      req.end();
+    }
   });
+}
+
+function hasHeader(
+  headers: Record<string, string>,
+  name: string,
+): boolean {
+  const lower = name.toLowerCase();
+  return Object.keys(headers).some((key) => key.toLowerCase() === lower);
 }
 
 function resolveLocation(location: string, base: URL): URL {
@@ -229,6 +254,12 @@ export interface SsrfFetchOptions {
    * cross-origin redirect.
    */
   headers?: Record<string, string>;
+  /**
+   * Optional UTF-8 request body (for example a form-encoded POST body). It is
+   * sent only to the originally requested origin across redirects, exactly
+   * like the headers above, and never to a cross-origin redirect target.
+   */
+  body?: string;
 }
 
 function sanitizeHeaders(
@@ -276,6 +307,10 @@ export async function ssrfFetch(
         requestHeaders && currentUrl.origin === parsed.origin
           ? requestHeaders
           : undefined;
+      const hopBody =
+        options.body !== undefined && currentUrl.origin === parsed.origin
+          ? options.body
+          : undefined;
 
       const result = await fetchOnce(
         currentUrl,
@@ -284,6 +319,7 @@ export async function ssrfFetch(
         validatedAddresses,
         options.maxBytes,
         hopHeaders,
+        hopBody,
       );
 
       if (

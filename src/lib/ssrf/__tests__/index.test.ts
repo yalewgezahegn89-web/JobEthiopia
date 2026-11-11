@@ -553,6 +553,125 @@ describe("ssrfFetch", () => {
     });
   });
 
+  describe("request body forwarding", () => {
+    function resolvePublic() {
+      mocks.mockResolve4.mockImplementation(
+        (h: string, cb: (err: Error | null, addrs?: string[]) => void) => {
+          if (h === "a.com") cb(null, ["8.8.8.8"]);
+          else if (h === "b.com") cb(null, ["1.1.1.1"]);
+          else cb(new Error("ENOTFOUND"));
+        },
+      );
+    }
+
+    function setupCapturingWithEnd(
+      responses: Array<{ statusCode: number; headers: Record<string, string> }>,
+    ) {
+      const captured: Array<{
+        opts: CapturedRequestOpts;
+        endedWith: unknown;
+      }> = [];
+      let call = 0;
+      mocks.mockRequest.mockImplementation((opts: unknown, cb: unknown) => {
+        const index = call++;
+        const req = {
+          on: vi.fn(),
+          destroy: vi.fn(),
+          end: vi.fn((body?: unknown) => {
+            captured.push({
+              opts: (opts ?? {}) as CapturedRequestOpts,
+              endedWith: body,
+            });
+            if (typeof cb === "function") {
+              const resp =
+                responses[index] || responses[responses.length - 1];
+              cb({
+                statusCode: resp.statusCode,
+                headers: resp.headers,
+                resume: vi.fn(),
+              });
+            }
+          }),
+        };
+        return req;
+      });
+      return captured;
+    }
+
+    it("sends the body with an automatic content-length header", async () => {
+      resolvePublic();
+      const captured = setupCapturingWithEnd([{ statusCode: 200, headers: {} }]);
+
+      await ssrfFetch("http://a.com/feed", {
+        method: "POST",
+        body: "message=hello",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+      });
+
+      expect(captured).toHaveLength(1);
+      expect(captured[0].opts.method).toBe("POST");
+      expect(captured[0].opts.headers).toEqual({
+        "content-type": "application/x-www-form-urlencoded",
+        "content-length": "13",
+      });
+      expect(captured[0].endedWith).toBe("message=hello");
+    });
+
+    it("never overrides an explicit content-length header", async () => {
+      resolvePublic();
+      const captured = setupCapturingWithEnd([{ statusCode: 200, headers: {} }]);
+
+      await ssrfFetch("http://a.com/feed", {
+        method: "POST",
+        body: "abc",
+        headers: { "content-length": "999" },
+      });
+
+      expect(captured[0].opts.headers?.["content-length"]).toBe("999");
+    });
+
+    it("forwards the body to a same-origin redirect", async () => {
+      resolvePublic();
+      const captured = setupCapturingWithEnd([
+        { statusCode: 302, headers: { location: "http://a.com/final" } },
+        { statusCode: 200, headers: {} },
+      ]);
+
+      await ssrfFetch("http://a.com/start", {
+        method: "POST",
+        body: "message=hello",
+      });
+
+      expect(captured).toHaveLength(2);
+      expect(captured[0].endedWith).toBe("message=hello");
+      expect(captured[1].opts.headers).toEqual({ "content-length": "13" });
+      expect(captured[1].endedWith).toBe("message=hello");
+    });
+
+    it("drops the body and credentials on a cross-origin redirect", async () => {
+      resolvePublic();
+      const captured = setupCapturingWithEnd([
+        { statusCode: 302, headers: { location: "http://b.com/final" } },
+        { statusCode: 200, headers: {} },
+      ]);
+
+      await ssrfFetch("http://a.com/start", {
+        method: "POST",
+        body: "message=hello&access_token=secret",
+        headers: { Authorization: "Bearer secret-token" },
+      });
+
+      expect(captured).toHaveLength(2);
+      expect(captured[0].opts.headers).toEqual({
+        Authorization: "Bearer secret-token",
+        "content-length": "33",
+      });
+      expect(captured[0].endedWith).toBe("message=hello&access_token=secret");
+      expect(captured[1].opts.headers).toBeUndefined();
+      expect(captured[1].endedWith).toBeUndefined();
+    });
+  });
+
   describe("response", () => {
     it("returns ok for 200", async () => {
       mocks.mockResolve4.mockImplementation(

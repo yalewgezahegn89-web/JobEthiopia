@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   mockGetJob: vi.fn(),
   mockGetAudit: vi.fn(),
   mockNotFound: vi.fn(),
+  mockFacebookPreview: vi.fn(),
+  mockFacebookPublication: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -34,6 +36,15 @@ vi.mock("@/lib/admin/jobs", () => ({
   listModerationJobs: (...args: unknown[]) => mocks.mockListJobs(...args),
   getModerationJob: (...args: unknown[]) => mocks.mockGetJob(...args),
   getJobAuditHistory: (...args: unknown[]) => mocks.mockGetAudit(...args),
+}));
+
+vi.mock("@/lib/facebook/publishing", () => ({
+  getFacebookPublishPreview: (...args: unknown[]) =>
+    mocks.mockFacebookPreview(...args),
+  getFacebookPublicationForJob: (...args: unknown[]) =>
+    mocks.mockFacebookPublication(...args),
+  OWNED_FACEBOOK_PAGE_ID: "872697352845055",
+  OWNED_FACEBOOK_PAGE_NAME: "Job Ethiopia",
 }));
 
 import AdminJobsPage from "@/app/admin/jobs/page";
@@ -88,6 +99,8 @@ beforeEach(() => {
     ok: true,
     user: { id: "u1", email: "a@b.com", name: "A", role: "MODERATOR" },
   });
+  mocks.mockFacebookPreview.mockResolvedValue(null);
+  mocks.mockFacebookPublication.mockResolvedValue(null);
 });
 
 describe("AdminJobsPage", () => {
@@ -262,6 +275,35 @@ describe("AdminJobDetailPage — last verified + stale display", () => {
     );
     expect(html).toContain("PUBLISHED");
     expect(html).toContain(expectedLabel);
+  });
+
+  it("renders the Facebook publish panel for a published job with a preview", async () => {
+    mocks.mockFacebookPreview.mockResolvedValue({
+      message: "Senior Pilot — Ethiopian Airlines",
+      link: `http://localhost:3000/jobs/${FULL_JOB.id}`,
+      status: "PUBLISHED",
+      verificationStatus: "VERIFIED",
+      deadlineExpired: false,
+      eligibilityConfirmed: true,
+      organizationName: "Ethiopian Airlines",
+      locationName: "Addis Ababa",
+    });
+    mocks.mockFacebookPublication.mockResolvedValue(null);
+
+    const html = await renderDetail(jobWith({ status: "PUBLISHED" }));
+
+    expect(html).toContain("Publish to Facebook");
+    expect(html).toContain("Job Ethiopia");
+    expect(html).toContain("872697352845055");
+    expect(html).toContain("Senior Pilot — Ethiopian Airlines");
+    expect(html).toContain(
+      "documented right to redistribute this listing",
+    );
+  });
+
+  it("does not render the Facebook publish panel without a preview", async () => {
+    const html = await renderDetail(jobWith({ status: "PUBLISHED" }));
+    expect(html).not.toContain("Publish to Facebook");
   });
 });
 

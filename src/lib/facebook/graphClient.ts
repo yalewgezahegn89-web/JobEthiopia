@@ -1,14 +1,18 @@
 /**
- * Minimal, read-only Meta Graph API client for Facebook Page posts.
+ * Meta Graph API client for the JobEthiopia Facebook Page.
  *
- * Only published Page posts are read, and only these fields are requested:
- * `id`, `message`, `created_time`, `permalink_url`. The access token is sent
- * via the `Authorization: Bearer` header (never as a query parameter) and is
- * redacted from every error surfaced to callers.
+ * Reads are limited to published Page posts and only these fields are
+ * requested: `id`, `message`, `created_time`, `permalink_url`. The single
+ * write operation is `createPageFeedPost` (POST /{page-id}/feed), which is
+ * restricted to the owned Page, issued exactly once without retries, and
+ * reports ambiguous network outcomes distinctly. The access token is sent
+ * via the `Authorization: Bearer` header (never as a query parameter or in
+ * the form body) and is redacted from every error surfaced to callers.
  */
 import { ssrfFetch } from "@/lib/ssrf";
 import {
   getFacebookGraphConfig,
+  OWNED_FACEBOOK_PAGE_ID,
   redactFacebookSecrets,
 } from "./config";
 
@@ -282,5 +286,193 @@ export async function fetchPagePosts(
   return {
     ok: true,
     data: { posts, truncated: Boolean(nextUrl) },
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Page feed publishing (POST /{page-id}/feed)                                */
+/* -------------------------------------------------------------------------- */
+
+export interface PageFeedPostInput {
+  message: string;
+  link?: string;
+}
+
+/**
+ * Result of a Page feed publish attempt.
+ *
+ * `ambiguous: true` means the request failed without a definitive answer. The
+ * post may or may not exist on Facebook. This covers network failures and
+ * timeouts, HTTP 408 (request timeout), every HTTP 5xx (the server may have
+ * processed the write before failing), and a 2xx response whose body could not
+ * be read or did not contain a post id. Callers must record such outcomes as
+ * UNKNOWN and must never retry automatically, because a retry could create a
+ * duplicate post.
+ *
+ * `ambiguous: false` means Facebook definitively rejected the request, so no
+ * post was created and the attempt is safe to re-claim manually. This covers
+ * client-side validation before the request, Graph API 4xx error responses
+ * (including 429 rate-limit rejections, which are refused before the write is
+ * processed), and an untrusted destination/origin.
+ */
+export type PageFeedPostResult =
+  | { ok: true; postId: string }
+  | {
+      ok: false;
+      error: string;
+      code?: number;
+      ambiguous: boolean;
+    };
+
+/** Hard cap on the posted message (well below Meta's own post-size limit). */
+export const MAX_FEED_POST_MESSAGE_CHARS = 5000;
+
+interface FeedPostResponse {
+  id?: unknown;
+  post_id?: unknown;
+}
+
+/**
+ * Creates one post on the JobEthiopia-owned Page feed via
+ * `POST /{page-id}/feed`.
+ *
+ * Safety properties:
+ * - Only the owned JobEthiopia Page ID is accepted; any other destination is
+ *   refused before a request is made.
+ * - The token is sent only in the `Authorization: Bearer` header, never in
+ *   the URL or the form body.
+ * - The body is form-encoded and contains only `message` and an optional
+ *   `link`.
+ * - The request is issued exactly once. There is no retry logic of any kind:
+ *   a repeat POST could create a duplicate published post. Network failures,
+ *   HTTP 408/5xx responses, and unreadable successes are reported as
+ *   ambiguous; only a definite Graph rejection is reported as non-ambiguous.
+ * - Errors are redacted before they are surfaced.
+ *
+ * The existing read-only GET behavior above is untouched.
+ */
+export async function createPageFeedPost(
+  pageId: string,
+  accessToken: string,
+  input: PageFeedPostInput,
+): Promise<PageFeedPostResult> {
+  if (pageId !== OWNED_FACEBOOK_PAGE_ID) {
+    return {
+      ok: false,
+      error: "Refusing to publish: the destination is not the owned JobEthiopia Facebook Page",
+      ambiguous: false,
+    };
+  }
+
+  const message = input.message.trim();
+  if (!message) {
+    return {
+      ok: false,
+      error: "Post message is empty",
+      ambiguous: false,
+    };
+  }
+  if (message.length > MAX_FEED_POST_MESSAGE_CHARS) {
+    return {
+      ok: false,
+      error: "Post message exceeds the maximum allowed length",
+      ambiguous: false,
+    };
+  }
+
+  const form = new URLSearchParams();
+  form.set("message", message);
+  const link = input.link?.trim();
+  if (link) form.set("link", link);
+
+  const url = buildGraphUrl(`${encodeURIComponent(pageId)}/feed`);
+  if (!isAllowedGraphUrl(url)) {
+    return {
+      ok: false,
+      error: "Graph API publish blocked: untrusted origin",
+      ambiguous: false,
+    };
+  }
+
+  let response: Awaited<ReturnType<typeof ssrfFetch>>;
+  try {
+    response = await ssrfFetch(url, {
+      method: "POST",
+      maxBytes: 100_000,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "content-type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+      },
+      body: form.toString(),
+    });
+  } catch (err) {
+    // Network-level failure (timeout, DNS, connection reset): no definitive
+    // response was received, so the post may or may not have been created.
+    // Ambiguous — the caller must record UNKNOWN and never auto-retry.
+    return {
+      ok: false,
+      error: redactFacebookSecrets(
+        err instanceof Error ? err.message : "Graph API publish request failed",
+      ),
+      ambiguous: true,
+    };
+  }
+
+  if (response.ok) {
+    let parsed: FeedPostResponse | null = null;
+    try {
+      parsed = JSON.parse(response.text ?? "") as FeedPostResponse;
+    } catch {
+      parsed = null;
+    }
+
+    const postId =
+      typeof parsed?.post_id === "string" && parsed.post_id.length > 0
+        ? parsed.post_id
+        : typeof parsed?.id === "string" && parsed.id.length > 0
+          ? parsed.id
+          : null;
+
+    if (!postId) {
+      // Facebook signalled success but the response did not contain a usable
+      // post id. The post may exist, so this is ambiguous.
+      return {
+        ok: false,
+        error: "Graph API publish response did not contain a post id",
+        ambiguous: true,
+      };
+    }
+
+    return { ok: true, postId };
+  }
+
+  // HTTP 408 (request timeout) and every HTTP 5xx are ambiguous: the server
+  // may have accepted the write before timing out or failing, so a post could
+  // exist. They are never retried automatically.
+  const ambiguous = response.status === 408 || response.status >= 500;
+
+  const parsed = parseGraphError(response.text);
+  const error = redactFacebookSecrets(
+    parsed.message ?? `Graph API rejected the post (HTTP ${response.status})`,
+  );
+
+  if (ambiguous) {
+    return {
+      ok: false,
+      error,
+      code: parsed.code,
+      ambiguous: true,
+    };
+  }
+
+  // Any other explicit error response (e.g. a 4xx Graph rejection, including
+  // 429 rate limiting) means Facebook definitively rejected the post; no post
+  // was created.
+  return {
+    ok: false,
+    error,
+    code: parsed.code,
+    ambiguous: false,
   };
 }

@@ -6,6 +6,9 @@ import {
   getFacebookGraphConfig,
   getOwnedPageAccessToken,
   isFacebookIngestionEnabled,
+  isFacebookPublishingEnabled,
+  OWNED_FACEBOOK_PAGE_ID,
+  OWNED_FACEBOOK_PAGE_NAME,
   redactFacebookSecrets,
 } from "../config";
 
@@ -24,6 +27,27 @@ describe("Facebook config", () => {
     expect(isFacebookIngestionEnabled()).toBe(false);
     process.env.ENABLE_FACEBOOK_INGESTION = "true";
     expect(isFacebookIngestionEnabled()).toBe(true);
+  });
+
+  it("keeps the dedicated publishing flag separate and strict", () => {
+    delete process.env.ENABLE_FACEBOOK_PUBLISHING;
+    delete process.env.ENABLE_FACEBOOK_INGESTION;
+    expect(isFacebookPublishingEnabled()).toBe(false);
+
+    process.env.ENABLE_FACEBOOK_INGESTION = "true";
+    expect(isFacebookPublishingEnabled()).toBe(false);
+
+    process.env.ENABLE_FACEBOOK_PUBLISHING = "1";
+    expect(isFacebookPublishingEnabled()).toBe(false);
+    process.env.ENABLE_FACEBOOK_PUBLISHING = "TRUE";
+    expect(isFacebookPublishingEnabled()).toBe(false);
+    process.env.ENABLE_FACEBOOK_PUBLISHING = "true";
+    expect(isFacebookPublishingEnabled()).toBe(true);
+  });
+
+  it("pins the owned destination Page as a constant", () => {
+    expect(OWNED_FACEBOOK_PAGE_ID).toBe("872697352845055");
+    expect(OWNED_FACEBOOK_PAGE_NAME).toBe("Job Ethiopia");
   });
 
   it("defaults the Graph API version and base URL", () => {

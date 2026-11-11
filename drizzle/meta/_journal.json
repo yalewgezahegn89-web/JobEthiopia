@@ -183,6 +183,13 @@
       "when": 1794120646719,
       "tag": "0025_add_facebook_page_ingestion",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794413630892,
+      "tag": "0026_tense_rick_jones",
+      "breakpoints": true
     }
   ]
 }

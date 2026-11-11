@@ -110,6 +110,20 @@ export const telegramPublicationStateEnum = pgEnum(
   ["QUEUED", "SENDING", "RETRY", "SENT", "FAILED", "SKIPPED"],
 );
 
+/**
+ * Durable state of a manual Facebook Page publication attempt.
+ *
+ * `PENDING` — the record is claimed and the Graph API call is in flight.
+ * `PUBLISHED` — Facebook confirmed the post (remote post id recorded).
+ * `FAILED` — Facebook definitively rejected the post (no post was created).
+ * `UNKNOWN` — the outcome is ambiguous (e.g. network timeout); the post may
+ * exist, so the attempt is never retried automatically.
+ */
+export const facebookPublicationStateEnum = pgEnum(
+  "facebook_publication_state",
+  ["PENDING", "PUBLISHED", "FAILED", "UNKNOWN"],
+);
+
 export const articleStatusEnum = pgEnum("article_status", [
   "DRAFT",
   "PUBLISHED",

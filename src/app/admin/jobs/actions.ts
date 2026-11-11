@@ -32,6 +32,11 @@ import {
   type CuratedJobResult,
 } from "@/lib/admin/curatedJobs";
 import { curatedCreateJobSchema } from "@/lib/validations/curatedJob";
+import {
+  publishJobToOwnedFacebookPage,
+  type FacebookPublishReason,
+} from "@/lib/facebook/publishing";
+import { redactFacebookSecrets } from "@/lib/facebook/config";
 
 export type ModerationActionResult = {
   ok: boolean;
@@ -139,6 +144,144 @@ export async function moderateJobAction(
   }
 
   return { ok: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Manual Facebook Page publishing                                            */
+/* -------------------------------------------------------------------------- */
+
+export type FacebookPublishActionResult = {
+  ok: boolean;
+  error?: string;
+  /** Remote Facebook post id, present only on a confirmed success. */
+  postId?: string;
+  /**
+   * Machine-readable outcome for the UI. UNKNOWN means the request result is
+   * unclear and must not be retried automatically.
+   */
+  outcome?: "PUBLISHED" | "FAILED" | "UNKNOWN";
+};
+
+const JOB_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const FACEBOOK_PUBLISH_REASONS: Record<
+  FacebookPublishReason,
+  string
+> = {
+  PUBLISHED: "Published to Facebook.",
+  FORBIDDEN: "You are not allowed to publish to Facebook.",
+  NOT_FOUND: "Unable to publish this job. Please try again.",
+  FACEBOOK_PUBLISHING_DISABLED:
+    "Facebook publishing is not enabled on this deployment.",
+  NOT_CONFIGURED: "Facebook publishing is not configured on this deployment.",
+  JOB_NOT_PUBLISHED_VERIFIED:
+    "Only jobs that are already published and verified can be shared to Facebook.",
+  DEADLINE_EXPIRED: "This vacancy has expired and cannot be shared.",
+  ELIGIBILITY_NOT_CONFIRMED:
+    "Applicant eligibility must be explicitly confirmed before sharing.",
+  UNSAFE_URL: "The job URL is not safe to publish.",
+  CONTENT_AUTHORIZATION_REQUIRED:
+    "You must confirm JobEthiopia's right to redistribute this listing.",
+  NO_PROVENANCE: "This job has no recorded source provenance.",
+  FACEBOOK_APPROVAL_REQUIRED:
+    "A Facebook source for this job lacks Meta Page Public Content Access approval.",
+  FACEBOOK_CONTENT_USE_NOT_AUTHORIZED:
+    "A Facebook source for this job lacks documented content-use authorization.",
+  DUPLICATE_IN_PROGRESS:
+    "A publish attempt for this job is already in progress.",
+  DUPLICATE_ALREADY_PUBLISHED:
+    "This job has already been published to the Facebook Page.",
+  DUPLICATE_UNKNOWN_OUTCOME:
+    "A previous attempt had an unclear result and needs manual review before this job can be published again.",
+  GRAPH_REJECTED: "Facebook rejected the post.",
+  UNKNOWN_OUTCOME:
+    "The result of the Facebook request is unclear. The attempt was recorded as UNKNOWN and must be reviewed manually.",
+};
+
+/**
+ * Publishes an existing job to the JobEthiopia-owned Facebook Page.
+ *
+ * Security order:
+ *   1. Authenticate the session (staff area)
+ *   2. Validate the CSRF / trusted origin
+ *   3. Validate the job id and the confirmation checkbox
+ *   4. Delegate to publishJobToOwnedFacebookPage(), which re-checks the
+ *      administrator role (ADMIN/SUPER_ADMIN), the dedicated feature flag,
+ *      the token, every job safety gate, and durable duplicate protection
+ *   5. Return a safe result (never the Page access token)
+ *
+ * The destination Page, the post text, and the requesting administrator are
+ * all resolved server-side; the client can supply only the job id and the
+ * rights confirmation.
+ */
+export async function publishJobToFacebookAction(
+  _prevState: FacebookPublishActionResult,
+  formData: FormData,
+): Promise<FacebookPublishActionResult> {
+  const jobId = String(formData.get("jobId") ?? "");
+  if (!JOB_ID_PATTERN.test(jobId)) {
+    return { ok: false, error: FACEBOOK_PUBLISH_REASONS.NOT_FOUND };
+  }
+
+  const confirmed =
+    formData.get("confirmContentRights") === "on" ||
+    formData.get("confirmContentRights") === "true" ||
+    formData.get("confirmContentRights") === "1";
+
+  const guard = await requireStaffAdmin();
+  if (!guard.ok) {
+    redirect(guard.status === 401 ? "/login" : "/admin/jobs");
+  }
+  const actor = guard.user;
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return { ok: false, error: FACEBOOK_PUBLISH_REASONS.NOT_FOUND };
+  }
+
+  if (!confirmed) {
+    return {
+      ok: false,
+      error: FACEBOOK_PUBLISH_REASONS.CONTENT_AUTHORIZATION_REQUIRED,
+    };
+  }
+
+  let result: Awaited<ReturnType<typeof publishJobToOwnedFacebookPage>>;
+  try {
+    result = await publishJobToOwnedFacebookPage(actor, jobId, {
+      contentRightsConfirmed: confirmed,
+    });
+  } catch {
+    return { ok: false, error: FACEBOOK_PUBLISH_REASONS.NOT_FOUND };
+  }
+
+  if (result.published) {
+    return {
+      ok: true,
+      postId: result.postId,
+      outcome: "PUBLISHED",
+    };
+  }
+
+  const base = FACEBOOK_PUBLISH_REASONS[result.reason] ?? FACEBOOK_PUBLISH_REASONS.NOT_FOUND;
+  // Any error detail was already redacted server-side; redact again as
+  // defense in depth before it reaches the admin UI.
+  const detail = result.error
+    ? ` ${redactFacebookSecrets(result.error)}`
+    : "";
+
+  return {
+    ok: false,
+    error: `${base}${detail}`,
+    outcome:
+      result.reason === "UNKNOWN_OUTCOME"
+        ? "UNKNOWN"
+        : result.reason === "PUBLISHED"
+          ? "PUBLISHED"
+          : "FAILED",
+  };
 }
 
 /* -------------------------------------------------------------------------- */

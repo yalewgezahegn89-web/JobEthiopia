@@ -12,6 +12,7 @@ export {
   verificationStatusEnum,
   applicantEligibilityEnum,
   telegramPublicationStateEnum,
+  facebookPublicationStateEnum,
   articleStatusEnum,
   userRoleEnum,
   applicationStatusEnum,
@@ -30,6 +31,7 @@ export { sources } from "./sources";
 export { jobs } from "./jobs";
 export { jobSources } from "./jobSources";
 export { telegramPublications } from "./telegramPublications";
+export { facebookPublications } from "./facebookPublications";
 export { careerArticles } from "./careerArticles";
 export { users } from "./users";
 export { emailVerifications } from "./emailVerifications";

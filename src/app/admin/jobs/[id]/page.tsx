@@ -4,8 +4,15 @@ import type { ReactNode } from "react";
 import { requireStaffAdmin } from "@/lib/auth/context";
 import { getModerationJob, getJobAuditHistory } from "@/lib/admin/jobs";
 import { isJobStale } from "@/lib/jobs/public";
+import {
+  getFacebookPublicationForJob,
+  getFacebookPublishPreview,
+  OWNED_FACEBOOK_PAGE_ID,
+  OWNED_FACEBOOK_PAGE_NAME,
+} from "@/lib/facebook/publishing";
 import AdminNav from "../../nav";
 import ModerationPanel from "./moderation-panel";
+import FacebookPublishPanel from "./facebook-publish-panel";
 
 export const metadata = {
   title: "Job Moderation Detail | JobEthiopia Admin",
@@ -26,10 +33,19 @@ export default async function AdminJobDetailPage({
   let job;
   let audit: Awaited<ReturnType<typeof getJobAuditHistory>> = [];
   let loadError = false;
+  let facebookPreview: Awaited<ReturnType<typeof getFacebookPublishPreview>> =
+    null;
+  let facebookPublication:
+    | Awaited<ReturnType<typeof getFacebookPublicationForJob>>
+    | null = null;
   try {
     job = await getModerationJob(id);
     if (job) {
       audit = await getJobAuditHistory(job.id);
+      if (job.status === "PUBLISHED") {
+        facebookPreview = await getFacebookPublishPreview(job.id);
+        facebookPublication = await getFacebookPublicationForJob(job.id);
+      }
     }
   } catch {
     loadError = true;
@@ -78,6 +94,33 @@ export default async function AdminJobDetailPage({
             verificationStatus={job.verificationStatus}
           />
         </div>
+
+        {job.status === "PUBLISHED" && facebookPreview ? (
+          <div className="mt-6">
+            <FacebookPublishPanel
+              jobId={job.id}
+              pageName={OWNED_FACEBOOK_PAGE_NAME}
+              pageId={OWNED_FACEBOOK_PAGE_ID}
+              postMessage={facebookPreview.message}
+              postLink={facebookPreview.link}
+              publication={
+                facebookPublication
+                  ? {
+                      state: facebookPublication.state,
+                      facebookPostId: facebookPublication.facebookPostId,
+                      lastError: facebookPublication.lastError,
+                    }
+                  : null
+              }
+              eligible={
+                facebookPreview.verificationStatus === "VERIFIED" &&
+                !facebookPreview.deadlineExpired &&
+                facebookPreview.eligibilityConfirmed
+              }
+              ineligibleReason={facebookIneligibleReason(facebookPreview)}
+            />
+          </div>
+        ) : null}
 
         <section className="mt-6 rounded-xl border border-border bg-surface p-6 text-sm shadow-sm">
           <h2 className="text-lg font-semibold text-foreground">Details</h2>
@@ -180,6 +223,22 @@ function formatSalary(
   if (max != null) parts.push(String(max));
   const value = parts.length === 2 ? `${parts[0]} - ${parts[1]}` : parts[0];
   return currency ? `${value} ${currency}` : value;
+}
+
+function facebookIneligibleReason(
+  preview: Awaited<ReturnType<typeof getFacebookPublishPreview>>,
+): string | null {
+  if (!preview) return null;
+  if (preview.verificationStatus !== "VERIFIED") {
+    return "Only verified jobs can be shared to Facebook.";
+  }
+  if (preview.deadlineExpired) {
+    return "This vacancy has expired and cannot be shared to Facebook.";
+  }
+  if (!preview.eligibilityConfirmed) {
+    return "Applicant eligibility must be explicitly confirmed before this job can be shared to Facebook.";
+  }
+  return null;
 }
 
 function isSafeExternalUrl(url: string): boolean {

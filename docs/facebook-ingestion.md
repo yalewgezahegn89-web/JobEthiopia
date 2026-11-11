@@ -152,12 +152,17 @@ Relevant tests:
 - `src/lib/facebook/__tests__/config.test.ts`
 - `src/lib/facebook/__tests__/extractJobPost.test.ts`
 - `src/lib/facebook/__tests__/graphClient.test.ts`
+- `src/lib/facebook/__tests__/publishing.test.ts`
 - `src/lib/sources/adapters/__tests__/facebookPage.test.ts`
 - `src/lib/ingestion/__tests__/autoPublish.test.ts`
 - `src/lib/ingestion/__tests__/runSource.test.ts`
 - `src/lib/ingestion/__tests__/facebookSync.test.ts`
 - `src/lib/validations/__tests__/sourceUpdate.test.ts`
 - `src/lib/sources/adapters/__tests__/index.test.ts`
+
+Publishing to the owned Page is a separate, manual-only feature with its own
+flag (`ENABLE_FACEBOOK_PUBLISHING`); see
+[Facebook Page Publishing](./facebook-publishing.md).
 
 ## Known limitations
 
