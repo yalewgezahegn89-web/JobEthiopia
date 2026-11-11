@@ -44,23 +44,28 @@ following hold:
 
 1. The requesting user is an authenticated `ADMIN` or `SUPER_ADMIN`
    (identity from the verified session; the client cannot supply an actor).
-2. `ENABLE_FACEBOOK_PUBLISHING` is exactly `true`.
-3. `FACEBOOK_PAGE_ACCESS_TOKEN` is configured.
-4. The job exists and is already `PUBLISHED` **and** `VERIFIED` on the
+2. `VERCEL_ENV` is exactly `production`. Missing, Preview, development, or
+   any other environment fails closed. In Preview the admin panel remains
+   visible for inspection, but live publishing is unavailable.
+3. `ENABLE_FACEBOOK_PUBLISHING` is exactly `true`.
+4. `FACEBOOK_PAGE_ACCESS_TOKEN` is configured.
+5. The job exists and is already `PUBLISHED` **and** `VERIFIED` on the
    website (Facebook publishing never changes the website lifecycle).
-5. The deadline is not in the past.
-6. `applicantEligibility` is `ETHIOPIAN_APPLICANTS_CONFIRMED` or
+6. The deadline is not in the past.
+7. `applicantEligibility` is `ETHIOPIAN_APPLICANTS_CONFIRMED` or
    `INTERNATIONAL_APPLICANTS_ACCEPTED`.
-7. The canonical public job URL (and, when present, the application URL) is
-   a safe `http(s)` URL.
-8. The administrator explicitly confirmed JobEthiopia's right to
+8. The canonical public job URL is exactly
+   `https://jobethiopia.et/jobs/{jobId}` (never derived from a Vercel
+   Preview hostname or `APP_BASE_URL`), and any application URL is a safe
+   `http(s)` URL.
+9. The administrator explicitly confirmed JobEthiopia's right to
    redistribute the listing (checkbox in the UI).
-9. The job has provenance (`job_sources`), and for Facebook-origin jobs
-   every external Page source has both Meta approval
-   (`facebook_approval_state = APPROVED`) and documented content-use
-   authorization (`facebook_content_use_state = AUTHORIZED`). The
-   JobEthiopia-owned Page is our own content and is always authorized.
-10. No durable publication record blocks the attempt (see below).
+10. The job has provenance (`job_sources`), and for Facebook-origin jobs
+    every external Page source has both Meta approval
+    (`facebook_approval_state = APPROVED`) and documented content-use
+    authorization (`facebook_content_use_state = AUTHORIZED`). The
+    JobEthiopia-owned Page is our own content and is always authorized.
+11. No durable publication record blocks the attempt (see below).
 
 The post text is composed server-side from structured job fields only
 (title, employer, location, employment type, deadline, eligibility, and the

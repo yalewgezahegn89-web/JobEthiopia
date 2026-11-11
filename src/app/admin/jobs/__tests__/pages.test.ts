@@ -280,7 +280,7 @@ describe("AdminJobDetailPage — last verified + stale display", () => {
   it("renders the Facebook publish panel for a published job with a preview", async () => {
     mocks.mockFacebookPreview.mockResolvedValue({
       message: "Senior Pilot — Ethiopian Airlines",
-      link: `http://localhost:3000/jobs/${FULL_JOB.id}`,
+      link: `https://jobethiopia.et/jobs/${FULL_JOB.id}`,
       status: "PUBLISHED",
       verificationStatus: "VERIFIED",
       deadlineExpired: false,

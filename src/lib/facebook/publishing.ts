@@ -15,7 +15,8 @@
  * - the job is already PUBLISHED and VERIFIED on the website,
  * - the deadline is not in the past,
  * - applicant eligibility is explicitly confirmed,
- * - the public job URL (the link posted to Facebook) is a safe http(s) URL,
+ * - the public job URL (the link posted to Facebook) is the canonical
+ *   https://jobethiopia.et/jobs/<job-id> URL,
  * - the administrator explicitly confirmed JobEthiopia's right to
  *   redistribute the listing,
  * - the job has provenance, and for Facebook-origin jobs every external Page
@@ -38,8 +39,11 @@ import { jobSources } from "@/db/schema/jobSources";
 import { sources } from "@/db/schema/sources";
 import { facebookPublications } from "@/db/schema/facebookPublications";
 import { writeAuditLog } from "@/lib/auth/audit";
-import { getAppBaseUrl } from "@/lib/appBaseUrl";
 import type { AuthUser } from "@/lib/auth/roles";
+import {
+  buildPublicJobUrl,
+  isPublicJobUrl,
+} from "@/lib/jobs/publicJobUrl";
 import {
   applicantEligibilityLabel,
   isDeadlineExpired,
@@ -51,6 +55,7 @@ import {
   OWNED_FACEBOOK_PAGE_NAME,
   getOwnedPageAccessToken,
   isFacebookPublishingEnabled,
+  isFacebookPublishingLiveEnabled,
   redactFacebookSecrets,
 } from "./config";
 import { createPageFeedPost } from "./graphClient";
@@ -62,6 +67,7 @@ export type FacebookPublishReason =
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "FACEBOOK_PUBLISHING_DISABLED"
+  | "LIVE_PUBLISHING_DISABLED"
   | "NOT_CONFIGURED"
   | "JOB_NOT_PUBLISHED_VERIFIED"
   | "DEADLINE_EXPIRED"
@@ -113,7 +119,7 @@ export interface FacebookPostFields {
  * attached to the Facebook post; it never points at third-party content.
  */
 export function facebookJobPublicUrl(jobId: string): string {
-  return `${getAppBaseUrl().replace(/\/+$/, "")}/jobs/${encodeURIComponent(jobId)}`;
+  return buildPublicJobUrl(jobId);
 }
 
 function formatDeadline(deadline: Date | null): string | null {
@@ -447,6 +453,10 @@ export async function publishJobToOwnedFacebookPage(
     return { published: false, reason: "FORBIDDEN" };
   }
 
+  if (!isFacebookPublishingLiveEnabled()) {
+    return { published: false, reason: "LIVE_PUBLISHING_DISABLED" };
+  }
+
   // --- Feature flag (dedicated; never implied by the ingestion flag) ---
   if (!isFacebookPublishingEnabled()) {
     return { published: false, reason: "FACEBOOK_PUBLISHING_DISABLED" };
@@ -502,7 +512,7 @@ export async function publishJobToOwnedFacebookPage(
   } catch {
     return { published: false, reason: "UNSAFE_URL" };
   }
-  if (!isSafeHttpUrl(link)) {
+  if (!isPublicJobUrl(link)) {
     return { published: false, reason: "UNSAFE_URL" };
   }
   if (job.applicationUrl && !isSafeHttpUrl(job.applicationUrl)) {

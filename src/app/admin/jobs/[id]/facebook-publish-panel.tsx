@@ -34,6 +34,8 @@ export default function FacebookPublishPanel({
   publication,
   eligible,
   ineligibleReason,
+  livePublishingEnabled,
+  previewDeployment,
 }: {
   jobId: string;
   pageName: string;
@@ -43,6 +45,8 @@ export default function FacebookPublishPanel({
   publication: FacebookPublicationInfo | null;
   eligible: boolean;
   ineligibleReason: string | null;
+  livePublishingEnabled: boolean;
+  previewDeployment: boolean;
 }) {
   const [state, formAction, isPending] = useActionState<
     FacebookPublishActionResult,
@@ -55,7 +59,12 @@ export default function FacebookPublishPanel({
     publication?.state === "PENDING" ||
     publication?.state === "UNKNOWN";
 
-  const canSubmit = eligible && !blockedByPublication && confirmed && !isPending;
+  const canSubmit =
+    livePublishingEnabled &&
+    eligible &&
+    !blockedByPublication &&
+    confirmed &&
+    !isPending;
 
   const focusRing =
     "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
@@ -69,6 +78,22 @@ export default function FacebookPublishPanel({
         Destination: <strong>{pageName}</strong> (Page ID {pageId}) — the
         JobEthiopia-owned Facebook Page.
       </p>
+
+      {!livePublishingEnabled ? (
+        <div className="mt-4" role="alert">
+          <p className="text-sm text-warning">
+            {previewDeployment
+              ? "Live Facebook publishing is disabled in Preview. Use Preview to review the post and validate eligibility only."
+              : "Live Facebook publishing is disabled outside Production. Use this view to review the post and validate eligibility only."}
+          </p>
+          {previewDeployment ? (
+            <p className="mt-1 text-xs text-muted">
+              This job is stored in the isolated Preview database. Its public
+              job URL is not confirmed live.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mt-4">
         <p className="text-sm font-medium text-foreground">
@@ -131,7 +156,12 @@ export default function FacebookPublishPanel({
             name="confirmContentRights"
             checked={confirmed}
             onChange={(event) => setConfirmed(event.target.checked)}
-            disabled={!eligible || blockedByPublication || isPending}
+            disabled={
+              !livePublishingEnabled ||
+              !eligible ||
+              blockedByPublication ||
+              isPending
+            }
             className={`mt-0.5 ${focusRing}`}
           />
           <span>

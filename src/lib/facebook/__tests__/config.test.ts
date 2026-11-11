@@ -7,6 +7,7 @@ import {
   getOwnedPageAccessToken,
   isFacebookIngestionEnabled,
   isFacebookPublishingEnabled,
+  isFacebookPublishingLiveEnabled,
   OWNED_FACEBOOK_PAGE_ID,
   OWNED_FACEBOOK_PAGE_NAME,
   redactFacebookSecrets,
@@ -43,6 +44,23 @@ describe("Facebook config", () => {
     expect(isFacebookPublishingEnabled()).toBe(false);
     process.env.ENABLE_FACEBOOK_PUBLISHING = "true";
     expect(isFacebookPublishingEnabled()).toBe(true);
+  });
+
+  it("allows live publishing only when VERCEL_ENV is exactly production", () => {
+    delete process.env.VERCEL_ENV;
+    expect(isFacebookPublishingLiveEnabled()).toBe(false);
+
+    process.env.VERCEL_ENV = "preview";
+    expect(isFacebookPublishingLiveEnabled()).toBe(false);
+
+    process.env.VERCEL_ENV = "development";
+    expect(isFacebookPublishingLiveEnabled()).toBe(false);
+
+    process.env.VERCEL_ENV = "PRODUCTION";
+    expect(isFacebookPublishingLiveEnabled()).toBe(false);
+
+    process.env.VERCEL_ENV = "production";
+    expect(isFacebookPublishingLiveEnabled()).toBe(true);
   });
 
   it("pins the owned destination Page as a constant", () => {

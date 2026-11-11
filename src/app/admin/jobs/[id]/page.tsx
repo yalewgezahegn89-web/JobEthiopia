@@ -10,6 +10,7 @@ import {
   OWNED_FACEBOOK_PAGE_ID,
   OWNED_FACEBOOK_PAGE_NAME,
 } from "@/lib/facebook/publishing";
+import { isFacebookPublishingLiveEnabled } from "@/lib/facebook/config";
 import AdminNav from "../../nav";
 import ModerationPanel from "./moderation-panel";
 import FacebookPublishPanel from "./facebook-publish-panel";
@@ -29,6 +30,8 @@ export default async function AdminJobDetailPage({
   }
 
   const { id } = await params;
+  const livePublishingEnabled = isFacebookPublishingLiveEnabled();
+  const previewDeployment = process.env.VERCEL_ENV?.trim() === "preview";
 
   let job;
   let audit: Awaited<ReturnType<typeof getJobAuditHistory>> = [];
@@ -118,6 +121,8 @@ export default async function AdminJobDetailPage({
                 facebookPreview.eligibilityConfirmed
               }
               ineligibleReason={facebookIneligibleReason(facebookPreview)}
+              livePublishingEnabled={livePublishingEnabled}
+              previewDeployment={previewDeployment}
             />
           </div>
         ) : null}

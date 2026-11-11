@@ -17,8 +17,8 @@ import FacebookPublishPanel from "../facebook-publish-panel";
 
 const JOB_ID = "11111111-1111-4111-8111-111111111111";
 const POST_MESSAGE =
-  "Senior Pilot — Ethiopian Airlines\n\nLocation: Addis Ababa\nType: Full time\n\nEligibility: Ethiopian applicants confirmed\n\nApply here: http://localhost:3000/jobs/11111111-1111-4111-8111-111111111111";
-const POST_LINK = `http://localhost:3000/jobs/${JOB_ID}`;
+  "Senior Pilot — Ethiopian Airlines\n\nLocation: Addis Ababa\nType: Full time\n\nEligibility: Ethiopian applicants confirmed\n\nApply here: https://jobethiopia.et/jobs/11111111-1111-4111-8111-111111111111";
+const POST_LINK = `https://jobethiopia.et/jobs/${JOB_ID}`;
 
 type PanelProps = Parameters<typeof FacebookPublishPanel>[0];
 
@@ -32,6 +32,8 @@ function renderPanel(overrides: Partial<PanelProps> = {}) {
     publication: null,
     eligible: true,
     ineligibleReason: null,
+    livePublishingEnabled: true,
+    previewDeployment: false,
     ...overrides,
   };
 
@@ -203,5 +205,36 @@ describe("FacebookPublishPanel", () => {
     ).toBeTruthy();
     expect(getCheckbox().disabled).toBe(true);
     expect(getButton().disabled).toBe(true);
+  });
+
+  it("keeps the Preview panel visible but disables live publishing", () => {
+    renderPanel({
+      livePublishingEnabled: false,
+      previewDeployment: true,
+    });
+
+    expect(screen.getByRole("alert").textContent).toContain(
+      "Live Facebook publishing is disabled in Preview. Use Preview to review the post and validate eligibility only.",
+    );
+    expect(sectionText()).toContain(
+      "This job is stored in the isolated Preview database. Its public job URL is not confirmed live.",
+    );
+    expect(document.querySelector("pre")?.textContent).toBe(POST_MESSAGE);
+    expect(getCheckbox().disabled).toBe(true);
+    expect(getButton().disabled).toBe(true);
+  });
+
+  it("uses a non-Preview message when live publishing is unavailable elsewhere", () => {
+    renderPanel({
+      livePublishingEnabled: false,
+      previewDeployment: false,
+    });
+
+    expect(screen.getByRole("alert").textContent).toContain(
+      "Live Facebook publishing is disabled outside Production.",
+    );
+    expect(sectionText()).not.toContain(
+      "This job is stored in the isolated Preview database.",
+    );
   });
 });

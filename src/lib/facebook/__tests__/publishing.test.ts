@@ -114,6 +114,7 @@ const WEBSITE_SOURCE_ROWS = [
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.VERCEL_ENV = "production";
   process.env.ENABLE_FACEBOOK_PUBLISHING = "true";
   process.env.FACEBOOK_PAGE_ACCESS_TOKEN = "test-page-token";
   delete process.env.APP_BASE_URL;
@@ -150,13 +151,48 @@ describe("buildFacebookPostMessage", () => {
     expect(message).toContain("Location: Addis Ababa");
     expect(message).toContain("Type: FULL TIME");
     expect(message).toContain("Eligibility: Ethiopian applicants confirmed");
-    expect(message).toContain(`/jobs/${JOB_ID}`);
+    expect(message).toContain(`https://jobethiopia.et/jobs/${JOB_ID}`);
     // Structured fields only: the source description is never copied.
     expect(message).not.toContain("Fly aircraft safely");
   });
 });
 
 describe("publishJobToOwnedFacebookPage safety gates", () => {
+  it.each([
+    ["Preview", "preview"],
+    ["development", "development"],
+    ["an unknown Vercel environment", "staging"],
+  ])("blocks live publishing in %s", async (_label, vercelEnv) => {
+    process.env.VERCEL_ENV = vercelEnv;
+
+    const result = await publishJobToOwnedFacebookPage(ACTOR, JOB_ID, {
+      contentRightsConfirmed: true,
+    });
+
+    expect(result).toEqual({
+      published: false,
+      reason: "LIVE_PUBLISHING_DISABLED",
+    });
+    expect(mocks.mockJob).not.toHaveBeenCalled();
+    expect(mocks.mockInsertValues).not.toHaveBeenCalled();
+    expect(mocks.mockCreatePost).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when VERCEL_ENV is missing", async () => {
+    delete process.env.VERCEL_ENV;
+
+    const result = await publishJobToOwnedFacebookPage(ACTOR, JOB_ID, {
+      contentRightsConfirmed: true,
+    });
+
+    expect(result).toEqual({
+      published: false,
+      reason: "LIVE_PUBLISHING_DISABLED",
+    });
+    expect(mocks.mockJob).not.toHaveBeenCalled();
+    expect(mocks.mockCreatePost).not.toHaveBeenCalled();
+  });
+
   it("requires the dedicated ENABLE_FACEBOOK_PUBLISHING flag", async () => {
     delete process.env.ENABLE_FACEBOOK_PUBLISHING;
     process.env.ENABLE_FACEBOOK_INGESTION = "true";
@@ -275,15 +311,26 @@ describe("publishJobToOwnedFacebookPage safety gates", () => {
     );
   });
 
-  it("rejects an unsafe public job URL", async () => {
-    process.env.APP_BASE_URL = "javascript:alert(1)";
+  it("uses the canonical public job URL even when APP_BASE_URL is a Preview URL", async () => {
+    process.env.APP_BASE_URL =
+      "https://jobethiopia-git-feature-example.vercel.app";
+    mocks.mockCreatePost.mockResolvedValue({ ok: true, postId: "999" });
 
     const result = await publishJobToOwnedFacebookPage(ACTOR, JOB_ID, {
       contentRightsConfirmed: true,
     });
 
-    expect(result.reason).toBe("UNSAFE_URL");
-    expect(mocks.mockCreatePost).not.toHaveBeenCalled();
+    expect(result.published).toBe(true);
+    expect(mocks.mockCreatePost).toHaveBeenCalledWith(
+      OWNED_FACEBOOK_PAGE_ID,
+      "test-page-token",
+      expect.objectContaining({
+        link: `https://jobethiopia.et/jobs/${JOB_ID}`,
+        message: expect.stringContaining(
+          `https://jobethiopia.et/jobs/${JOB_ID}`,
+        ),
+      }),
+    );
   });
 
   it("rejects an unsafe application URL", async () => {
@@ -679,7 +726,7 @@ describe("preview and publication lookups", () => {
     expect(preview).not.toBeNull();
     expect(preview?.message).toContain("Senior Pilot");
     expect(preview?.message).toContain("Ethiopian Airlines");
-    expect(preview?.link).toContain(`/jobs/${JOB_ID}`);
+    expect(preview?.link).toBe(`https://jobethiopia.et/jobs/${JOB_ID}`);
     expect(preview?.deadlineExpired).toBe(false);
     expect(preview?.eligibilityConfirmed).toBe(true);
   });

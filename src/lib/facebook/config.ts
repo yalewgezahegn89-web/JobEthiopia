@@ -83,6 +83,10 @@ export function isFacebookPublishingEnabled(): boolean {
   return process.env.ENABLE_FACEBOOK_PUBLISHING?.trim() === "true";
 }
 
+export function isFacebookPublishingLiveEnabled(): boolean {
+  return process.env.VERCEL_ENV?.trim() === "production";
+}
+
 function resolveGraphApiVersion(): string {
   const raw = process.env.FACEBOOK_GRAPH_API_VERSION?.trim();
   if (raw && GRAPH_VERSION_PATTERN.test(raw)) return raw;

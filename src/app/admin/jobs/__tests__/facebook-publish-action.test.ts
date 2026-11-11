@@ -135,6 +135,22 @@ describe("publishJobToFacebookAction", () => {
     expect(result.outcome).toBe("FAILED");
   });
 
+  it("maps the production-only publishing guard", async () => {
+    mocks.mockPublish.mockResolvedValue({
+      published: false,
+      reason: "LIVE_PUBLISHING_DISABLED",
+    });
+
+    const result = await publishJobToFacebookAction(
+      INITIAL,
+      form({ confirmContentRights: "on" }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("outside Production");
+    expect(result.outcome).toBe("FAILED");
+  });
+
   it("maps the disabled feature flag without exposing configuration", async () => {
     mocks.mockPublish.mockResolvedValue({
       published: false,

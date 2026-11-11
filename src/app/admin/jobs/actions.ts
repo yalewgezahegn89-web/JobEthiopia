@@ -174,6 +174,8 @@ const FACEBOOK_PUBLISH_REASONS: Record<
   NOT_FOUND: "Unable to publish this job. Please try again.",
   FACEBOOK_PUBLISHING_DISABLED:
     "Facebook publishing is not enabled on this deployment.",
+  LIVE_PUBLISHING_DISABLED:
+    "Live Facebook publishing is disabled outside Production.",
   NOT_CONFIGURED: "Facebook publishing is not configured on this deployment.",
   JOB_NOT_PUBLISHED_VERIFIED:
     "Only jobs that are already published and verified can be shared to Facebook.",
