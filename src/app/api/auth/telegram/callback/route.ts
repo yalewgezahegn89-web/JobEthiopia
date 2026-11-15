@@ -1,6 +1,5 @@
 import {
   createPublicKey,
-  randomBytes,
   timingSafeEqual,
   verify as verifySignature,
 } from "node:crypto";
@@ -18,7 +17,53 @@ const LOCALE_COOKIE = "telegram_oauth_locale";
 const TELEGRAM_ISSUER = "https://oauth.telegram.org";
 const JWKS_URL = "https://oauth.telegram.org/.well-known/jwks.json";
 
+const DIAGNOSTIC_PREFIX = "[telegram-oauth-callback]";
+const SAFE_OAUTH_ERROR_CODES = new Set<string>([
+  "invalid_request",
+  "invalid_client",
+  "invalid_grant",
+  "access_denied",
+  "unauthorized_client",
+  "server_error",
+  "temporarily_unavailable",
+]);
+const SAFE_ERROR_CODES = new Set<string>([
+  "TELEGRAM_KEYS_UNAVAILABLE",
+  "TELEGRAM_KEYS_INVALID",
+  "TELEGRAM_TOKEN_INVALID",
+  "TELEGRAM_TOKEN_ALGORITHM_INVALID",
+  "TELEGRAM_SIGNING_KEY_NOT_FOUND",
+  "TELEGRAM_SIGNATURE_INVALID",
+  "TELEGRAM_CLAIMS_INVALID",
+  "ETIMEDOUT",
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "ECONNABORTED",
+  "ENOTFOUND",
+  "EAI_AGAIN",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+  "ENETDOWN",
+  "EPIPE",
+  "ABORT_ERR",
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_SOCKET",
+  "UND_ERR_ABORTED",
+]);
+
 type Locale = "en" | "am" | "om";
+type DiagnosticStage =
+  | "callback_received"
+  | "provider_response"
+  | "state_cookie_validation"
+  | "token_exchange"
+  | "token_response_validation"
+  | "id_token_verification"
+  | "account_authentication"
+  | "session_creation";
+type SafeDiagnosticDetails = Record<string, string | number | boolean>;
 type JwtHeader = { alg?: string; kid?: string; typ?: string };
 type JwtClaims = {
   iss?: unknown;
@@ -155,10 +200,91 @@ function localizedLoginPath(locale: Locale): string {
   return locale === "en" ? "/login?telegramError=1" : `/${locale}/login?telegramError=1`;
 }
 
+function logFailure(
+  stage: DiagnosticStage,
+  reason: string,
+  details: SafeDiagnosticDetails = {},
+): void {
+  const serializedDetails = Object.entries(details)
+    .map(([key, value]) => `${key}=${String(value)}`)
+    .join(" ");
+  const suffix = serializedDetails ? ` ${serializedDetails}` : "";
+  console.error(
+    `${DIAGNOSTIC_PREFIX} stage=${stage} event=failed reason=${reason}${suffix}`,
+  );
+}
+
+function sanitizeHttpStatus(value: unknown): number | undefined {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 100 &&
+    value <= 599
+    ? value
+    : undefined;
+}
+
+function classifyError(error: unknown): {
+  name: string;
+  code?: string;
+  status?: number;
+} {
+  if (typeof error !== "object" || error === null) {
+    return { name: typeof error };
+  }
+
+  const candidate = error as {
+    name?: unknown;
+    code?: unknown;
+    status?: unknown;
+    response?: { status?: unknown };
+  };
+  const name =
+    typeof candidate.name === "string" && /^[A-Za-z]{1,32}$/.test(candidate.name)
+      ? candidate.name
+      : "Error";
+  const code =
+    typeof candidate.code === "string" && SAFE_ERROR_CODES.has(candidate.code)
+      ? candidate.code
+      : undefined;
+  const status =
+    sanitizeHttpStatus(candidate.status) ??
+    sanitizeHttpStatus(candidate.response?.status);
+
+  return {
+    name,
+    ...(code === undefined ? {} : { code }),
+    ...(status === undefined ? {} : { status }),
+  };
+}
+
+function sanitizeOAuthErrorCode(value: string | null | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  return SAFE_OAUTH_ERROR_CODES.has(trimmed) ? trimmed : undefined;
+}
+
+async function readOAuthErrorCode(response: Response): Promise<string | undefined> {
+  const body = await response.text().catch(() => "");
+  if (!body) return undefined;
+
+  try {
+    const payload = JSON.parse(body) as { error?: unknown };
+    if (typeof payload.error === "string") {
+      return sanitizeOAuthErrorCode(payload.error);
+    }
+  } catch {
+    // Not JSON; fall through to form-encoded parsing.
+  }
+
+  return sanitizeOAuthErrorCode(new URLSearchParams(body).get("error"));
+}
+
 export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const locale = parseLocale(cookieStore.get(LOCALE_COOKIE)?.value);
-  const fail = () => {
+  let stage: DiagnosticStage = "callback_received";
+  const fail = (reason: string, details: SafeDiagnosticDetails = {}) => {
+    logFailure(stage, reason, details);
     const response = NextResponse.redirect(
       new URL(localizedLoginPath(locale), getAppBaseUrl()),
     );
@@ -167,10 +293,16 @@ export async function GET(request: NextRequest) {
   };
 
   try {
+    stage = "provider_response";
     const params = request.nextUrl.searchParams;
     const oauthError = params.get("error");
-    if (oauthError) return fail();
+    if (oauthError) {
+      return fail("provider_error", {
+        oauthError: sanitizeOAuthErrorCode(oauthError) ?? "none",
+      });
+    }
 
+    stage = "state_cookie_validation";
     const code = params.get("code");
     const returnedState = params.get("state");
     const expectedState = cookieStore.get(STATE_COOKIE)?.value;
@@ -189,9 +321,24 @@ export async function GET(request: NextRequest) {
       !clientId ||
       !clientSecret
     ) {
-      return fail();
+      let reason = "state_validation_failed";
+      if (!code) {
+        reason = "missing_code";
+      } else if (!returnedState || !expectedState) {
+        reason = "missing_state";
+      } else if (!safeEqual(returnedState, expectedState)) {
+        reason = "state_mismatch";
+      } else if (!verifier) {
+        reason = "missing_pkce_verifier";
+      } else if (!expectedNonce) {
+        reason = "missing_nonce";
+      } else if (!clientId || !clientSecret) {
+        reason = "missing_client_config";
+      }
+      return fail(reason);
     }
 
+    stage = "token_exchange";
     const redirectUri = new URL("/api/auth/telegram/callback", getAppBaseUrl()).toString();
     const tokenResponse = await fetch("https://oauth.telegram.org/token", {
       method: "POST",
@@ -209,21 +356,34 @@ export async function GET(request: NextRequest) {
         code_verifier: verifier,
       }),
     });
-    if (!tokenResponse.ok) return fail();
+    if (!tokenResponse.ok) {
+      const oauthErrorCode = await readOAuthErrorCode(tokenResponse);
+      const httpStatus = sanitizeHttpStatus(tokenResponse.status);
+      return fail("token_exchange_http_error", {
+        ...(httpStatus === undefined ? {} : { httpStatus }),
+        oauthError: oauthErrorCode ?? "none",
+      });
+    }
 
+    stage = "token_response_validation";
     const tokenPayload = (await tokenResponse.json().catch(() => null)) as TokenResponse | null;
-    if (!tokenPayload?.id_token) return fail();
+    if (!tokenPayload?.id_token) return fail("missing_id_token");
 
+    stage = "id_token_verification";
     const claims = await verifyTelegramIdToken(
       tokenPayload.id_token,
       expectedNonce,
       clientId,
     );
     const subject = claims.sub as string;
+
+    stage = "account_authentication";
     const result = await authenticateTelegramIdentity({
       subject,
       name: getDisplayName(claims),
     });
+
+    stage = "session_creation";
     const rawToken = await createSession(result.user.id);
 
     let destination = "/jobs";
@@ -245,7 +405,12 @@ export async function GET(request: NextRequest) {
     });
     clearOAuthCookies(response);
     return response;
-  } catch {
-    return fail();
+  } catch (error) {
+    const { name, code, status } = classifyError(error);
+    return fail("unexpected_error", {
+      errorName: name,
+      errorCode: code ?? "none",
+      errorStatus: status ?? "none",
+    });
   }
 }
