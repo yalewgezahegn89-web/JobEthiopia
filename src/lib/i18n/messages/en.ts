@@ -1146,6 +1146,16 @@ export const en = {
   },
   footer: {
     footerNavLabel: "Footer",
+    contact: "Contact",
+  },
+  contact: {
+    heading: "Contact us",
+    intro:
+      "Have a question, feedback, or a job listing to share? Email us and we will get back to you.",
+    emailLabel: "Email",
+    emailAddress: "jobethiopiaet@gmail.com",
+    cta: "Email jobethiopiaet@gmail.com",
+    responseNote: "We aim to respond as soon as possible.",
   },
   googleAuth: {
     divider: "OR",

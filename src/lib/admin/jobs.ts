@@ -15,6 +15,7 @@ import { users } from "@/db/schema/users";
 import { organizations } from "@/db/schema/organizations";
 import { categories } from "@/db/schema/categories";
 import { locations } from "@/db/schema/locations";
+import { draftJobCorrectionSchema } from "@/lib/validations/jobCorrection";
 
 // ---------------------------------------------------------------------------
 // Publish validation gate (Phase 5B)
@@ -533,6 +534,108 @@ export async function assignJobCategory(
     });
 
     return { ok: true, categoryId };
+  });
+}
+
+const JOB_CORRECTION_LOCK_COLUMNS = {
+  id: jobs.id,
+  status: jobs.status,
+  deadline: jobs.deadline,
+  description: jobs.description,
+  requirements: jobs.requirements,
+} as const;
+
+export type CorrectDraftJobResult =
+  | { ok: true; changedFields: string[] }
+  | {
+      ok: false;
+      code: "NOT_FOUND" | "NOT_DRAFT" | "INVALID_INPUT";
+    };
+
+/**
+ * Corrects the deadline, description, and requirements of an existing DRAFT
+ * job. Every other column — including status, verification status, category,
+ * organization, location, provenance, and timestamps other than updatedAt — is
+ * preserved.
+ *
+ * The job row is locked while its DRAFT invariant is re-checked, so a job that
+ * is published concurrently can never be edited through this path. The update
+ * and its audit event commit atomically, and a no-op correction writes nothing.
+ */
+export async function correctDraftJob(
+  jobId: string,
+  input: { deadline: Date; description: string; requirements: string | null },
+  actorUserId: string,
+): Promise<CorrectDraftJobResult> {
+  if (!isValidUuid(jobId)) {
+    return { ok: false, code: "NOT_FOUND" };
+  }
+
+  const parsed = draftJobCorrectionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, code: "INVALID_INPUT" };
+  }
+  const next = parsed.data;
+
+  return await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select(JOB_CORRECTION_LOCK_COLUMNS)
+      .from(jobs)
+      .where(eq(jobs.id, jobId))
+      .limit(1)
+      .for("update");
+
+    if (!current) {
+      return { ok: false, code: "NOT_FOUND" };
+    }
+    if (current.status !== "DRAFT") {
+      return { ok: false, code: "NOT_DRAFT" };
+    }
+
+    const changedFields: string[] = [];
+    if (
+      (current.deadline?.getTime() ?? null) !== next.deadline.getTime()
+    ) {
+      changedFields.push("deadline");
+    }
+    if ((current.description ?? "") !== next.description) {
+      changedFields.push("description");
+    }
+    if ((current.requirements ?? null) !== next.requirements) {
+      changedFields.push("requirements");
+    }
+
+    if (changedFields.length === 0) {
+      return { ok: true, changedFields };
+    }
+
+    await tx
+      .update(jobs)
+      .set({
+        deadline: next.deadline,
+        description: next.description,
+        requirements: next.requirements,
+        updatedAt: new Date(),
+      })
+      .where(eq(jobs.id, jobId));
+
+    await tx.insert(auditLog).values({
+      actorUserId,
+      action: "JOB_DRAFT_CORRECTED",
+      targetType: "job",
+      targetId: jobId,
+      metadata: {
+        changedFields,
+        deadlineBefore: current.deadline?.toISOString() ?? null,
+        deadlineAfter: next.deadline.toISOString(),
+        descriptionLengthBefore: current.description?.length ?? 0,
+        descriptionLengthAfter: next.description.length,
+        requirementsChanged: changedFields.includes("requirements"),
+        status: current.status,
+      },
+    });
+
+    return { ok: true, changedFields };
   });
 }
 

@@ -18,7 +18,9 @@ import { isFacebookPublishingLiveEnabled } from "@/lib/facebook/config";
 import AdminNav from "../../nav";
 import ModerationPanel from "./moderation-panel";
 import CategoryAssignmentPanel from "./category-assignment-panel";
+import DraftCorrectionPanel from "./draft-correction-panel";
 import FacebookPublishPanel from "./facebook-publish-panel";
+import { formatEthiopiaDateTime } from "@/lib/time/ethiopia";
 
 export const metadata = {
   title: "Job Moderation Detail | JobEthiopia Admin",
@@ -117,6 +119,17 @@ export default async function AdminJobDetailPage({
           />
         </div>
 
+        {job.status === "DRAFT" ? (
+          <div className="mt-6">
+            <DraftCorrectionPanel
+              jobId={job.id}
+              deadline={job.deadline}
+              description={job.description ?? ""}
+              requirements={job.requirements ?? null}
+            />
+          </div>
+        ) : null}
+
         {job.status === "PUBLISHED" && facebookPreview ? (
           <div className="mt-6">
             <FacebookPublishPanel
@@ -170,7 +183,7 @@ export default async function AdminJobDetailPage({
             <div><dt className="text-sm text-muted">Employment type</dt><dd className="text-sm font-medium text-foreground">{job.employmentType ?? "n/a"}</dd></div>
             <div><dt className="text-sm text-muted">Salary</dt><dd className="text-sm font-medium text-foreground">{formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency)}</dd></div>
             <div><dt className="text-sm text-muted">Posted</dt><dd className="text-sm font-medium text-foreground">{job.postedAt ? new Date(job.postedAt).toLocaleString() : "n/a"}</dd></div>
-            <div><dt className="text-sm text-muted">Deadline</dt><dd className="text-sm font-medium text-foreground">{job.deadline ? new Date(job.deadline).toLocaleString() : "n/a"}</dd></div>
+            <div><dt className="text-sm text-muted">Deadline (EAT)</dt><dd className="text-sm font-medium text-foreground">{job.deadline ? formatEthiopiaDateTime(job.deadline) : "n/a"}</dd></div>
             <div><dt className="text-sm text-muted">Last verified</dt><dd className="text-sm font-medium text-foreground">{job.lastVerifiedAt ? new Date(job.lastVerifiedAt).toLocaleString() : "Never"}{job.status === "PUBLISHED" && isJobStale(job.lastVerifiedAt ? job.lastVerifiedAt.toISOString() : null) ? (<span className="ml-2 inline-flex items-center rounded-full bg-warning-light px-2 py-0.5 text-xs font-semibold text-warning">Stale</span>) : null}</dd></div>
             {job.applicationUrl && (
               <div><dt className="text-sm text-muted">Application URL</dt><dd className="text-sm font-medium text-foreground"><a href={job.applicationUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">{job.applicationUrl}</a></dd></div>

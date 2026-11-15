@@ -1130,6 +1130,16 @@ primaryNavLabel: "ዋና",
   },
   footer: {
     footerNavLabel: "የግርጌ አሰሳ",
+    contact: "ያግኙን",
+  },
+  contact: {
+    heading: "ያግኙን",
+    intro:
+      "ጥያቄ፣ አስተያየት ወይም የሥራ ማስታወቂያ ለማጋራት? በኢሜይል ያግኙን፤ በተቻለ ፍጥነት እንመልስልዎታለን።",
+    emailLabel: "ኢሜይል",
+    emailAddress: "jobethiopiaet@gmail.com",
+    cta: "ወደ jobethiopiaet@gmail.com ኢሜይል ይላኩ",
+    responseNote: "በተቻለ ፍጥነት ለመመለስ እንጥራለን።",
   },
   googleAuth: {
     divider: "ወይም",

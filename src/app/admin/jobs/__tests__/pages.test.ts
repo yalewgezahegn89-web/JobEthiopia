@@ -489,3 +489,54 @@ describe("AdminJobDetailPage — category assignment", () => {
     expect(html).toContain("No active categories are available to assign.");
   });
 });
+
+describe("AdminJobDetailPage — Ethiopia Time deadline and draft correction", () => {
+  const DEADLINE = new Date("2099-11-19T20:55:00.000Z");
+
+  async function renderDetail(job: unknown) {
+    mocks.mockGetJob.mockResolvedValue(job);
+    mocks.mockGetAudit.mockResolvedValue([]);
+    const element = await AdminJobDetailPage({
+      params: Promise.resolve({ id: FULL_JOB.id }),
+    });
+    return renderToStaticMarkup(element);
+  }
+
+  it("displays the stored instant in Ethiopia Time, not the server timezone", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "PENDING_REVIEW",
+      deadline: DEADLINE,
+    });
+
+    expect(html).toContain("Deadline (EAT)");
+    expect(html).toContain("19 Nov 2099, 23:55 EAT");
+  });
+
+  it("offers the correction form for a draft with EAT-prefilled values", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "DRAFT",
+      deadline: DEADLINE,
+      description: "Official description",
+      requirements: "Official requirements",
+    });
+
+    expect(html).toContain("Correct draft details");
+    expect(html).toContain('name="deadline"');
+    expect(html).toContain('value="2099-11-19T23:55"');
+    expect(html).toContain("Official description");
+    expect(html).toContain("Official requirements");
+    expect(html).toContain("does not publish the job");
+  });
+
+  it("does not offer the correction form for a non-draft job", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "PENDING_REVIEW",
+      deadline: DEADLINE,
+    });
+
+    expect(html).not.toContain("Correct draft details");
+  });
+});

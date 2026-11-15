@@ -51,6 +51,7 @@ const TOP_LEVEL_KEYS = [
   "error",
   "notFound",
   "footer",
+  "contact",
   "adminAnalytics",
   "adminAds",
   "ads",

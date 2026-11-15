@@ -26,6 +26,7 @@ export default async function SiteFooter() {
     { href: "/professions", label: t.nav.professions },
     { href: "/locations", label: t.nav.locations },
     { href: "/careers", label: t.nav.careers },
+    { href: "/contact", label: t.footer.contact },
   ];
 
   return (

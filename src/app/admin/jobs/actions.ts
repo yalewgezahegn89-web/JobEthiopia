@@ -23,6 +23,7 @@ import { requireStaffAdmin } from "@/lib/auth/context";
 import { assertTrustedCsrfFromRequest, CsrfError } from "@/lib/auth/csrf";
 import {
   assignJobCategory,
+  correctDraftJob,
   moderateJob,
   type ModerationAction,
 } from "@/lib/admin/jobs";
@@ -37,6 +38,8 @@ import {
   type CuratedJobResult,
 } from "@/lib/admin/curatedJobs";
 import { curatedCreateJobSchema } from "@/lib/validations/curatedJob";
+import { draftJobCorrectionSchema } from "@/lib/validations/jobCorrection";
+import { parseEthiopiaDateTime } from "@/lib/time/ethiopia";
 import {
   publishJobToOwnedFacebookPage,
   type FacebookPublishReason,
@@ -227,6 +230,108 @@ export async function assignJobCategoryAction(
         return { ok: false, error: ASSIGN_CATEGORY_ALREADY_SET_ERROR };
       default:
         return { ok: false, error: ASSIGN_CATEGORY_GENERIC_ERROR };
+    }
+  }
+
+  revalidatePath(`/admin/jobs/${jobId}`);
+  revalidatePath("/admin/jobs");
+  return { ok: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Correct the deadline / description / requirements of a draft job          */
+/* -------------------------------------------------------------------------- */
+
+export type CorrectDraftJobActionResult = {
+  ok: boolean;
+  error?: string;
+  fieldErrors?: Record<string, string[] | undefined>;
+};
+
+const CORRECT_DRAFT_GENERIC_ERROR =
+  "Unable to save corrections. Please try again.";
+const CORRECT_DRAFT_INVALID_ERROR =
+  "Check the deadline and description, then try again.";
+const CORRECT_DRAFT_NOT_DRAFT_ERROR =
+  "Only draft jobs can be corrected. This job is no longer a draft.";
+
+/**
+ * Corrects the deadline, description, and requirements of a DRAFT job.
+ *
+ * Security order:
+ *   1. Validate the job id
+ *   2. Authenticate + authorize the staff role
+ *   3. Validate the CSRF / trusted origin
+ *   4. Parse the datetime-local input as fixed EAT (UTC+03:00), never the
+ *      server timezone
+ *   5. Validate the whitelisted fields with the authoritative schema
+ *   6. Delegate to correctDraftJob(), which locks the row, re-checks DRAFT,
+ *      and writes the update + audit atomically
+ *   7. Revalidate the detail page and return a safe result
+ *
+ * The action never reads status, verificationStatus, category, organization,
+ * provenance, or any other client-supplied field, and never publishes.
+ */
+export async function correctDraftJobAction(
+  _prevState: CorrectDraftJobActionResult,
+  formData: FormData,
+): Promise<CorrectDraftJobActionResult> {
+  const jobId = String(formData.get("jobId") ?? "");
+  if (!JOB_ID_PATTERN.test(jobId)) {
+    return { ok: false, error: CORRECT_DRAFT_GENERIC_ERROR };
+  }
+
+  const guard = await requireStaffAdmin();
+  if (!guard.ok) {
+    redirect(guard.status === 401 ? "/login" : "/admin/jobs");
+  }
+  const actor = guard.user;
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return { ok: false, error: CORRECT_DRAFT_GENERIC_ERROR };
+  }
+
+  const deadlineInput = String(formData.get("deadline") ?? "");
+  const deadline = parseEthiopiaDateTime(deadlineInput);
+  if (!deadline) {
+    return {
+      ok: false,
+      error: CORRECT_DRAFT_INVALID_ERROR,
+      fieldErrors: { deadline: ["Enter a valid Ethiopia Time deadline"] },
+    };
+  }
+
+  const requirements = String(formData.get("requirements") ?? "").trim();
+  const parsed = draftJobCorrectionSchema.safeParse({
+    deadline,
+    description: String(formData.get("description") ?? ""),
+    requirements: requirements.length > 0 ? requirements : null,
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: CORRECT_DRAFT_INVALID_ERROR,
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  let result: Awaited<ReturnType<typeof correctDraftJob>>;
+  try {
+    result = await correctDraftJob(jobId, parsed.data, actor.id);
+  } catch {
+    return { ok: false, error: CORRECT_DRAFT_GENERIC_ERROR };
+  }
+
+  if (!result.ok) {
+    switch (result.code) {
+      case "NOT_DRAFT":
+        return { ok: false, error: CORRECT_DRAFT_NOT_DRAFT_ERROR };
+      case "INVALID_INPUT":
+        return { ok: false, error: CORRECT_DRAFT_INVALID_ERROR };
+      default:
+        return { ok: false, error: CORRECT_DRAFT_GENERIC_ERROR };
     }
   }
 

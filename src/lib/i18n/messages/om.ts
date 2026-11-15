@@ -1133,6 +1133,16 @@ cv: {
   },
   footer: {
     footerNavLabel: "Baqqii gubbaa",
+    contact: "Nu qunnamaa",
+  },
+  contact: {
+    heading: "Nu qunnamaa",
+    intro:
+      "Gaaffii, yaada, yookaan beeksisa hojii qoodduu qabdaa? Imeeliin nu qunnamaa; dafnee deebii kennina.",
+    emailLabel: "Imeelii",
+    emailAddress: "jobethiopiaet@gmail.com",
+    cta: "jobethiopiaet@gmail.com irratti imeelii ergaa",
+    responseNote: "Dafnee deebii kennuuf carraaqna.",
   },
   googleAuth: {
     divider: "YKN",

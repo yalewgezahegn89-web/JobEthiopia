@@ -71,3 +71,17 @@ describe("SiteFooter social links", () => {
     expect(html).toContain("Chaanaalii Telegram keenyaa hordofi");
   });
 });
+
+describe("SiteFooter contact link", () => {
+  it("renders a Contact link to the contact page", async () => {
+    const html = await renderFooter("en");
+
+    expect(html).toContain('href="/contact"');
+    expect(html).toContain(">Contact</a>");
+  });
+
+  it("localizes the Contact label", async () => {
+    expect(await renderFooter("am")).toContain("ያግኙን");
+    expect(await renderFooter("om")).toContain("Nu qunnamaa");
+  });
+});
