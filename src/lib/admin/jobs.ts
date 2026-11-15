@@ -323,6 +323,10 @@ async function resolveJobProvenance(
 /**
  * Returns the moderation queue: jobs that are PENDING_REVIEW by lifecycle or
  * NEEDS_REVIEW by verification. A job satisfying both conditions appears once.
+ *
+ * When an explicit status and/or verificationStatus filter is supplied, the
+ * selected filters are honored on their own (combined with AND) instead of
+ * implicitly restricting results to the default moderation queue.
  */
 export async function listModerationJobs(input: {
   page?: number;
@@ -334,17 +338,18 @@ export async function listModerationJobs(input: {
   const limit = Math.min(100, Math.max(1, Number.isFinite(input.limit) ? Math.trunc(input.limit ?? 20) : 20));
   const offset = (page - 1) * limit;
 
-  const baseCondition = or(
-    eq(jobs.status, "PENDING_REVIEW"),
-    eq(jobs.verificationStatus, "NEEDS_REVIEW"),
-  );
-
-  const filters = [baseCondition];
-  if (input.status) filters.push(eq(jobs.status, input.status as never));
-  if (input.verificationStatus) {
-    filters.push(eq(jobs.verificationStatus, input.verificationStatus as never));
-  }
-  const where = and(...filters);
+  const where =
+    input.status || input.verificationStatus
+      ? and(
+          input.status ? eq(jobs.status, input.status as never) : undefined,
+          input.verificationStatus
+            ? eq(jobs.verificationStatus, input.verificationStatus as never)
+            : undefined,
+        )
+      : or(
+          eq(jobs.status, "PENDING_REVIEW"),
+          eq(jobs.verificationStatus, "NEEDS_REVIEW"),
+        );
 
   const [rows, totalRows] = await Promise.all([
     db.query.jobs.findMany({
