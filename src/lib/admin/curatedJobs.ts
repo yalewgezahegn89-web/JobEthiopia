@@ -39,7 +39,13 @@ import { sources } from "@/db/schema/sources";
 import { auditLog } from "@/db/schema/auditLog";
 import { escapeLikePattern } from "@/lib/apiUtils";
 import { isPgUniqueViolation } from "@/lib/pgErrors";
-import { isStaffRole, type AuthUser } from "@/lib/auth/roles";
+import {
+  authorizeSourceMutation,
+  canManagePrivilegedSourceFields,
+  isStaffRole,
+  toStaffSourceActor,
+  type AuthUser,
+} from "@/lib/auth/roles";
 import { generateSlug } from "@/lib/ingestion/slug";
 import { normalizeTitle } from "@/lib/normalization";
 import {
@@ -52,6 +58,21 @@ import {
 } from "@/lib/validations/curatedJob";
 
 const MAX_SLUG_RETRIES = 10;
+
+export const MODERATOR_ELIGIBLE_ORIGINAL_SOURCE = {
+  sourceType: "WEBSITE",
+  trustLevel: "HIGH",
+} as const;
+
+export function isModeratorEligibleOriginalSource(source: {
+  sourceType: string;
+  trustLevel: string;
+}): boolean {
+  return (
+    source.sourceType === MODERATOR_ELIGIBLE_ORIGINAL_SOURCE.sourceType &&
+    source.trustLevel === MODERATOR_ELIGIBLE_ORIGINAL_SOURCE.trustLevel
+  );
+}
 
 type JobStatus = "DRAFT" | "PENDING_REVIEW" | "PUBLISHED" | "EXPIRED" | "REMOVED";
 
@@ -84,7 +105,15 @@ export type CuratedJobResult =
       item: (typeof jobs.$inferSelect);
       warning?: CuratedJobDuplicateWarning;
     }
-  | { ok: false; code: "FORBIDDEN" | "VALIDATION" | "SOURCE_MISSING" | "SLUG_COLLISION" };
+  | {
+      ok: false;
+      code:
+        | "FORBIDDEN"
+        | "PRIVILEGED_SOURCE_FORBIDDEN"
+        | "VALIDATION"
+        | "SOURCE_MISSING"
+        | "SLUG_COLLISION";
+    };
 
 /**
  * Creates a curated/manual job with "Manual Entry" source provenance.
@@ -177,14 +206,35 @@ export async function createCuratedJob(
     let originalSourceId: string | null = null;
     if (data.originalSource) {
       const existingSource = await tx
-        .select({ id: sources.id })
+        .select({
+          id: sources.id,
+          sourceType: sources.sourceType,
+          trustLevel: sources.trustLevel,
+        })
         .from(sources)
         .where(eq(sources.name, data.originalSource.sourceName))
         .limit(1);
 
       if (existingSource.length > 0) {
+        if (
+          !canManagePrivilegedSourceFields(actor.role) &&
+          !isModeratorEligibleOriginalSource(existingSource[0])
+        ) {
+          return { ok: false, code: "PRIVILEGED_SOURCE_FORBIDDEN" };
+        }
         originalSourceId = existingSource[0].id;
       } else {
+        // Creating the original source grants HIGH trust. Moderators may reuse
+        // an eligible existing source, but cannot create a privileged source.
+        if (
+          !authorizeSourceMutation(toStaffSourceActor(actor), {
+            trustLevel: "HIGH",
+            autoPublish: false,
+          }).ok
+        ) {
+          return { ok: false, code: "PRIVILEGED_SOURCE_FORBIDDEN" };
+        }
+
         const [createdSource] = await tx
           .insert(sources)
           .values({

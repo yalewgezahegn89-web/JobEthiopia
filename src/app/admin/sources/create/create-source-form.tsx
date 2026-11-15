@@ -17,11 +17,21 @@ const SOURCE_TYPES = [
 ];
 const TRUST_LEVELS = ["HIGH", "MEDIUM", "LOW"];
 
-export default function CreateSourceForm() {
+export default function CreateSourceForm({
+  canManagePrivilegedFields = false,
+}: {
+  canManagePrivilegedFields?: boolean;
+}) {
   const [createState, createFormAction, createPending] = useActionState<
     SourceActionResult,
     FormData
   >(createSourceAction, INITIAL_STATE);
+  const visibleTrustLevels = canManagePrivilegedFields
+    ? TRUST_LEVELS
+    : TRUST_LEVELS.filter((trustLevel) => trustLevel !== "HIGH");
+  const visibleSourceTypes = canManagePrivilegedFields
+    ? SOURCE_TYPES
+    : SOURCE_TYPES.filter((sourceType) => sourceType !== "FACEBOOK");
 
   if (createState.ok) {
     return (
@@ -72,7 +82,7 @@ export default function CreateSourceForm() {
             <option value="" disabled>
               Select a source type
             </option>
-            {SOURCE_TYPES.map((st) => (
+            {visibleSourceTypes.map((st) => (
               <option key={st} value={st}>
                 {st}
               </option>
@@ -93,10 +103,11 @@ export default function CreateSourceForm() {
           />
         </div>
 
-        <fieldset className="rounded-lg border border-border bg-surface-raised p-4">
-          <legend className="px-1 text-sm font-medium text-foreground">
-            Facebook Page (only for FACEBOOK sources)
-          </legend>
+        {canManagePrivilegedFields && (
+          <fieldset className="rounded-lg border border-border bg-surface-raised p-4">
+            <legend className="px-1 text-sm font-medium text-foreground">
+              Facebook Page (only for FACEBOOK sources)
+            </legend>
           <p className="mt-1 text-xs text-muted">
             Tokens are never stored here. Owned Pages use a server-side Page
             access token; external Pages stay blocked until Meta approval and
@@ -175,7 +186,8 @@ export default function CreateSourceForm() {
               />
             </div>
           </div>
-        </fieldset>
+          </fieldset>
+        )}
 
         <div>
           <label htmlFor="trustLevel" className="block text-sm font-medium text-foreground">
@@ -188,7 +200,7 @@ export default function CreateSourceForm() {
             defaultValue="MEDIUM"
             className="mt-1.5 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
-            {TRUST_LEVELS.map((tl) => (
+            {visibleTrustLevels.map((tl) => (
               <option key={tl} value={tl}>
                 {tl}
               </option>
@@ -214,26 +226,32 @@ export default function CreateSourceForm() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-border bg-surface-raised p-4">
-          <label className="flex items-start gap-3">
-            <input
-              type="checkbox"
-              name="autoPublish"
-              value="true"
-              className="mt-0.5 h-4 w-4 rounded border-border text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
-            />
-            <span>
-              <span className="block text-sm font-medium text-foreground">
-                Auto-publish qualifying imports
+        {canManagePrivilegedFields ? (
+          <div className="rounded-lg border border-border bg-surface-raised p-4">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                name="autoPublish"
+                value="true"
+                className="mt-0.5 h-4 w-4 rounded border-border text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+              />
+              <span>
+                <span className="block text-sm font-medium text-foreground">
+                  Auto-publish qualifying imports
+                </span>
+                <span className="mt-0.5 block text-xs text-muted">
+                  Requires HIGH trust, explicit applicant eligibility, a valid
+                  deadline and full publication validation. Imports otherwise stay
+                  as drafts for review.
+                </span>
               </span>
-              <span className="mt-0.5 block text-xs text-muted">
-                Requires HIGH trust, explicit applicant eligibility, a valid
-                deadline and full publication validation. Imports otherwise stay
-                as drafts for review.
-              </span>
-            </span>
-          </label>
-        </div>
+            </label>
+          </div>
+        ) : (
+          <p className="rounded-lg border border-border bg-surface-raised p-4 text-xs text-muted">
+            Only administrators can grant HIGH trust or enable auto-publish.
+          </p>
+        )}
 
         <button
           type="submit"

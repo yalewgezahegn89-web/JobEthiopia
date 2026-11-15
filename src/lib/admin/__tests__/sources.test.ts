@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   mockInsert: vi.fn(),
   mockDelete: vi.fn(),
   mockMergedValidation: vi.fn(),
+  mockTxSelect: vi.fn(),
+  mockTxFor: vi.fn(),
 }));
 
 vi.mock("@/db", () => {
@@ -34,8 +36,25 @@ vi.mock("@/db", () => {
           },
         }),
       }),
-      transaction: async (fn: (tx: Record<string, unknown>) => Promise<void>) => {
+      transaction: async (fn: (tx: Record<string, unknown>) => Promise<unknown>) => {
         const tx = {
+          select: (...args: unknown[]) => ({
+            from: (...fromArgs: unknown[]) => ({
+              where: (...whereArgs: unknown[]) => ({
+                limit: (...limitArgs: unknown[]) => ({
+                  for: (...forArgs: unknown[]) => {
+                    mocks.mockTxFor(...forArgs);
+                    return mocks.mockTxSelect(...args, {
+                      fromArgs,
+                      whereArgs,
+                      limitArgs,
+                      forArgs,
+                    });
+                  },
+                }),
+              }),
+            }),
+          }),
           insert: mocks.mockInsert,
           update: mocks.mockUpdate,
           delete: mocks.mockDelete,
@@ -73,6 +92,17 @@ import {
 
 const VALID_ID = "11111111-1111-4111-8111-111111111111";
 const ACTOR_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const ADMIN_ACTOR = {
+  kind: "staff" as const,
+  id: ACTOR_ID,
+  role: "ADMIN" as const,
+};
+const MODERATOR_ACTOR = {
+  kind: "staff" as const,
+  id: ACTOR_ID,
+  role: "MODERATOR" as const,
+};
+const API_KEY_ACTOR = { kind: "api_key" as const };
 
 const SOURCE_ROW = {
   id: VALID_ID,
@@ -90,30 +120,55 @@ const SOURCE_ROW = {
   updatedAt: new Date("2026-01-01T00:00:00.000Z"),
 };
 
-function makeTxMocks() {
+function makeTxMocks(lockedRow?: unknown) {
   const capturedInserts: Record<string, unknown>[] = [];
   const capturedUpdates: Record<string, unknown>[] = [];
   const capturedDeletes: unknown[] = [];
-  mocks.mockInsert.mockImplementation((_table: unknown) => ({
-    values: (vals: Record<string, unknown>) => {
-      capturedInserts.push(vals);
-      return {
-        returning: vi.fn().mockResolvedValue([{ id: VALID_ID }]),
-      };
-    },
-  }));
-  mocks.mockUpdate.mockImplementation((_table: unknown) => ({
-    set: (values: Record<string, unknown>) => {
-      capturedUpdates.push(values);
-      return {
-        where: vi.fn().mockResolvedValue(undefined),
-      };
-    },
-  }));
-  mocks.mockDelete.mockImplementation((_table: unknown) => ({
-    where: vi.fn().mockResolvedValue(undefined),
-  }));
-  return { capturedInserts, capturedUpdates, capturedDeletes };
+  const events: string[] = [];
+  if (lockedRow !== undefined) {
+    mocks.mockTxSelect.mockImplementation(async () => {
+      events.push("select");
+      return lockedRow === null ? [] : [lockedRow];
+    });
+  }
+  mocks.mockInsert.mockImplementation((_table: unknown) => {
+    void _table;
+    return {
+      values: (vals: Record<string, unknown>) => {
+        capturedInserts.push(vals);
+        events.push("insert");
+        return {
+          returning: vi.fn().mockResolvedValue([{ id: VALID_ID }]),
+        };
+      },
+    };
+  });
+  mocks.mockUpdate.mockImplementation((_table: unknown) => {
+    void _table;
+    return {
+      set: (values: Record<string, unknown>) => {
+        capturedUpdates.push(values);
+        events.push("update-set");
+        return {
+          where: vi.fn().mockImplementation(async () => {
+            events.push("update-where");
+            return undefined;
+          }),
+        };
+      },
+    };
+  });
+  mocks.mockDelete.mockImplementation((_table: unknown) => {
+    void _table;
+    return {
+      where: vi.fn().mockImplementation(async () => {
+        capturedDeletes.push(true);
+        events.push("delete-where");
+        return undefined;
+      }),
+    };
+  });
+  return { capturedInserts, capturedUpdates, capturedDeletes, events };
 }
 
 beforeEach(() => {
@@ -121,9 +176,14 @@ beforeEach(() => {
   mocks.mockCountRows.mockResolvedValue([{ count: 0 }]);
   mocks.mockUsersSelect.mockResolvedValue([]);
   mocks.mockMergedValidation.mockReturnValue({ ok: true });
-  mocks.mockDelete.mockImplementation((_table: unknown) => ({
-    where: vi.fn().mockResolvedValue(undefined),
-  }));
+  mocks.mockTxSelect.mockResolvedValue([]);
+  mocks.mockTxFor.mockClear();
+  mocks.mockDelete.mockImplementation((_table: unknown) => {
+    void _table;
+    return {
+      where: vi.fn().mockResolvedValue(undefined),
+    };
+  });
 });
 
 describe("isValidUuid", () => {
@@ -192,7 +252,7 @@ describe("createSource", () => {
     const { capturedInserts } = makeTxMocks();
     const result = await createSource(
       { name: "New Source", sourceType: "WEBSITE", baseUrl: "https://example.com", trustLevel: "HIGH" },
-      ACTOR_ID,
+      ADMIN_ACTOR,
     );
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.id).toBe(VALID_ID);
@@ -206,7 +266,7 @@ describe("createSource", () => {
   it("inserts audit event SOURCE_CREATED", async () => {
     mocks.mockSourcesFindFirst.mockResolvedValue(null);
     const { capturedInserts } = makeTxMocks();
-    await createSource({ name: "S", sourceType: "MANUAL" }, ACTOR_ID);
+    await createSource({ name: "S", sourceType: "MANUAL" }, ADMIN_ACTOR);
     const auditInsert = capturedInserts.find((i) => "action" in i);
     expect(auditInsert).toBeDefined();
     expect(auditInsert?.action).toBe("SOURCE_CREATED");
@@ -215,68 +275,219 @@ describe("createSource", () => {
   });
 
   it("returns DUPLICATE on name conflict", async () => {
-    mocks.mockInsert.mockImplementation((_table: unknown) => ({
-      values: () => {
-        throw new Error("sources_name_unique");
-      },
-    }));
-    const result = await createSource({ name: "Dup", sourceType: "MANUAL" }, ACTOR_ID);
+    mocks.mockInsert.mockImplementation((_table: unknown) => {
+      void _table;
+      return {
+        values: () => {
+          throw new Error("sources_name_unique");
+        },
+      };
+    });
+    const result = await createSource({ name: "Dup", sourceType: "MANUAL" }, ADMIN_ACTOR);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe("DUPLICATE");
+  });
+
+  it("rejects HIGH trust for a moderator before any write", async () => {
+    const result = await createSource(
+      { name: "High", sourceType: "WEBSITE", trustLevel: "HIGH" },
+      MODERATOR_ACTOR,
+    );
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(mocks.mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("allows MEDIUM trust for a moderator", async () => {
+    const { capturedInserts } = makeTxMocks();
+    const result = await createSource(
+      { name: "Medium", sourceType: "WEBSITE", trustLevel: "MEDIUM" },
+      MODERATOR_ACTOR,
+    );
+    expect(result.ok).toBe(true);
+    expect(capturedInserts[0].trustLevel).toBe("MEDIUM");
+  });
+
+  it("rejects HIGH trust and auto-publish for an API-key actor", async () => {
+    const high = await createSource(
+      { name: "High", sourceType: "WEBSITE", trustLevel: "HIGH" },
+      API_KEY_ACTOR,
+    );
+    expect(high).toEqual({ ok: false, code: "FORBIDDEN" });
+
+    const auto = await createSource(
+      { name: "Auto", sourceType: "WEBSITE", autoPublish: true },
+      API_KEY_ACTOR,
+    );
+    expect(auto).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(mocks.mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("allows safe API-key source creation with a null audit actor", async () => {
+    const { capturedInserts } = makeTxMocks();
+    const result = await createSource(
+      { name: "Safe API", sourceType: "WEBSITE", trustLevel: "MEDIUM" },
+      API_KEY_ACTOR,
+    );
+    expect(result.ok).toBe(true);
+    expect(capturedInserts[0].trustLevel).toBe("MEDIUM");
+    const auditInsert = capturedInserts.find((i) => "action" in i);
+    expect(auditInsert?.actorUserId).toBeNull();
+  });
+
+  it("rejects moderator and API-key Facebook source creation", async () => {
+    for (const actor of [MODERATOR_ACTOR, API_KEY_ACTOR]) {
+      expect(
+        await createSource(
+          {
+            name: "Facebook Page",
+            sourceType: "FACEBOOK",
+            baseUrl: "https://www.facebook.com/example",
+            facebookPageId: "page-1",
+            facebookPageKind: "EXTERNAL_PAGE",
+            facebookApprovalState: "APPROVED",
+            facebookContentUseState: "AUTHORIZED",
+          },
+          actor,
+        ),
+      ).toEqual({ ok: false, code: "FORBIDDEN" });
+    }
+    expect(mocks.mockInsert).not.toHaveBeenCalled();
+  });
+
+  it("rejects self-asserted Facebook approval metadata on ordinary sources", async () => {
+    for (const actor of [MODERATOR_ACTOR, API_KEY_ACTOR]) {
+      expect(
+        await createSource(
+          {
+            name: "Approval source",
+            sourceType: "WEBSITE",
+            facebookApprovalState: "APPROVED",
+          },
+          actor,
+        ),
+      ).toEqual({ ok: false, code: "FORBIDDEN" });
+    }
   });
 });
 
 describe("updateSource", () => {
   it("returns NOT_FOUND for invalid UUID", async () => {
-    const result = await updateSource("bad", { name: "X" }, ACTOR_ID);
+    const result = await updateSource("bad", { name: "X" }, ADMIN_ACTOR);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe("NOT_FOUND");
   });
 
   it("returns NOT_FOUND for nonexistent source", async () => {
-    mocks.mockSourcesFindFirst.mockResolvedValue(null);
-    const result = await updateSource(VALID_ID, { name: "X" }, ACTOR_ID);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("NOT_FOUND");
+    makeTxMocks(null);
+    const result = await updateSource(VALID_ID, { name: "X" }, ADMIN_ACTOR);
+    expect(result).toEqual({ ok: false, code: "NOT_FOUND" });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
   });
 
   it("returns true when no fields changed", async () => {
-    mocks.mockSourcesFindFirst.mockResolvedValue({ id: VALID_ID });
-    const result = await updateSource(VALID_ID, {}, ACTOR_ID);
-    expect(result.ok).toBe(true);
+    const result = await updateSource(VALID_ID, {}, ADMIN_ACTOR);
+    expect(result).toEqual({ ok: true });
+    expect(mocks.mockTxSelect).not.toHaveBeenCalled();
   });
 
-  it("updates fields and writes audit", async () => {
-    mocks.mockSourcesFindFirst.mockResolvedValue({ id: VALID_ID, name: "Old" });
-    const { capturedUpdates, capturedInserts } = makeTxMocks();
-    const result = await updateSource(VALID_ID, { name: "New" }, ACTOR_ID);
-    expect(result.ok).toBe(true);
-    expect(capturedUpdates[0].name).toBe("New");
+  it("locks, re-reads latest source, authorizes against it, and audits changed fields", async () => {
+    const current = {
+      id: VALID_ID,
+      name: "Old",
+      sourceType: "WEBSITE",
+      baseUrl: "https://example.com",
+      isActive: true,
+      trustLevel: "MEDIUM",
+      autoPublish: false,
+      checkFrequencyMinutes: 60,
+      facebookPageId: null,
+      facebookPageKind: null,
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
+    };
+    const { capturedUpdates, capturedInserts, events } = makeTxMocks(current);
+    const result = await updateSource(VALID_ID, { name: "New" }, ADMIN_ACTOR);
+    expect(result).toEqual({ ok: true });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
+    expect(events[0]).toBe("select");
+    expect(capturedUpdates[0]).toMatchObject({ name: "New" });
     expect(capturedUpdates[0].updatedAt).toBeInstanceOf(Date);
-    const auditInsert = capturedInserts.find((i) => "action" in i);
+    const auditInsert = capturedInserts.find((i) => "action" in i) as Record<string, unknown> | undefined;
     expect(auditInsert?.action).toBe("SOURCE_UPDATED");
+    expect(auditInsert?.metadata).toEqual({
+      fields: ["name"],
+      before: { name: "Old" },
+      after: { name: "New" },
+    });
+  });
+
+  it("uses latest locked privilege state and makes no write/audit when denied", async () => {
+    const promoted = {
+      id: VALID_ID,
+      name: "Trusted",
+      sourceType: "API",
+      baseUrl: "https://trusted.example.com/feed",
+      isActive: true,
+      trustLevel: "HIGH",
+      autoPublish: true,
+      checkFrequencyMinutes: 60,
+      facebookPageId: null,
+      facebookPageKind: null,
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
+    };
+    const { capturedUpdates, capturedInserts } = makeTxMocks(promoted);
+    const result = await updateSource(
+      VALID_ID,
+      { isActive: false },
+      MODERATOR_ACTOR,
+    );
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
+    expect(capturedUpdates).toHaveLength(0);
+    expect(capturedInserts).toHaveLength(0);
   });
 
   it("returns DUPLICATE on name conflict", async () => {
-    mocks.mockSourcesFindFirst.mockResolvedValue({ id: VALID_ID });
+    makeTxMocks({
+      id: VALID_ID,
+      name: "Old",
+      sourceType: "WEBSITE",
+      baseUrl: null,
+      isActive: true,
+      trustLevel: "MEDIUM",
+      autoPublish: false,
+      checkFrequencyMinutes: null,
+      facebookPageId: null,
+      facebookPageKind: null,
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
+    });
     mocks.mockUpdate.mockImplementation(() => {
       throw new Error("sources_name_unique");
     });
-    const result = await updateSource(VALID_ID, { name: "Dup" }, ACTOR_ID);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("DUPLICATE");
+    const result = await updateSource(VALID_ID, { name: "Dup" }, ADMIN_ACTOR);
+    expect(result).toEqual({ ok: false, code: "DUPLICATE" });
   });
 
   it("returns VALIDATION when the merged source breaks Facebook invariants", async () => {
-    mocks.mockSourcesFindFirst.mockResolvedValue({
+    const { capturedUpdates, capturedInserts } = makeTxMocks({
       id: VALID_ID,
       name: "Facebook Page",
       sourceType: "FACEBOOK",
       baseUrl: "https://www.facebook.com/example",
+      isActive: true,
+      trustLevel: "HIGH",
+      autoPublish: true,
+      checkFrequencyMinutes: 60,
       facebookPageId: "page-1",
       facebookPageKind: "OWNED_PAGE",
       facebookApprovalState: "NOT_REQUESTED",
       facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
     });
     mocks.mockMergedValidation.mockReturnValue({
       ok: false,
@@ -286,83 +497,367 @@ describe("updateSource", () => {
     const result = await updateSource(
       VALID_ID,
       { facebookPageId: null },
-      ACTOR_ID,
+      ADMIN_ACTOR,
     );
 
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("VALIDATION");
+    expect(result).toEqual({ ok: false, code: "VALIDATION" });
     expect(mocks.mockMergedValidation).toHaveBeenCalled();
+    expect(capturedUpdates).toHaveLength(0);
+    expect(capturedInserts).toHaveLength(0);
+  });
+
+  it("rejects a moderator granting HIGH trust", async () => {
+    const { capturedUpdates, capturedInserts } = makeTxMocks({
+      id: VALID_ID,
+      name: "Source",
+      sourceType: "WEBSITE",
+      baseUrl: "https://example.com",
+      isActive: true,
+      trustLevel: "MEDIUM",
+      autoPublish: false,
+      checkFrequencyMinutes: 60,
+      facebookPageId: null,
+      facebookPageKind: null,
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
+    });
+    const result = await updateSource(VALID_ID, { trustLevel: "HIGH" }, MODERATOR_ACTOR);
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
+    expect(capturedUpdates).toHaveLength(0);
+    expect(capturedInserts).toHaveLength(0);
+  });
+
+  it("rejects a moderator enabling auto-publish", async () => {
+    const { capturedUpdates, capturedInserts } = makeTxMocks({
+      id: VALID_ID,
+      name: "Source",
+      sourceType: "WEBSITE",
+      baseUrl: "https://example.com",
+      isActive: true,
+      trustLevel: "MEDIUM",
+      autoPublish: false,
+      checkFrequencyMinutes: 60,
+      facebookPageId: null,
+      facebookPageKind: null,
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
+    });
+    const result = await updateSource(VALID_ID, { autoPublish: true }, MODERATOR_ACTOR);
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
+    expect(capturedUpdates).toHaveLength(0);
+    expect(capturedInserts).toHaveLength(0);
+  });
+
+  it("rejects a moderator changing trust or auto-publish, including downgrades", async () => {
+    const { capturedUpdates, capturedInserts } = makeTxMocks({
+      id: VALID_ID,
+      name: "Trusted",
+      sourceType: "API",
+      baseUrl: "https://trusted.example.com/feed",
+      isActive: true,
+      trustLevel: "HIGH",
+      autoPublish: true,
+      checkFrequencyMinutes: 60,
+      facebookPageId: null,
+      facebookPageKind: null,
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
+    });
+    expect(
+      await updateSource(VALID_ID, { trustLevel: "LOW", autoPublish: false }, MODERATOR_ACTOR),
+    ).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
+    expect(capturedUpdates).toHaveLength(0);
+    expect(capturedInserts).toHaveLength(0);
+  });
+
+  it("does not write privileged fields omitted from a partial update", async () => {
+    const { capturedUpdates } = makeTxMocks({
+      id: VALID_ID,
+      name: "Old",
+      sourceType: "WEBSITE",
+      baseUrl: "https://example.com",
+      isActive: true,
+      trustLevel: "MEDIUM",
+      autoPublish: false,
+      checkFrequencyMinutes: 60,
+      facebookPageId: null,
+      facebookPageKind: null,
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
+    });
+    const result = await updateSource(VALID_ID, { name: "Renamed" }, MODERATOR_ACTOR);
+    expect(result).toEqual({ ok: true });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
+    expect(capturedUpdates[0]).not.toHaveProperty("trustLevel");
+    expect(capturedUpdates[0]).not.toHaveProperty("autoPublish");
+  });
+
+  it("updates allowed ordinary fields without touching existing Facebook metadata", async () => {
+    const { capturedUpdates, capturedInserts } = makeTxMocks({
+      id: VALID_ID,
+      name: "Old name",
+      sourceType: "WEBSITE",
+      baseUrl: "https://example.com",
+      isActive: true,
+      trustLevel: "MEDIUM",
+      autoPublish: false,
+      checkFrequencyMinutes: 60,
+      facebookPageId: "page-1",
+      facebookPageKind: "EXTERNAL_PAGE",
+      facebookApprovalState: "APPROVED",
+      facebookContentUseState: "AUTHORIZED",
+      facebookAuthorizationNote: "Approved",
+    });
+    const result = await updateSource(
+      VALID_ID,
+      { name: "Renamed", checkFrequencyMinutes: 30 },
+      MODERATOR_ACTOR,
+    );
+    expect(result).toEqual({ ok: true });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
+    expect(capturedUpdates[0]).toMatchObject({ name: "Renamed", checkFrequencyMinutes: 30 });
+    expect(capturedUpdates[0]).not.toHaveProperty("facebookPageId");
+    expect(capturedUpdates[0]).not.toHaveProperty("facebookPageKind");
+    expect(capturedUpdates[0]).not.toHaveProperty("facebookApprovalState");
+    expect(capturedUpdates[0]).not.toHaveProperty("facebookContentUseState");
+    expect(capturedUpdates[0]).not.toHaveProperty("facebookAuthorizationNote");
+    const audit = capturedInserts.find((i) => "action" in i) as Record<string, unknown>;
+    expect((audit.metadata as { fields: string[] }).fields).toEqual(["name", "checkFrequencyMinutes"]);
+  });
+
+  it("rejects redirecting a privileged source without changing privileged fields", async () => {
+    const privileged = {
+      id: VALID_ID,
+      name: "Trusted Feed",
+      sourceType: "API",
+      baseUrl: "https://trusted.example.com/feed",
+      isActive: true,
+      trustLevel: "HIGH",
+      autoPublish: true,
+      checkFrequencyMinutes: 60,
+      facebookPageId: null,
+      facebookPageKind: null,
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
+    };
+    for (const patch of [
+      { baseUrl: "https://evil.example.com/feed" },
+      { sourceType: "FEED" },
+      { isActive: false },
+    ]) {
+      const { capturedUpdates, capturedInserts } = makeTxMocks(privileged);
+      expect(await updateSource(VALID_ID, patch, MODERATOR_ACTOR)).toEqual({
+        ok: false,
+        code: "FORBIDDEN",
+      });
+      expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
+      expect(capturedUpdates).toHaveLength(0);
+      expect(capturedInserts).toHaveLength(0);
+      vi.clearAllMocks();
+      mocks.mockCountRows.mockResolvedValue([{ count: 0 }]);
+      mocks.mockUsersSelect.mockResolvedValue([]);
+      mocks.mockMergedValidation.mockReturnValue({ ok: true });
+      mocks.mockTxSelect.mockResolvedValue([]);
+    }
+  });
+
+  it("rejects moderator Facebook approval changes", async () => {
+    const { capturedUpdates, capturedInserts } = makeTxMocks({
+      id: VALID_ID,
+      name: "Source",
+      sourceType: "WEBSITE",
+      baseUrl: "https://example.com",
+      isActive: true,
+      trustLevel: "MEDIUM",
+      autoPublish: false,
+      checkFrequencyMinutes: 60,
+      facebookPageId: null,
+      facebookPageKind: null,
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
+    });
+    expect(
+      await updateSource(VALID_ID, { facebookApprovalState: "APPROVED" }, MODERATOR_ACTOR),
+    ).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(capturedUpdates).toHaveLength(0);
+    expect(capturedInserts).toHaveLength(0);
+  });
+
+  it("rejects an API-key actor granting HIGH trust or enabling auto-publish", async () => {
+    const ordinary = {
+      id: VALID_ID,
+      name: "Source",
+      sourceType: "WEBSITE",
+      baseUrl: "https://example.com",
+      isActive: true,
+      trustLevel: "MEDIUM",
+      autoPublish: false,
+      checkFrequencyMinutes: 60,
+      facebookPageId: null,
+      facebookPageKind: null,
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
+    };
+    let r = makeTxMocks(ordinary);
+    expect(await updateSource(VALID_ID, { trustLevel: "HIGH" }, API_KEY_ACTOR)).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(r.capturedUpdates).toHaveLength(0);
+    vi.clearAllMocks();
+    mocks.mockCountRows.mockResolvedValue([{ count: 0 }]);
+    mocks.mockUsersSelect.mockResolvedValue([]);
+    mocks.mockMergedValidation.mockReturnValue({ ok: true });
+    mocks.mockTxSelect.mockResolvedValue([]);
+    r = makeTxMocks(ordinary);
+    expect(await updateSource(VALID_ID, { autoPublish: true }, API_KEY_ACTOR)).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(r.capturedUpdates).toHaveLength(0);
+  });
+
+  it("rejects API-key redirects of privileged sources and downgrades", async () => {
+    const privileged = {
+      id: VALID_ID,
+      name: "Trusted",
+      sourceType: "API",
+      baseUrl: "https://trusted.example.com/feed",
+      isActive: true,
+      trustLevel: "HIGH",
+      autoPublish: true,
+      checkFrequencyMinutes: 60,
+      facebookPageId: null,
+      facebookPageKind: null,
+      facebookApprovalState: "NOT_REQUESTED",
+      facebookContentUseState: "NOT_RECORDED",
+      facebookAuthorizationNote: null,
+    };
+    let r = makeTxMocks(privileged);
+    expect(
+      await updateSource(VALID_ID, { baseUrl: "https://evil.example.com/feed" }, API_KEY_ACTOR),
+    ).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(r.capturedUpdates).toHaveLength(0);
+    vi.clearAllMocks();
+    mocks.mockCountRows.mockResolvedValue([{ count: 0 }]);
+    mocks.mockUsersSelect.mockResolvedValue([]);
+    mocks.mockMergedValidation.mockReturnValue({ ok: true });
+    mocks.mockTxSelect.mockResolvedValue([]);
+    r = makeTxMocks(privileged);
+    expect(
+      await updateSource(VALID_ID, { trustLevel: "LOW", autoPublish: false }, API_KEY_ACTOR),
+    ).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(r.capturedUpdates).toHaveLength(0);
   });
 });
 
 describe("deleteSource", () => {
   it("returns NOT_FOUND for invalid UUID", async () => {
-    const result = await deleteSource("bad", ACTOR_ID);
+    const result = await deleteSource("bad", ADMIN_ACTOR);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe("NOT_FOUND");
   });
 
   it("returns NOT_FOUND for nonexistent source", async () => {
-    mocks.mockSourcesFindFirst.mockResolvedValue(null);
-    const result = await deleteSource(VALID_ID, ACTOR_ID);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("NOT_FOUND");
+    makeTxMocks(null);
+    const result = await deleteSource(VALID_ID, ADMIN_ACTOR);
+    expect(result).toEqual({ ok: false, code: "NOT_FOUND" });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
   });
 
   it("deletes and writes audit", async () => {
-    mocks.mockSourcesFindFirst.mockResolvedValue({ id: VALID_ID, name: "Source" });
-    const { capturedInserts } = makeTxMocks();
-    const result = await deleteSource(VALID_ID, ACTOR_ID);
-    expect(result.ok).toBe(true);
-    const auditInsert = capturedInserts.find((i) => "action" in i);
-    expect(auditInsert?.action).toBe("SOURCE_DELETED");
+    const { capturedInserts, capturedDeletes } = makeTxMocks({
+      id: VALID_ID, name: "Source", sourceType: "WEBSITE", trustLevel: "MEDIUM", autoPublish: false,
+    });
+    const result = await deleteSource(VALID_ID, ADMIN_ACTOR);
+    expect(result).toEqual({ ok: true });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
+    expect(capturedDeletes.length).toBeGreaterThan(0);
+    const auditInsert = capturedInserts.find((i) => "action" in i) as Record<string, unknown>;
+    expect(auditInsert.action).toBe("SOURCE_DELETED");
   });
 
   it("returns FK_VIOLATION on foreign key error", async () => {
-    mocks.mockSourcesFindFirst.mockResolvedValue({ id: VALID_ID, name: "Source" });
+    makeTxMocks({ id: VALID_ID, name: "Source", sourceType: "WEBSITE", trustLevel: "MEDIUM", autoPublish: false });
     mocks.mockDelete.mockImplementation(() => ({
       where: () => { throw new Error("foreign key constraint"); },
     }));
-    const result = await deleteSource(VALID_ID, ACTOR_ID);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("FK_VIOLATION");
+    const result = await deleteSource(VALID_ID, ADMIN_ACTOR);
+    expect(result).toEqual({ ok: false, code: "FK_VIOLATION" });
+  });
+
+  it("rejects moderator deletion of privileged sources", async () => {
+    const { capturedDeletes, capturedInserts } = makeTxMocks({
+      id: VALID_ID,
+      name: "Trusted",
+      sourceType: "API",
+      trustLevel: "HIGH",
+      autoPublish: true,
+    });
+    const result = await deleteSource(VALID_ID, MODERATOR_ACTOR);
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
+    expect(capturedDeletes).toHaveLength(0);
+    expect(capturedInserts).toHaveLength(0);
   });
 });
 
 describe("toggleSourceActive", () => {
   it("returns NOT_FOUND for invalid UUID", async () => {
-    const result = await toggleSourceActive("bad", ACTOR_ID);
+    const result = await toggleSourceActive("bad", ADMIN_ACTOR);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe("NOT_FOUND");
   });
 
   it("returns NOT_FOUND for nonexistent source", async () => {
-    mocks.mockSourcesFindFirst.mockResolvedValue(null);
-    const result = await toggleSourceActive(VALID_ID, ACTOR_ID);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.code).toBe("NOT_FOUND");
+    makeTxMocks(null);
+    const result = await toggleSourceActive(VALID_ID, ADMIN_ACTOR);
+    expect(result).toEqual({ ok: false, code: "NOT_FOUND" });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
   });
 
   it("toggles active -> inactive", async () => {
-    mocks.mockSourcesFindFirst.mockResolvedValue({ id: VALID_ID, isActive: true });
-    const { capturedUpdates, capturedInserts } = makeTxMocks();
-    const result = await toggleSourceActive(VALID_ID, ACTOR_ID);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.isActive).toBe(false);
+    const { capturedUpdates, capturedInserts } = makeTxMocks({
+      id: VALID_ID, name: "Source", sourceType: "WEBSITE", isActive: true, trustLevel: "MEDIUM", autoPublish: false,
+    });
+    const result = await toggleSourceActive(VALID_ID, ADMIN_ACTOR);
+    expect(result).toEqual({ ok: true, isActive: false });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
     expect(capturedUpdates[0].isActive).toBe(false);
-    const auditInsert = capturedInserts.find((i) => "action" in i);
-    expect(auditInsert?.action).toBe("SOURCE_DEACTIVATED");
+    const auditInsert = capturedInserts.find((i) => "action" in i) as Record<string, unknown>;
+    expect(auditInsert.action).toBe("SOURCE_DEACTIVATED");
   });
 
   it("toggles inactive -> active", async () => {
-    mocks.mockSourcesFindFirst.mockResolvedValue({ id: VALID_ID, isActive: false });
-    const { capturedUpdates, capturedInserts } = makeTxMocks();
-    const result = await toggleSourceActive(VALID_ID, ACTOR_ID);
-    expect(result.ok).toBe(true);
-    if (result.ok) expect(result.isActive).toBe(true);
+    const { capturedUpdates, capturedInserts } = makeTxMocks({
+      id: VALID_ID, name: "Source", sourceType: "WEBSITE", isActive: false, trustLevel: "MEDIUM", autoPublish: false,
+    });
+    const result = await toggleSourceActive(VALID_ID, ADMIN_ACTOR);
+    expect(result).toEqual({ ok: true, isActive: true });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
     expect(capturedUpdates[0].isActive).toBe(true);
-    const auditInsert = capturedInserts.find((i) => "action" in i);
-    expect(auditInsert?.action).toBe("SOURCE_ACTIVATED");
+    const auditInsert = capturedInserts.find((i) => "action" in i) as Record<string, unknown>;
+    expect(auditInsert.action).toBe("SOURCE_ACTIVATED");
+  });
+
+  it("rejects moderator activation of a privileged source", async () => {
+    const { capturedUpdates, capturedInserts } = makeTxMocks({
+      id: VALID_ID,
+      name: "Trusted",
+      sourceType: "API",
+      isActive: false,
+      trustLevel: "HIGH",
+      autoPublish: true,
+    });
+    const result = await toggleSourceActive(VALID_ID, MODERATOR_ACTOR);
+    expect(result).toEqual({ ok: false, code: "FORBIDDEN" });
+    expect(mocks.mockTxFor).toHaveBeenCalledWith("update");
+    expect(capturedUpdates).toHaveLength(0);
+    expect(capturedInserts).toHaveLength(0);
   });
 });
 

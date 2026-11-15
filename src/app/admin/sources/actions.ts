@@ -16,6 +16,11 @@
  */
 import { redirect } from "next/navigation";
 import { requireStaffAdmin } from "@/lib/auth/context";
+import {
+  authorizeSourceMutation,
+  canManagePrivilegedSourceFields,
+  toStaffSourceActor,
+} from "@/lib/auth/roles";
 import { assertTrustedCsrfFromRequest, CsrfError } from "@/lib/auth/csrf";
 import {
   createSource,
@@ -30,6 +35,10 @@ export type SourceActionResult = {
 };
 
 const GENERIC_ERROR = "Unable to update this source. Please try again.";
+const PRIVILEGED_FIELDS_ERROR =
+  "You do not have permission to grant HIGH trust or enable auto-publish.";
+const LIFECYCLE_DENIED_ERROR =
+  "You do not have permission to change this source's lifecycle.";
 const GENERIC_FK_ERROR = "This source cannot be deleted because it is linked to existing jobs.";
 const INVALID_FREQUENCY =
   "Check frequency must be a whole number between 5 and 10080 minutes, or blank.";
@@ -59,6 +68,33 @@ function readFacebookFields(formData: FormData) {
   };
 }
 
+const FACEBOOK_FORM_FIELDS = [
+  "facebookPageId",
+  "facebookPageKind",
+  "facebookApprovalState",
+  "facebookContentUseState",
+  "facebookAuthorizationNote",
+] as const;
+
+function readProvidedFacebookFields(formData: FormData) {
+  const fields: Record<string, string | null> = {};
+
+  for (const field of FACEBOOK_FORM_FIELDS) {
+    if (!formData.has(field)) continue;
+    const value = String(formData.get(field) ?? "").trim() || null;
+
+    if (field === "facebookApprovalState") {
+      fields[field] = value ?? "NOT_REQUESTED";
+    } else if (field === "facebookContentUseState") {
+      fields[field] = value ?? "NOT_RECORDED";
+    } else {
+      fields[field] = value;
+    }
+  }
+
+  return fields;
+}
+
 export async function createSourceAction(
   _prevState: SourceActionResult,
   formData: FormData,
@@ -84,7 +120,19 @@ export async function createSourceAction(
   if (!guard.ok) {
     redirect(guard.status === 401 ? "/login" : "/admin/sources");
   }
-  const actor = guard.user;
+  const actor = toStaffSourceActor(guard.user);
+
+  if (
+    !authorizeSourceMutation(actor, {
+      trustLevel,
+      autoPublish,
+      sourceType,
+      ...facebook,
+      operation: "create",
+    }).ok
+  ) {
+    return { ok: false, error: PRIVILEGED_FIELDS_ERROR };
+  }
 
   try {
     await assertTrustedCsrfFromRequest();
@@ -106,10 +154,16 @@ export async function createSourceAction(
         checkFrequencyMinutes,
         ...facebook,
       },
-      actor.id,
+      actor,
     );
     if (!result.ok) {
-      return { ok: false, error: GENERIC_ERROR };
+      return {
+        ok: false,
+        error:
+          result.code === "FORBIDDEN"
+            ? PRIVILEGED_FIELDS_ERROR
+            : GENERIC_ERROR,
+      };
     }
   } catch {
     return { ok: false, error: GENERIC_ERROR };
@@ -127,11 +181,15 @@ export async function updateSourceAction(
   const sourceType = String(formData.get("sourceType") ?? "");
   const baseUrl = String(formData.get("baseUrl") ?? "").trim();
   const trustLevel = String(formData.get("trustLevel") ?? "").trim();
-  const autoPublish = formData.get("autoPublish") === "true";
+  const autoPublishRaw = String(formData.get("autoPublish") ?? "");
+  const autoPublish = autoPublishRaw === "true";
+  const autoPublishProvided =
+    autoPublishRaw === "true" || autoPublishRaw === "false";
   const checkFrequencyMinutes = parseCheckFrequency(
     String(formData.get("checkFrequencyMinutes") ?? ""),
   );
-  const facebook = readFacebookFields(formData);
+  const facebook = readProvidedFacebookFields(formData);
+  const facebookProvided = Object.keys(facebook).length > 0;
 
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sourceId)) {
     return { ok: false, error: GENERIC_ERROR };
@@ -144,7 +202,26 @@ export async function updateSourceAction(
   if (!guard.ok) {
     redirect(guard.status === 401 ? "/login" : "/admin/sources");
   }
-  const actor = guard.user;
+  const actor = toStaffSourceActor(guard.user);
+  const canManageFacebookMetadata = canManagePrivilegedSourceFields(
+    guard.user.role,
+  );
+
+  if (!canManageFacebookMetadata && facebookProvided) {
+    return { ok: false, error: PRIVILEGED_FIELDS_ERROR };
+  }
+
+  if (
+    !authorizeSourceMutation(actor, {
+      trustLevel: trustLevel || undefined,
+      autoPublish: autoPublishProvided ? autoPublish : undefined,
+      sourceType: sourceType || undefined,
+      ...facebook,
+      operation: "create",
+    }).ok
+  ) {
+    return { ok: false, error: PRIVILEGED_FIELDS_ERROR };
+  }
 
   try {
     await assertTrustedCsrfFromRequest();
@@ -158,25 +235,26 @@ export async function updateSourceAction(
   const input: Record<string, unknown> = {};
   if (name) input.name = name;
   if (sourceType) input.sourceType = sourceType;
-  if (baseUrl) input.baseUrl = baseUrl;
-  if (baseUrl === "") input.baseUrl = null;
+  if (formData.has("baseUrl")) {
+    input.baseUrl = baseUrl || null;
+  }
   if (trustLevel) input.trustLevel = trustLevel;
-  input.autoPublish = autoPublish;
+  if (autoPublishProvided) input.autoPublish = autoPublish;
   input.checkFrequencyMinutes = checkFrequencyMinutes;
-  if (sourceType) {
-    input.facebookPageId = facebook.facebookPageId;
-    input.facebookPageKind = facebook.facebookPageKind;
-    input.facebookApprovalState =
-      facebook.facebookApprovalState ?? "NOT_REQUESTED";
-    input.facebookContentUseState =
-      facebook.facebookContentUseState ?? "NOT_RECORDED";
-    input.facebookAuthorizationNote = facebook.facebookAuthorizationNote;
+  if (canManageFacebookMetadata && sourceType) {
+    Object.assign(input, facebook);
   }
 
   try {
-    const result = await updateSource(sourceId, input, actor.id);
+    const result = await updateSource(sourceId, input, actor);
     if (!result.ok) {
-      return { ok: false, error: GENERIC_ERROR };
+      return {
+        ok: false,
+        error:
+          result.code === "FORBIDDEN"
+            ? PRIVILEGED_FIELDS_ERROR
+            : GENERIC_ERROR,
+      };
     }
   } catch {
     return { ok: false, error: GENERIC_ERROR };
@@ -199,7 +277,7 @@ export async function deleteSourceAction(
   if (!guard.ok) {
     redirect(guard.status === 401 ? "/login" : "/admin/sources");
   }
-  const actor = guard.user;
+  const actor = toStaffSourceActor(guard.user);
 
   try {
     await assertTrustedCsrfFromRequest();
@@ -211,12 +289,18 @@ export async function deleteSourceAction(
   }
 
   try {
-    const result = await deleteSource(sourceId, actor.id);
+    const result = await deleteSource(sourceId, actor);
     if (!result.ok) {
       if (result.code === "FK_VIOLATION") {
         return { ok: false, error: GENERIC_FK_ERROR };
       }
-      return { ok: false, error: GENERIC_ERROR };
+      return {
+        ok: false,
+        error:
+          result.code === "FORBIDDEN"
+            ? LIFECYCLE_DENIED_ERROR
+            : GENERIC_ERROR,
+      };
     }
   } catch {
     return { ok: false, error: GENERIC_ERROR };
@@ -239,7 +323,7 @@ export async function toggleSourceActiveAction(
   if (!guard.ok) {
     redirect(guard.status === 401 ? "/login" : "/admin/sources");
   }
-  const actor = guard.user;
+  const actor = toStaffSourceActor(guard.user);
 
   try {
     await assertTrustedCsrfFromRequest();
@@ -251,9 +335,15 @@ export async function toggleSourceActiveAction(
   }
 
   try {
-    const result = await toggleSourceActive(sourceId, actor.id);
+    const result = await toggleSourceActive(sourceId, actor);
     if (!result.ok) {
-      return { ok: false, error: GENERIC_ERROR };
+      return {
+        ok: false,
+        error:
+          result.code === "FORBIDDEN"
+            ? LIFECYCLE_DENIED_ERROR
+            : GENERIC_ERROR,
+      };
     }
   } catch {
     return { ok: false, error: GENERIC_ERROR };

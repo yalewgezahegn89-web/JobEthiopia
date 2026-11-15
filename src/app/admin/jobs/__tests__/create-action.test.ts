@@ -216,6 +216,29 @@ describe("createCuratedJobAction — client-controlled fields are ignored", () =
       expect.not.objectContaining({ status: expect.anything() }),
     );
   });
+
+  it("ignores tampered source privilege fields and does not elevate trust", async () => {
+    setActor("MODERATOR");
+    const fd = createForm({
+      originalSourceName: "UNICEF Careers Website",
+      originalSourceUrl: "https://jobs.unicef.org/cw/en-us/job/595227",
+    });
+    fd.set("trustLevel", "HIGH");
+    fd.set("autoPublish", "true");
+    fd.set("sourceType", "FACEBOOK");
+
+    await expect(createCuratedJobAction(INITIAL, fd)).rejects.toThrow(
+      `REDIRECT:/admin/jobs/${JOB_ID}`,
+    );
+    expect(mocks.mockCreateCuratedJob).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "MODERATOR" }),
+      expect.not.objectContaining({
+        trustLevel: expect.anything(),
+        autoPublish: expect.anything(),
+        sourceType: expect.anything(),
+      }),
+    );
+  });
 });
 
 describe("createCuratedJobAction — original vacancy source (Phase 6 Step 7)", () => {
@@ -240,6 +263,88 @@ describe("createCuratedJobAction — original vacancy source (Phase 6 Step 7)", 
         },
       }),
     );
+  });
+
+  it.each(["ADMIN", "SUPER_ADMIN"])(
+    "passes the original source workflow through for %s",
+    async (role) => {
+      setActor(role);
+      await expect(
+        createCuratedJobAction(
+          INITIAL,
+          createForm({
+            originalSourceName: "UNICEF Careers Website",
+            originalSourceUrl: "https://jobs.unicef.org/cw/en-us/job/595227",
+            originalExternalId: "595227",
+          }),
+        ),
+      ).rejects.toThrow(`REDIRECT:/admin/jobs/${JOB_ID}`);
+      expect(mocks.mockCreateCuratedJob).toHaveBeenCalledWith(
+        expect.objectContaining({ role }),
+        expect.objectContaining({
+          originalSource: expect.objectContaining({
+            sourceName: "UNICEF Careers Website",
+          }),
+        }),
+      );
+    },
+  );
+
+  it("lets a moderator reuse an existing original source selected by name", async () => {
+    setActor("MODERATOR");
+    await expect(
+      createCuratedJobAction(
+        INITIAL,
+        createForm({
+          originalSourceName: "UNICEF Careers Website",
+          originalSourceUrl: "https://jobs.unicef.org/cw/en-us/job/595227",
+          originalExternalId: "595227",
+        }),
+      ),
+    ).rejects.toThrow(`REDIRECT:/admin/jobs/${JOB_ID}`);
+    expect(mocks.mockCreateCuratedJob).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "MODERATOR" }),
+      expect.objectContaining({
+        originalSource: {
+          sourceName: "UNICEF Careers Website",
+          sourceUrl: "https://jobs.unicef.org/cw/en-us/job/595227",
+          externalId: "595227",
+        },
+      }),
+    );
+  });
+
+  it("maps a moderator's denied attempt to create a new original source to a safe error", async () => {
+    setActor("MODERATOR");
+    mocks.mockCreateCuratedJob.mockResolvedValue({
+      ok: false,
+      code: "PRIVILEGED_SOURCE_FORBIDDEN",
+    });
+    const result = await createCuratedJobAction(
+      INITIAL,
+      createForm({
+        originalSourceName: "New External Site",
+        originalSourceUrl: "https://jobs.example.com/vacancy/1",
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("administrators");
+  });
+
+  it("maps a privileged original-source denial to a clear safe error", async () => {
+    mocks.mockCreateCuratedJob.mockResolvedValue({
+      ok: false,
+      code: "PRIVILEGED_SOURCE_FORBIDDEN",
+    });
+    const result = await createCuratedJobAction(
+      INITIAL,
+      createForm({
+        originalSourceName: "UNICEF Careers Website",
+        originalSourceUrl: "https://jobs.unicef.org/cw/en-us/job/595227",
+      }),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("administrators");
   });
 
   it("omits the original source entirely when the name is absent", async () => {

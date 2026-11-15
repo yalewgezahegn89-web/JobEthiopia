@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireStaffAdmin } from "@/lib/auth/context";
+import {
+  authorizeSourceMutation,
+  toStaffSourceActor,
+} from "@/lib/auth/roles";
 import { assertTrustedCsrfFromRequest, CsrfError } from "@/lib/auth/csrf";
+import { getSource } from "@/lib/admin/sources";
 import { runSourceIngestion } from "@/lib/ingestion/runSource";
 
 export type SourceSyncResult = {
@@ -35,6 +40,7 @@ export async function syncSourceAction(
   if (!guard.ok) {
     redirect(guard.status === 401 ? "/login" : "/admin/sources");
   }
+  const actor = toStaffSourceActor(guard.user);
 
   try {
     await assertTrustedCsrfFromRequest();
@@ -46,6 +52,46 @@ export async function syncSourceAction(
   }
 
   try {
+    const source = await getSource(sourceId);
+    if (!source) {
+      return { ok: false, error: GENERIC_ERROR };
+    }
+    if (
+      !authorizeSourceMutation(actor, {
+        existing: source,
+        operation: "sync",
+      }).ok
+    ) {
+      return {
+        ok: false,
+        error:
+          "You do not have permission to sync this source.",
+      };
+    }
+
+    // Minimal pre-ingestion recheck: re-read and re-authorize immediately
+    // before the external/network run to narrow privilege-promotion races
+    // without holding a DB transaction across ingestion.
+    const latest = await getSource(sourceId);
+    if (!latest) {
+      return { ok: false, error: GENERIC_ERROR };
+    }
+    if (
+      !authorizeSourceMutation(actor, {
+        existing: latest,
+        operation: "sync",
+      }).ok
+    ) {
+      return {
+        ok: false,
+        error:
+          "You do not have permission to sync this source.",
+      };
+    }
+
+    // Remaining limitation: ingestion performs its own DB/network work after
+    // this point, so a concurrent privilege/lifecycle change during the run is
+    // still possible without redesigning ingestion execution.
     const result = await runSourceIngestion(sourceId);
     revalidatePath(`/admin/sources/${sourceId}`);
     revalidatePath("/admin/sources");

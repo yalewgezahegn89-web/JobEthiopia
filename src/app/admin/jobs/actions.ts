@@ -301,6 +301,8 @@ export type CreateCuratedJobActionResult = {
 const CREATE_GENERIC_ERROR = "Unable to create this job. Please try again.";
 const CREATE_SLUG_ERROR =
   "A job with a similar title already exists. Try a slightly different title.";
+const CREATE_PRIVILEGED_SOURCE_ERROR =
+  "Only administrators can create a new original source. Use an existing source or leave that section blank.";
 
 function readText(formData: FormData, key: string): string | undefined {
   const value = formData.get(key);
@@ -415,6 +417,9 @@ export async function createCuratedJobAction(
     return { ok: false, error: CREATE_GENERIC_ERROR };
   }
   if (!result.ok) {
+    if (result.code === "PRIVILEGED_SOURCE_FORBIDDEN") {
+      return { ok: false, error: CREATE_PRIVILEGED_SOURCE_ERROR };
+    }
     if (result.code === "SLUG_COLLISION") {
       return { ok: false, error: CREATE_SLUG_ERROR };
     }

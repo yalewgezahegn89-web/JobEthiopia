@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireStaffAdmin } from "@/lib/auth/context";
+import { canManagePrivilegedSourceFields } from "@/lib/auth/roles";
 import { getSource, getSourceAuditHistory } from "@/lib/admin/sources";
 import AdminNav from "../../nav";
 import SourceDetail from "./source-detail";
@@ -79,7 +80,12 @@ export default async function AdminSourceDetailPage({
         </p>
 
         <div className="mt-4">
-          <SourceDetail source={source} />
+          <SourceDetail
+            source={source}
+            canManagePrivilegedFields={canManagePrivilegedSourceFields(
+              guard.user.role,
+            )}
+          />
         </div>
 
         <section className="mt-6 rounded-xl border border-border bg-surface p-6 shadow-sm">

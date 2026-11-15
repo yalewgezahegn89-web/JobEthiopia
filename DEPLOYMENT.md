@@ -161,13 +161,28 @@ Notes:
 - It is idempotent: if an account with that email already exists, it is a no-op.
 - The password is hashed with scrypt and never stored in plaintext.
 
-## Seeding (Development Only)
+## Seeding (Protected)
 
 ```bash
 npm run db:seed
 ```
 
-This populates development data. Do **not** run this against a production database.
+Seeding is guarded and fails closed for unsafe or ambiguous targets. The guard runs before any database connection is opened and validates the deployment environment together with the normalized hostname of `DATABASE_URL` (it never logs credentials).
+
+**Required configuration (use placeholders only in committed docs/env examples):**
+
+- `DATABASE_URL` — PostgreSQL connection URL for the intended seed target.
+- `SEED_PRODUCTION_DATABASE_HOST` — exact hostname of the Production database (e.g. `<production-db-host>`). Required so Preview/local runs can be proven not to target Production.
+- `SEED_ALLOWED_DATABASE_HOSTS` — comma-separated exact hostnames approved for non-production seeding (e.g. `<preview-db-host>`).
+- `SEED_ALLOW_PRODUCTION` — for deliberate Production seeding only, set to the exact value `CONFIRM_PRODUCTION_SEED`.
+
+**Rules:**
+- **Production:** allowed only when `DATABASE_URL` targets `SEED_PRODUCTION_DATABASE_HOST` **and** `SEED_ALLOW_PRODUCTION` is exactly `CONFIRM_PRODUCTION_SEED`. A confirmation token alone never authorizes an arbitrary database.
+- **Preview / non-production:** the target must **never** be the Production host. Remote targets must exactly match `SEED_ALLOWED_DATABASE_HOSTS` and `SEED_PRODUCTION_DATABASE_HOST` must be configured. `VERCEL_ENV=preview` (even with `NODE_ENV=production`) is not sufficient by itself—the database target is independently validated.
+- **Local development:** loopback PostgreSQL targets (`localhost`, `127.0.0.1`, `::1`) are allowed; remote local targets must be allowlisted and must not be the Production host.
+- **Preview must not point to Production.** Missing or ambiguous configuration fails closed for remote targets.
+
+Do **not** run seeds against a production database except through a deliberate, confirmed, host-validated Production operation.
 
 ## Health Check
 

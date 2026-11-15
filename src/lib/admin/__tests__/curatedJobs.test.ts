@@ -10,11 +10,6 @@ vi.mock("@/db", () => ({
   },
 }));
 
-vi.mock("@/lib/auth/roles", () => ({
-  isStaffRole: (role: string) =>
-    role === "SUPER_ADMIN" || role === "ADMIN" || role === "MODERATOR",
-}));
-
 import { createCuratedJob } from "@/lib/admin/curatedJobs";
 import { jobs } from "@/db/schema/jobs";
 import type { AuthUser } from "@/lib/auth/roles";
@@ -696,13 +691,17 @@ describe("createCuratedJob — optional original source provenance (Phase 6 Step
   }
 
   /** Selects: duplicate lookup, Manual source, then existing original source. */
-  function buildExternalSourceTx() {
+  function buildExternalSourceTx(overrides: Partial<{ sourceType: string; trustLevel: string }> = {}) {
     return {
       select: vi
         .fn()
         .mockReturnValueOnce(selectChain([]))
         .mockReturnValueOnce(selectChain([{ id: SOURCE_ID }]))
-        .mockReturnValueOnce(selectChain([{ id: ORIG_SOURCE_ID }])),
+        .mockReturnValueOnce(selectChain([{
+          id: ORIG_SOURCE_ID,
+          sourceType: overrides.sourceType ?? "WEBSITE",
+          trustLevel: overrides.trustLevel ?? "HIGH",
+        }])),
       insert: vi
         .fn()
         .mockReturnValueOnce(insertChain(createdJobRow()))
@@ -817,6 +816,107 @@ describe("createCuratedJob — optional original source provenance (Phase 6 Step
       baseUrl: "https://jobs.unicef.org",
       trustLevel: "HIGH",
     });
+    const { external } = capturedJobSources(tx);
+    expect(external.sourceId).toBe(ORIG_SOURCE_ID);
+  });
+
+  it("lets a SUPER_ADMIN create the HIGH-trust original source", async () => {
+    const tx = buildMissingSourceTx();
+    runWithTx(tx);
+
+    const result = await createCuratedJob(
+      staffActor("SUPER_ADMIN"),
+      originalInput(),
+    );
+    expect(result.ok).toBe(true);
+    expect(tx.insert.mock.results[0].value.values.mock.calls[0][0]).toMatchObject({
+      trustLevel: "HIGH",
+    });
+  });
+
+  it("denies a moderator creating a new HIGH-trust original source", async () => {
+    const tx = buildMissingSourceTx();
+    runWithTx(tx);
+
+    const result = await createCuratedJob(
+      staffActor("MODERATOR"),
+      originalInput(),
+    );
+    expect(result).toEqual({
+      ok: false,
+      code: "PRIVILEGED_SOURCE_FORBIDDEN",
+    });
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
+  it("lets a moderator reuse an eligible existing original source", async () => {
+    const tx = buildExternalSourceTx();
+    runWithTx(tx);
+
+    const result = await createCuratedJob(
+      staffActor("MODERATOR"),
+      originalInput(),
+    );
+    expect(result.ok).toBe(true);
+    const { external } = capturedJobSources(tx);
+    expect(external.sourceId).toBe(ORIG_SOURCE_ID);
+    expect(tx.insert).toHaveBeenCalledTimes(4); // existing source: no source insert
+  });
+
+  it("denies a moderator reusing an existing source with NORMAL trust", async () => {
+    const tx = buildExternalSourceTx({ trustLevel: "MEDIUM" });
+    runWithTx(tx);
+
+    const result = await createCuratedJob(
+      staffActor("MODERATOR"),
+      originalInput(),
+    );
+    expect(result).toEqual({
+      ok: false,
+      code: "PRIVILEGED_SOURCE_FORBIDDEN",
+    });
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
+  it("denies a moderator reusing an existing source of another source type", async () => {
+    const tx = buildExternalSourceTx({ sourceType: "API" });
+    runWithTx(tx);
+
+    const result = await createCuratedJob(
+      staffActor("MODERATOR"),
+      originalInput(),
+    );
+    expect(result).toEqual({
+      ok: false,
+      code: "PRIVILEGED_SOURCE_FORBIDDEN",
+    });
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
+  it("denies a moderator using a nonexistent source name (cannot create ineligible new source)", async () => {
+    const tx = buildMissingSourceTx();
+    runWithTx(tx);
+
+    const result = await createCuratedJob(
+      staffActor("MODERATOR"),
+      originalInput(),
+    );
+    expect(result).toEqual({
+      ok: false,
+      code: "PRIVILEGED_SOURCE_FORBIDDEN",
+    });
+    expect(tx.insert).not.toHaveBeenCalled();
+  });
+
+  it("lets an administrator reuse an existing source even if it is not moderator-eligible", async () => {
+    const tx = buildExternalSourceTx({ trustLevel: "MEDIUM", sourceType: "API" });
+    runWithTx(tx);
+
+    const result = await createCuratedJob(
+      staffActor("ADMIN"),
+      originalInput(),
+    );
+    expect(result.ok).toBe(true);
     const { external } = capturedJobSources(tx);
     expect(external.sourceId).toBe(ORIG_SOURCE_ID);
   });

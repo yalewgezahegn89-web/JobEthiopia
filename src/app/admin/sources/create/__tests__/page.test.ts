@@ -104,24 +104,41 @@ describe("CreateSourceForm", () => {
     expect(html).toContain("Create source");
   });
 
-  it("includes all supported source type options", () => {
-    const html = renderToStaticMarkup(createElement(CreateSourceForm));
-    for (const value of ["MANUAL", "WEBSITE", "API", "FEED", "EMPLOYER", "OTHER"]) {
+  it("includes all supported source type options for admins", () => {
+    const html = renderToStaticMarkup(
+      createElement(CreateSourceForm, { canManagePrivilegedFields: true }),
+    );
+    for (const value of ["MANUAL", "WEBSITE", "API", "FEED", "EMPLOYER", "FACEBOOK", "OTHER"]) {
       expect(html).toContain(`value="${value}"`);
     }
   });
 
-  it("includes all supported trust level options", () => {
-    const html = renderToStaticMarkup(createElement(CreateSourceForm));
+  it("includes all supported trust level options for admins", () => {
+    const html = renderToStaticMarkup(
+      createElement(CreateSourceForm, { canManagePrivilegedFields: true }),
+    );
     for (const value of ["HIGH", "MEDIUM", "LOW"]) {
       expect(html).toContain(`value="${value}"`);
     }
   });
 
-  it("includes the automation controls", () => {
-    const html = renderToStaticMarkup(createElement(CreateSourceForm));
+  it("includes the automation controls for admins", () => {
+    const html = renderToStaticMarkup(
+      createElement(CreateSourceForm, { canManagePrivilegedFields: true }),
+    );
     expect(html).toContain('id="checkFrequencyMinutes"');
     expect(html).toContain('name="autoPublish"');
+  });
+
+  it("hides HIGH trust, auto-publish, FACEBOOK, and Facebook metadata from moderators", () => {
+    const html = renderToStaticMarkup(
+      createElement(CreateSourceForm, { canManagePrivilegedFields: false }),
+    );
+    expect(html).not.toContain('value="HIGH"');
+    expect(html).not.toContain('name="autoPublish"');
+    expect(html).not.toContain('value="FACEBOOK"');
+    expect(html).not.toContain('name="facebookPageId"');
+    expect(html).toContain("Only administrators can grant HIGH trust");
   });
 });
 
@@ -141,7 +158,7 @@ describe("createSourceAction wiring", () => {
         sourceType: "WEBSITE",
         baseUrl: "https://example.com",
       }),
-      "u1",
+      expect.objectContaining({ id: "u1", role: "MODERATOR" }),
     );
   });
 });

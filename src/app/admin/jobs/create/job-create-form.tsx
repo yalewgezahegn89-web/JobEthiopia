@@ -79,9 +79,12 @@ export default function JobCreateForm({
   categories,
   professions,
   locations,
+  originalSources,
   initialState = INITIAL_STATE,
+  canCreateOriginalSource = true,
 }: JobCreateOptions & {
   initialState?: CreateCuratedJobActionResult;
+  canCreateOriginalSource?: boolean;
 }) {
   const [state, formAction, isPending] = useActionState<
     CreateCuratedJobActionResult,
@@ -380,67 +383,147 @@ export default function JobCreateForm({
           </div>
         </div>
 
-        <div className="space-y-6 border-t border-border-subtle pt-6">
-          <SectionHeading
-            title="Original vacancy source"
-            description="Optional — for real vacancies already verified on an official employer site (e.g. UNICEF or UNFPA careers pages)."
-          />
+        {canCreateOriginalSource ? (
+          <div className="space-y-6 border-t border-border-subtle pt-6">
+            <SectionHeading
+              title="Original vacancy source"
+              description="Optional — for real vacancies already verified on an official employer site (e.g. UNICEF or UNFPA careers pages)."
+            />
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="originalSourceName" className={labelClass}>
-                Source site name<OptionalLabel />
-              </label>
-              <input
-                id="originalSourceName"
-                name="originalSourceName"
-                className={inputClass}
-                placeholder="e.g. UNICEF Careers Website"
-                {...errorProps("originalSourceName")}
-              />
-              <FieldError id="originalSourceName-error" message={fieldError("originalSourceName")} />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="originalSourceName" className={labelClass}>
+                  Source site name<OptionalLabel />
+                </label>
+                <input
+                  id="originalSourceName"
+                  name="originalSourceName"
+                  className={inputClass}
+                  placeholder="e.g. UNICEF Careers Website"
+                  {...errorProps("originalSourceName")}
+                />
+                <FieldError id="originalSourceName-error" message={fieldError("originalSourceName")} />
+              </div>
+              <div>
+                <label htmlFor="originalSourceUrl" className={labelClass}>
+                  Official vacancy URL<OptionalLabel />
+                </label>
+                <input
+                  id="originalSourceUrl"
+                  name="originalSourceUrl"
+                  type="url"
+                  className={inputClass}
+                  placeholder="https://..."
+                  {...errorProps("originalSourceUrl")}
+                />
+                <FieldError id="originalSourceUrl-error" message={fieldError("originalSourceUrl")} />
+              </div>
+              <div>
+                <label htmlFor="originalExternalId" className={labelClass}>
+                  Employer vacancy reference<OptionalLabel />
+                </label>
+                <input
+                  id="originalExternalId"
+                  name="originalExternalId"
+                  className={inputClass}
+                  placeholder="e.g. 595227"
+                  {...errorProps("originalExternalId")}
+                />
+                <FieldError id="originalExternalId-error" message={fieldError("originalExternalId")} />
+              </div>
             </div>
-            <div>
-              <label htmlFor="originalSourceUrl" className={labelClass}>
-                Official vacancy URL<OptionalLabel />
-              </label>
-              <input
-                id="originalSourceUrl"
-                name="originalSourceUrl"
-                type="url"
-                className={inputClass}
-                placeholder="https://..."
-                {...errorProps("originalSourceUrl")}
-              />
-              <FieldError id="originalSourceUrl-error" message={fieldError("originalSourceUrl")} />
-            </div>
-            <div>
-              <label htmlFor="originalExternalId" className={labelClass}>
-                Employer vacancy reference<OptionalLabel />
-              </label>
-              <input
-                id="originalExternalId"
-                name="originalExternalId"
-                className={inputClass}
-                placeholder="e.g. 595227"
-                {...errorProps("originalExternalId")}
-              />
-              <FieldError id="originalExternalId-error" message={fieldError("originalExternalId")} />
-            </div>
-          </div>
-          {originalSourceError() ? (
-            <p role="alert" className="text-sm text-destructive">
-              {originalSourceError()}
+            {originalSourceError() ? (
+              <p role="alert" className="text-sm text-destructive">
+                {originalSourceError()}
+              </p>
+            ) : null}
+            <p className="text-xs text-muted">
+              When the site name and official URL are provided, the vacancy is
+              recorded with both the internal data-entry method and the original
+              external source: the publisher, vacancy URL and reference become the
+              representative provenance so the original source stays visible in
+              moderation.
             </p>
-          ) : null}
-          <p className="text-xs text-muted">
-            When the site name and official URL are provided, the vacancy is
-            recorded with both the internal data-entry method and the original
-            external source: the publisher, vacancy URL and reference become the
-            representative provenance so the original source stays visible in
-            moderation.
-          </p>
-        </div>
+          </div>
+        ) : originalSources.length > 0 ? (
+          <div className="space-y-6 border-t border-border-subtle pt-6">
+            <SectionHeading
+              title="Original vacancy source"
+              description="Optional — attach an existing verified original source to this vacancy."
+            />
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="originalSourceSelect" className={labelClass}>
+                  Original source<OptionalLabel />
+                </label>
+                <select
+                  id="originalSourceSelect"
+                  name="originalSourceName"
+                  className={inputClass}
+                  {...errorProps("originalSourceName")}
+                >
+                  <option value="">No original source</option>
+                  {originalSources.map((source) => (
+                    <option key={source.name} value={source.name}>
+                      {source.name}
+                    </option>
+                  ))}
+                </select>
+                <FieldError id="originalSourceName-error" message={fieldError("originalSourceName")} />
+              </div>
+              <div>
+                <label htmlFor="originalSourceUrl" className={labelClass}>
+                  Official vacancy URL<OptionalLabel />
+                </label>
+                <input
+                  id="originalSourceUrl"
+                  name="originalSourceUrl"
+                  type="url"
+                  className={inputClass}
+                  placeholder="https://..."
+                  {...errorProps("originalSourceUrl")}
+                />
+                <FieldError id="originalSourceUrl-error" message={fieldError("originalSourceUrl")} />
+              </div>
+              <div>
+                <label htmlFor="originalExternalId" className={labelClass}>
+                  Employer vacancy reference<OptionalLabel />
+                </label>
+                <input
+                  id="originalExternalId"
+                  name="originalExternalId"
+                  className={inputClass}
+                  placeholder="e.g. 595227"
+                  {...errorProps("originalExternalId")}
+                />
+                <FieldError id="originalExternalId-error" message={fieldError("originalExternalId")} />
+              </div>
+            </div>
+            {originalSourceError() ? (
+              <p role="alert" className="text-sm text-destructive">
+                {originalSourceError()}
+              </p>
+            ) : null}
+            <p className="text-xs text-muted">
+              Choose an existing verified original source. Only administrators
+              can create a new original source or change its privileged
+              configuration.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2 border-t border-border-subtle pt-6">
+            <SectionHeading
+              title="Original vacancy source"
+              description="No existing original sources are available."
+            />
+            <p className="text-xs text-muted">
+              Leave this section blank to create the job with the existing
+              Manual Entry source. Ask an administrator to add a new
+              HIGH-trust original source.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-6 border-t border-border-subtle pt-6">
           <SectionHeading

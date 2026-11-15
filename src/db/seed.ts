@@ -14,6 +14,11 @@ import {
   EMPLOYER_SOURCE_NAME,
   API_KEY_SOURCE_NAME,
 } from "../lib/sources/provenance";
+import { assertSeedAllowed } from "./seedGuard";
+
+// Fail before opening a database pool if this looks like Production and the
+// operation has not been deliberately confirmed through the environment.
+assertSeedAllowed(process.env);
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,

@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { requireStaffAdmin } from "@/lib/auth/context";
+import { canManagePrivilegedSourceFields } from "@/lib/auth/roles";
 import { db } from "@/db";
 import { organizations } from "@/db/schema/organizations";
 import { categories } from "@/db/schema/categories";
 import { professions } from "@/db/schema/professions";
 import { locations } from "@/db/schema/locations";
+import { sources } from "@/db/schema/sources";
+import { MODERATOR_ELIGIBLE_ORIGINAL_SOURCE } from "@/lib/admin/curatedJobs";
 import AdminNav from "../../nav";
 import JobCreateForm from "./job-create-form";
 
@@ -19,6 +22,7 @@ export type JobCreateOptions = {
   categories: { id: string; name: string }[];
   professions: { id: string; name: string }[];
   locations: { id: string; name: string }[];
+  originalSources: { name: string }[];
 };
 
 export default async function AdminJobsCreatePage() {
@@ -30,7 +34,13 @@ export default async function AdminJobsCreatePage() {
   let options: JobCreateOptions | null = null;
   let loadError = false;
   try {
-    const [orgRows, categoryRows, professionRows, locationRows] = await Promise.all([
+    const [
+      orgRows,
+      categoryRows,
+      professionRows,
+      locationRows,
+      originalSourceRows,
+    ] = await Promise.all([
       db
         .select({ id: organizations.id, name: organizations.name })
         .from(organizations)
@@ -51,12 +61,29 @@ export default async function AdminJobsCreatePage() {
         .from(locations)
         .where(eq(locations.isActive, true))
         .orderBy(asc(locations.name)),
+      db
+        .select({ name: sources.name })
+        .from(sources)
+        .where(
+          and(
+            eq(
+              sources.sourceType,
+              MODERATOR_ELIGIBLE_ORIGINAL_SOURCE.sourceType,
+            ),
+            eq(
+              sources.trustLevel,
+              MODERATOR_ELIGIBLE_ORIGINAL_SOURCE.trustLevel,
+            ),
+          ),
+        )
+        .orderBy(asc(sources.name)),
     ]);
     options = {
       organizations: orgRows,
       categories: categoryRows,
       professions: professionRows,
       locations: locationRows,
+      originalSources: originalSourceRows,
     };
   } catch {
     loadError = true;
@@ -88,7 +115,12 @@ export default async function AdminJobsCreatePage() {
           </p>
         ) : (
           <div className="mt-6">
-            <JobCreateForm {...options} />
+            <JobCreateForm
+              {...options}
+              canCreateOriginalSource={canManagePrivilegedSourceFields(
+                guard.user.role,
+              )}
+            />
           </div>
         )}
       </main>
