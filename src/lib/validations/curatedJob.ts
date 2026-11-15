@@ -10,6 +10,9 @@
  *
  * The employer API contract (employerCreateJobSchema) is untouched: an
  * employer payload carrying originalSource is rejected by .strict() there.
+ *
+ * Curated jobs additionally require a categoryId: publication requires an
+ * active category, so the manual create flow enforces it at input time.
  */
 import { z } from "zod";
 import { employerJobFields, httpUrlSchema } from "./employerJob";
@@ -34,6 +37,10 @@ export const curatedOriginalSourceSchema = z
 export const curatedCreateJobSchema = z
   .object({
     ...employerJobFields,
+    // Manual/curated jobs must be publishable, and publishing requires an
+    // active category. Only this flow enforces it; the shared employer
+    // contract (employerJobFields) stays unchanged for API/ingestion callers.
+    categoryId: z.string().uuid("Select an active category"),
     originalSource: curatedOriginalSourceSchema.optional(),
   })
   .strict()

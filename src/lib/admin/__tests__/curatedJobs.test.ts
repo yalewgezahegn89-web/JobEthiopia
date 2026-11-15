@@ -13,24 +13,26 @@ vi.mock("@/db", () => ({
 import { createCuratedJob } from "@/lib/admin/curatedJobs";
 import { jobs } from "@/db/schema/jobs";
 import type { AuthUser } from "@/lib/auth/roles";
-import type { EmployerCreateJobInput } from "@/lib/validations/employerJob";
+import type { CuratedCreateJobInput } from "@/lib/validations/curatedJob";
 
 const ACTOR_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const ORG_ID = "22222222-2222-4222-8222-222222222222";
+const CATEGORY_ID = "33333333-3333-4333-8333-333333333333";
 const SOURCE_ID = "55555555-5555-4555-8555-555555555555";
 
 function staffActor(role: AuthUser["role"]): AuthUser {
   return { id: ACTOR_ID, email: "staff@example.com", name: "Staff", role };
 }
 
-function validInput(overrides: Record<string, unknown> = {}): EmployerCreateJobInput {
+function validInput(overrides: Record<string, unknown> = {}): CuratedCreateJobInput {
   return {
     organizationId: ORG_ID,
+    categoryId: CATEGORY_ID,
     title: "Senior Accountant",
     description: "A detailed accounting role with full responsibility for the ledger.",
     employmentType: "FULL_TIME",
     ...overrides,
-  } as EmployerCreateJobInput;
+  } as CuratedCreateJobInput;
 }
 
 function selectChain(result: unknown[]) {
@@ -218,6 +220,15 @@ describe("createCuratedJob — validation", () => {
     const result = await createCuratedJob(
       staffActor("ADMIN"),
       validInput({ title: "" }),
+    );
+    expect(result).toEqual({ ok: false, code: "VALIDATION" });
+    expect(mocks.mockTransaction).not.toHaveBeenCalled();
+  });
+
+  it("rejects a job without a category", async () => {
+    const result = await createCuratedJob(
+      staffActor("ADMIN"),
+      validInput({ categoryId: undefined }),
     );
     expect(result).toEqual({ ok: false, code: "VALIDATION" });
     expect(mocks.mockTransaction).not.toHaveBeenCalled();

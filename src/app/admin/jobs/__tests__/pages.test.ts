@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   mockListJobs: vi.fn(),
   mockGetJob: vi.fn(),
   mockGetAudit: vi.fn(),
+  mockListActiveCategories: vi.fn(),
   mockNotFound: vi.fn(),
   mockFacebookPreview: vi.fn(),
   mockFacebookPublication: vi.fn(),
@@ -36,6 +37,8 @@ vi.mock("@/lib/admin/jobs", () => ({
   listModerationJobs: (...args: unknown[]) => mocks.mockListJobs(...args),
   getModerationJob: (...args: unknown[]) => mocks.mockGetJob(...args),
   getJobAuditHistory: (...args: unknown[]) => mocks.mockGetAudit(...args),
+  listActiveJobCategories: (...args: unknown[]) =>
+    mocks.mockListActiveCategories(...args),
 }));
 
 vi.mock("@/lib/facebook/publishing", () => ({
@@ -101,6 +104,7 @@ beforeEach(() => {
   });
   mocks.mockFacebookPreview.mockResolvedValue(null);
   mocks.mockFacebookPublication.mockResolvedValue(null);
+  mocks.mockListActiveCategories.mockResolvedValue([]);
 });
 
 describe("AdminJobsPage", () => {
@@ -410,5 +414,78 @@ describe("AdminJobDetailPage — provenance section", () => {
   it("shows a clear No source recorded state when provenance is missing on the record", async () => {
     const html = await renderDetail(FULL_JOB);
     expect(html).toContain("No source recorded.");
+  });
+});
+
+describe("AdminJobDetailPage — category assignment", () => {
+  const WASH_ID = "852af5d8-b7a9-4825-a251-00cc2087f0e5";
+  const WASH_NAME = "Water, Sanitation and Hygiene (WASH)";
+
+  async function renderDetail(job: unknown) {
+    mocks.mockGetJob.mockResolvedValue(job);
+    mocks.mockGetAudit.mockResolvedValue([]);
+    const element = await AdminJobDetailPage({
+      params: Promise.resolve({ id: FULL_JOB.id }),
+    });
+    return renderToStaticMarkup(element);
+  }
+
+  it("offers the active WASH category in the dropdown for an uncategorized draft", async () => {
+    mocks.mockListActiveCategories.mockResolvedValue([
+      { id: WASH_ID, name: WASH_NAME },
+    ]);
+
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "DRAFT",
+      categoryId: null,
+      categoryName: null,
+    });
+
+    expect(html).toContain("No category assigned.");
+    expect(html).toContain("Assign category");
+    expect(html).toContain(WASH_NAME);
+    expect(html).toContain(`value="${WASH_ID}"`);
+    expect(mocks.mockListActiveCategories).toHaveBeenCalled();
+  });
+
+  it("shows the assigned category and no assignment form", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "DRAFT",
+      categoryId: WASH_ID,
+      categoryName: WASH_NAME,
+    });
+
+    expect(html).toContain("Current category:");
+    expect(html).toContain(WASH_NAME);
+    expect(html).not.toContain("Assign category");
+    expect(mocks.mockListActiveCategories).not.toHaveBeenCalled();
+  });
+
+  it("does not offer assignment for a non-draft job", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "PENDING_REVIEW",
+      categoryId: null,
+      categoryName: null,
+    });
+
+    expect(html).not.toContain("Assign category");
+    expect(html).toContain(
+      "A category can only be assigned while the job is a draft.",
+    );
+    expect(mocks.mockListActiveCategories).not.toHaveBeenCalled();
+  });
+
+  it("explains when no active categories are available", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "DRAFT",
+      categoryId: null,
+      categoryName: null,
+    });
+
+    expect(html).toContain("No active categories are available to assign.");
   });
 });

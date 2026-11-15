@@ -5,12 +5,18 @@ const mocks = vi.hoisted(() => ({
   mockGuard: vi.fn(),
   mockCsrf: vi.fn(),
   mockModerateJob: vi.fn(),
+  mockAssignJobCategory: vi.fn(),
+  mockRevalidatePath: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
   redirect: (url: string): never => {
     throw new Error(`REDIRECT:${url}`);
   },
+}));
+
+vi.mock("next/cache", () => ({
+  revalidatePath: (...args: unknown[]) => mocks.mockRevalidatePath(...args),
 }));
 
 vi.mock("@/lib/auth/context", () => ({
@@ -24,9 +30,13 @@ vi.mock("@/lib/auth/csrf", () => ({
 
 vi.mock("@/lib/admin/jobs", () => ({
   moderateJob: (...args: unknown[]) => mocks.mockModerateJob(...args),
+  assignJobCategory: (...args: unknown[]) => mocks.mockAssignJobCategory(...args),
 }));
 
-import { moderateJobAction } from "@/app/admin/jobs/actions";
+import {
+  moderateJobAction,
+  assignJobCategoryAction,
+} from "@/app/admin/jobs/actions";
 
 const INITIAL: { ok: boolean } = { ok: false };
 
@@ -45,6 +55,10 @@ beforeEach(() => {
   });
   mocks.mockCsrf.mockResolvedValue(true);
   mocks.mockModerateJob.mockResolvedValue({ ok: true, state: { toStatus: "PUBLISHED" } });
+  mocks.mockAssignJobCategory.mockResolvedValue({
+    ok: true,
+    categoryId: "22222222-2222-4222-8222-222222222222",
+  });
 });
 
 describe("moderateJobAction", () => {
@@ -207,5 +221,136 @@ describe("moderateJobAction — REVERIFY", () => {
       "REVERIFY",
       "actor-1",
     );
+  });
+});
+
+describe("assignJobCategoryAction", () => {
+  const JOB_ID = "11111111-1111-4111-8111-111111111111";
+  const CATEGORY_ID = "22222222-2222-4222-8222-222222222222";
+
+  function assignForm(overrides: Record<string, string> = {}): FormData {
+    const fd = new FormData();
+    fd.set("jobId", overrides.jobId ?? JOB_ID);
+    fd.set("categoryId", overrides.categoryId ?? CATEGORY_ID);
+    return fd;
+  }
+
+  it("assigns the category with the session actor id and revalidates", async () => {
+    const result = await assignJobCategoryAction(INITIAL, assignForm());
+
+    expect(result.ok).toBe(true);
+    expect(mocks.mockAssignJobCategory).toHaveBeenCalledWith(
+      JOB_ID,
+      CATEGORY_ID,
+      "actor-1",
+    );
+    expect(mocks.mockRevalidatePath).toHaveBeenCalledWith(
+      `/admin/jobs/${JOB_ID}`,
+    );
+    expect(mocks.mockRevalidatePath).toHaveBeenCalledWith("/admin/jobs");
+  });
+
+  it("redirects unauthenticated users to /login", async () => {
+    mocks.mockGuard.mockResolvedValue({ ok: false, status: 401 });
+    await expect(
+      assignJobCategoryAction(INITIAL, assignForm()),
+    ).rejects.toThrow("REDIRECT:/login");
+    expect(mocks.mockAssignJobCategory).not.toHaveBeenCalled();
+  });
+
+  it("redirects non-staff users to /admin/jobs", async () => {
+    mocks.mockGuard.mockResolvedValue({ ok: false, status: 403 });
+    await expect(
+      assignJobCategoryAction(INITIAL, assignForm()),
+    ).rejects.toThrow("REDIRECT:/admin/jobs");
+    expect(mocks.mockAssignJobCategory).not.toHaveBeenCalled();
+  });
+
+  it("returns a safe generic error on CSRF failure", async () => {
+    const { CsrfError } = await import("@/lib/auth/csrf");
+    mocks.mockCsrf.mockRejectedValue(new CsrfError());
+    const result = await assignJobCategoryAction(INITIAL, assignForm());
+    expect(result.ok).toBe(false);
+    expect(result.error).not.toContain("CSRF");
+    expect(mocks.mockAssignJobCategory).not.toHaveBeenCalled();
+  });
+
+  it("rejects invalid job and category ids before calling the service", async () => {
+    const badJob = await assignJobCategoryAction(
+      INITIAL,
+      assignForm({ jobId: "not-a-uuid" }),
+    );
+    const badCategory = await assignJobCategoryAction(
+      INITIAL,
+      assignForm({ categoryId: "not-a-uuid" }),
+    );
+    expect(badJob.ok).toBe(false);
+    expect(badCategory.ok).toBe(false);
+    expect(mocks.mockAssignJobCategory).not.toHaveBeenCalled();
+  });
+
+  it("maps NOT_DRAFT to a clear safe error", async () => {
+    mocks.mockAssignJobCategory.mockResolvedValue({
+      ok: false,
+      code: "NOT_DRAFT",
+    });
+    const result = await assignJobCategoryAction(INITIAL, assignForm());
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("draft");
+  });
+
+  it("maps ALREADY_ASSIGNED to a clear safe error (no overwrite)", async () => {
+    mocks.mockAssignJobCategory.mockResolvedValue({
+      ok: false,
+      code: "ALREADY_ASSIGNED",
+    });
+    const result = await assignJobCategoryAction(INITIAL, assignForm());
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("already has a category");
+  });
+
+  it.each(["CATEGORY_NOT_FOUND", "CATEGORY_INACTIVE"])(
+    "maps %s to a safe invalid-category error",
+    async (code) => {
+      mocks.mockAssignJobCategory.mockResolvedValue({ ok: false, code });
+      const result = await assignJobCategoryAction(INITIAL, assignForm());
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain("active category");
+    },
+  );
+
+  it("does not leak internal details for NOT_FOUND or unexpected failures", async () => {
+    mocks.mockAssignJobCategory.mockResolvedValue({
+      ok: false,
+      code: "NOT_FOUND",
+    });
+    const notFound = await assignJobCategoryAction(INITIAL, assignForm());
+    expect(notFound.ok).toBe(false);
+    expect(notFound.error).not.toContain(JOB_ID);
+
+    mocks.mockAssignJobCategory.mockRejectedValue(
+      new Error("connection refused: 10.0.0.1"),
+    );
+    const failed = await assignJobCategoryAction(INITIAL, assignForm());
+    expect(failed.ok).toBe(false);
+    expect(failed.error).not.toContain("connection");
+  });
+
+  it("never reads or forwards client-controlled lifecycle fields", async () => {
+    const fd = assignForm();
+    fd.set("status", "PUBLISHED");
+    fd.set("verificationStatus", "VERIFIED");
+    fd.set("organizationId", "99999999-9999-4999-8999-999999999999");
+    fd.set("sourceId", "88888888-8888-4888-8888-888888888888");
+
+    const result = await assignJobCategoryAction(INITIAL, fd);
+
+    expect(result.ok).toBe(true);
+    expect(mocks.mockAssignJobCategory).toHaveBeenCalledWith(
+      JOB_ID,
+      CATEGORY_ID,
+      "actor-1",
+    );
+    expect(mocks.mockAssignJobCategory).toHaveBeenCalledTimes(1);
   });
 });

@@ -196,9 +196,10 @@ export default function JobCreateForm({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="categoryId" className={labelClass}>
-                Category<OptionalLabel />
+                Category
+                <RequiredMark />
               </label>
-              <select id="categoryId" name="categoryId" className={inputClass} {...errorProps("categoryId")}>
+              <select id="categoryId" name="categoryId" required className={inputClass} {...errorProps("categoryId")}>
                 <option value="">Select a category</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>

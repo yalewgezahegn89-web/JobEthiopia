@@ -11,6 +11,7 @@ const VALID_UUID = "33333333-3333-4333-8333-333333333333";
 function baseInput(overrides: Record<string, unknown> = {}) {
   return {
     organizationId: VALID_ORG_ID,
+    categoryId: VALID_UUID,
     title: "Software Engineer",
     description: "Build great things",
     ...overrides,
@@ -43,6 +44,32 @@ describe("curatedCreateJobSchema — base contract", () => {
       baseInput({ sourceId: VALID_UUID, sourceType: "MANUAL" }),
     );
     expect(res.success).toBe(false);
+  });
+});
+
+describe("curatedCreateJobSchema — category requirement", () => {
+  it("requires a category id for manual/curated jobs", () => {
+    const res = curatedCreateJobSchema.safeParse({
+      organizationId: VALID_ORG_ID,
+      title: "Software Engineer",
+      description: "Build great things",
+    });
+    expect(res.success).toBe(false);
+    if (!res.success) {
+      expect(res.error.issues.some((i) => i.path.join(".") === "categoryId")).toBe(
+        true,
+      );
+    }
+  });
+
+  it.each([null, "", "not-a-uuid"])("rejects a %s category id", (categoryId) => {
+    expect(
+      curatedCreateJobSchema.safeParse(baseInput({ categoryId })).success,
+    ).toBe(false);
+  });
+
+  it("still accepts a valid category on the curated path", () => {
+    expect(curatedCreateJobSchema.safeParse(baseInput()).success).toBe(true);
   });
 });
 

@@ -5,7 +5,7 @@
  * All functions assume the caller has already performed session authentication
  * and role authorization. Identity is never taken from client input.
  */
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { jobSources } from "@/db/schema/jobSources";
@@ -35,6 +35,13 @@ export type PublishValidationResult =
     };
 
 type JobRow = typeof jobs.$inferSelect;
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUuid(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
 
 /**
  * Validates that a job meets all publication requirements.
@@ -222,6 +229,7 @@ export type ModerationJobSummary = {
 
 export type ModerationJobDetail = JobRow & {
   provenance: JobProvenance | null;
+  categoryName: string | null;
 };
 
 export type ModerationJobPaginated = {
@@ -422,6 +430,112 @@ export async function listModerationJobs(input: {
   };
 }
 
+/** Returns active categories available for assignment, ordered by name. */
+export async function listActiveJobCategories(): Promise<
+  { id: string; name: string }[]
+> {
+  return db
+    .select({ id: categories.id, name: categories.name })
+    .from(categories)
+    .where(eq(categories.isActive, true))
+    .orderBy(asc(categories.name));
+}
+
+const JOB_CATEGORY_LOCK_COLUMNS = {
+  id: jobs.id,
+  status: jobs.status,
+  verificationStatus: jobs.verificationStatus,
+  categoryId: jobs.categoryId,
+} as const;
+
+export type AssignJobCategoryResult =
+  | { ok: true; categoryId: string }
+  | {
+      ok: false;
+      code:
+        | "NOT_FOUND"
+        | "NOT_DRAFT"
+        | "ALREADY_ASSIGNED"
+        | "CATEGORY_NOT_FOUND"
+        | "CATEGORY_INACTIVE";
+    };
+
+/**
+ * Assigns an active category to an existing DRAFT job that has no category.
+ *
+ * Only `categoryId` and `updatedAt` are written: lifecycle status, verification
+ * status, timestamps, provenance, and every other job field are preserved. The
+ * job row is locked for the duration of the check-and-write so a category can
+ * never be silently overwritten by a concurrent request. The audit row is
+ * committed in the same transaction.
+ */
+export async function assignJobCategory(
+  jobId: string,
+  categoryId: string,
+  actorUserId: string,
+): Promise<AssignJobCategoryResult> {
+  if (!isValidUuid(jobId) || !isValidUuid(categoryId)) {
+    return { ok: false, code: "NOT_FOUND" };
+  }
+
+  return await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select(JOB_CATEGORY_LOCK_COLUMNS)
+      .from(jobs)
+      .where(eq(jobs.id, jobId))
+      .limit(1)
+      .for("update");
+
+    if (!current) {
+      return { ok: false, code: "NOT_FOUND" };
+    }
+    if (current.status !== "DRAFT") {
+      return { ok: false, code: "NOT_DRAFT" };
+    }
+    if (current.categoryId !== null) {
+      return { ok: false, code: "ALREADY_ASSIGNED" };
+    }
+
+    const [category] = await tx
+      .select({
+        id: categories.id,
+        name: categories.name,
+        isActive: categories.isActive,
+      })
+      .from(categories)
+      .where(eq(categories.id, categoryId))
+      .limit(1);
+
+    if (!category) {
+      return { ok: false, code: "CATEGORY_NOT_FOUND" };
+    }
+    if (!category.isActive) {
+      return { ok: false, code: "CATEGORY_INACTIVE" };
+    }
+
+    await tx
+      .update(jobs)
+      .set({ categoryId, updatedAt: new Date() })
+      .where(eq(jobs.id, jobId));
+
+    await tx.insert(auditLog).values({
+      actorUserId,
+      action: "JOB_CATEGORY_ASSIGNED",
+      targetType: "job",
+      targetId: jobId,
+      metadata: {
+        previousCategoryId: current.categoryId,
+        categoryId,
+        categoryName: category.name,
+        status: current.status,
+        verificationStatus: current.verificationStatus,
+      },
+    });
+
+    return { ok: true, categoryId };
+  });
+}
+
 /** Loads a single job's full moderation record (with provenance), or null when not found. */
 export async function getModerationJob(id: string): Promise<ModerationJobDetail | null> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
@@ -430,7 +544,17 @@ export async function getModerationJob(id: string): Promise<ModerationJobDetail 
   const job = await db.query.jobs.findFirst({ where: eq(jobs.id, id) });
   if (!job) return null;
   const provenance = await resolveJobProvenance([job.id]);
-  return { ...job, provenance: provenance.get(job.id) ?? null };
+  const category = job.categoryId
+    ? await db.query.categories.findFirst({
+        where: eq(categories.id, job.categoryId),
+        columns: { name: true },
+      })
+    : null;
+  return {
+    ...job,
+    provenance: provenance.get(job.id) ?? null,
+    categoryName: category?.name ?? null,
+  };
 }
 
 /**

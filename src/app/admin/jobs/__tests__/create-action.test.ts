@@ -35,7 +35,10 @@ function createForm(overrides: Record<string, string> = {}): FormData {
   fd.set("organizationId", overrides.organizationId ?? "11111111-1111-4111-8111-111111111111");
   fd.set("title", overrides.title ?? "Senior Accountant");
   fd.set("description", overrides.description ?? "A detailed accounting role.");
-  if (overrides.categoryId !== undefined) fd.set("categoryId", overrides.categoryId);
+  fd.set(
+    "categoryId",
+    overrides.categoryId ?? "22222222-2222-4222-8222-222222222222",
+  );
   if (overrides.professionId !== undefined) fd.set("professionId", overrides.professionId);
   if (overrides.locationId !== undefined) fd.set("locationId", overrides.locationId);
   if (overrides.employmentType !== undefined) fd.set("employmentType", overrides.employmentType);
@@ -109,6 +112,15 @@ describe("createCuratedJobAction — authorization", () => {
 });
 
 describe("createCuratedJobAction — validation", () => {
+  it("surfaces a field error when the required category is missing", async () => {
+    const fd = createForm();
+    fd.delete("categoryId");
+    const result = await createCuratedJobAction(INITIAL, fd);
+    expect(result.ok).toBe(false);
+    expect(Array.isArray(result.fieldErrors?.categoryId)).toBe(true);
+    expect(mocks.mockCreateCuratedJob).not.toHaveBeenCalled();
+  });
+
   it("surfaces field errors for a missing title", async () => {
     const result = await createCuratedJobAction(
       INITIAL,

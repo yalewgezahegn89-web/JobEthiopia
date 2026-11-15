@@ -17,10 +17,15 @@
  * client can never supply an actor id, a role, a status, or a timestamp.
  */
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { requireStaffAdmin } from "@/lib/auth/context";
 import { assertTrustedCsrfFromRequest, CsrfError } from "@/lib/auth/csrf";
-import { moderateJob, type ModerationAction } from "@/lib/admin/jobs";
+import {
+  assignJobCategory,
+  moderateJob,
+  type ModerationAction,
+} from "@/lib/admin/jobs";
 import { dispatchInstantAlertsForJob } from "@/lib/jobAlerts/delivery";
 import { notifyEmployerJobStatusChanged } from "@/lib/notifications/events";
 import { db } from "@/db";
@@ -143,6 +148,90 @@ export async function moderateJobAction(
     }
   }
 
+  return { ok: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Assign a category to an existing draft job                                */
+/* -------------------------------------------------------------------------- */
+
+export type AssignJobCategoryActionResult = {
+  ok: boolean;
+  error?: string;
+};
+
+const ASSIGN_CATEGORY_GENERIC_ERROR =
+  "Unable to assign a category. Please try again.";
+const ASSIGN_CATEGORY_INVALID_ERROR =
+  "Select an active category and try again.";
+const ASSIGN_CATEGORY_NOT_DRAFT_ERROR =
+  "Only draft jobs can have a category assigned.";
+const ASSIGN_CATEGORY_ALREADY_SET_ERROR =
+  "This job already has a category and cannot be overwritten.";
+
+/**
+ * Assigns an active category to a DRAFT job that has none.
+ *
+ * Security order:
+ *   1. Authenticate + authorize the staff role
+ *   2. Validate the CSRF / trusted origin
+ *   3. Validate the job and category ids server-side
+ *   4. Delegate to assignJobCategory(), which locks the job row, re-checks the
+ *      DRAFT + uncategorized invariants, and writes the update + audit
+ *      atomically
+ *   5. Revalidate the detail page and return a safe result
+ *
+ * The action only reads the two ids below; client-supplied status,
+ * verificationStatus, organization, source, provenance, and timestamps are
+ * never read, so the action cannot publish, verify, reject, or otherwise change
+ * moderation state.
+ */
+export async function assignJobCategoryAction(
+  _prevState: AssignJobCategoryActionResult,
+  formData: FormData,
+): Promise<AssignJobCategoryActionResult> {
+  const jobId = String(formData.get("jobId") ?? "");
+  const categoryId = String(formData.get("categoryId") ?? "");
+
+  const guard = await requireStaffAdmin();
+  if (!guard.ok) {
+    redirect(guard.status === 401 ? "/login" : "/admin/jobs");
+  }
+  const actor = guard.user;
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return { ok: false, error: ASSIGN_CATEGORY_GENERIC_ERROR };
+  }
+
+  if (!JOB_ID_PATTERN.test(jobId) || !JOB_ID_PATTERN.test(categoryId)) {
+    return { ok: false, error: ASSIGN_CATEGORY_INVALID_ERROR };
+  }
+
+  let result: Awaited<ReturnType<typeof assignJobCategory>>;
+  try {
+    result = await assignJobCategory(jobId, categoryId, actor.id);
+  } catch {
+    return { ok: false, error: ASSIGN_CATEGORY_GENERIC_ERROR };
+  }
+
+  if (!result.ok) {
+    switch (result.code) {
+      case "CATEGORY_NOT_FOUND":
+      case "CATEGORY_INACTIVE":
+        return { ok: false, error: ASSIGN_CATEGORY_INVALID_ERROR };
+      case "NOT_DRAFT":
+        return { ok: false, error: ASSIGN_CATEGORY_NOT_DRAFT_ERROR };
+      case "ALREADY_ASSIGNED":
+        return { ok: false, error: ASSIGN_CATEGORY_ALREADY_SET_ERROR };
+      default:
+        return { ok: false, error: ASSIGN_CATEGORY_GENERIC_ERROR };
+    }
+  }
+
+  revalidatePath(`/admin/jobs/${jobId}`);
+  revalidatePath("/admin/jobs");
   return { ok: true };
 }
 

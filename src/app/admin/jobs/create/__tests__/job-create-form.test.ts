@@ -85,6 +85,15 @@ describe("JobCreateForm — selectors", () => {
     expect(html).toContain('value="loc-1"');
   });
 
+  it("marks the category selector as required (publication needs a category)", () => {
+    const html = renderForm();
+    const categorySelect = html.match(
+      /<select[^>]*id="categoryId"[^>]*>/,
+    )?.[0];
+    expect(categorySelect).toBeTruthy();
+    expect(categorySelect).toContain("required");
+  });
+
   it("renders all employment type options", () => {
     const html = renderForm();
     for (const value of ["FULL_TIME", "PART_TIME", "CONTRACT", "TEMPORARY", "INTERNSHIP", "VOLUNTEER", "FREELANCE", "OTHER"]) {

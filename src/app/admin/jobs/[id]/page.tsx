@@ -2,7 +2,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { requireStaffAdmin } from "@/lib/auth/context";
-import { getModerationJob, getJobAuditHistory } from "@/lib/admin/jobs";
+import {
+  getModerationJob,
+  getJobAuditHistory,
+  listActiveJobCategories,
+} from "@/lib/admin/jobs";
 import { isJobStale } from "@/lib/jobs/public";
 import {
   getFacebookPublicationForJob,
@@ -13,6 +17,7 @@ import {
 import { isFacebookPublishingLiveEnabled } from "@/lib/facebook/config";
 import AdminNav from "../../nav";
 import ModerationPanel from "./moderation-panel";
+import CategoryAssignmentPanel from "./category-assignment-panel";
 import FacebookPublishPanel from "./facebook-publish-panel";
 
 export const metadata = {
@@ -35,6 +40,7 @@ export default async function AdminJobDetailPage({
 
   let job;
   let audit: Awaited<ReturnType<typeof getJobAuditHistory>> = [];
+  let activeCategories: Awaited<ReturnType<typeof listActiveJobCategories>> = [];
   let loadError = false;
   let facebookPreview: Awaited<ReturnType<typeof getFacebookPublishPreview>> =
     null;
@@ -45,6 +51,9 @@ export default async function AdminJobDetailPage({
     job = await getModerationJob(id);
     if (job) {
       audit = await getJobAuditHistory(job.id);
+      if (job.status === "DRAFT" && job.categoryId === null) {
+        activeCategories = await listActiveJobCategories();
+      }
       if (job.status === "PUBLISHED") {
         facebookPreview = await getFacebookPublishPreview(job.id);
         facebookPublication = await getFacebookPublicationForJob(job.id);
@@ -95,6 +104,16 @@ export default async function AdminJobDetailPage({
             jobId={job.id}
             status={job.status}
             verificationStatus={job.verificationStatus}
+          />
+        </div>
+
+        <div className="mt-6">
+          <CategoryAssignmentPanel
+            jobId={job.id}
+            status={job.status}
+            categoryId={job.categoryId}
+            categoryName={job.categoryName}
+            categories={activeCategories}
           />
         </div>
 
