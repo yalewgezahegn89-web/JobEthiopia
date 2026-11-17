@@ -36,9 +36,7 @@ function fakeRequest(
     method = "GET",
     headers = {},
   } = overrides;
-  const requestHeaders = new Headers(
-    Object.entries(headers).map(([name, value]) => [name, value]),
-  );
+  const requestHeaders = new Headers(headers);
   return {
     cookies: {
       get: () => (cookieValue ? { value: cookieValue } : undefined),
