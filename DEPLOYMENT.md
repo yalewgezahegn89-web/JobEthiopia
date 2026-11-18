@@ -366,15 +366,17 @@ summary.
 ## Internal Automation Endpoints
 
 Four cron-driven internal endpoints share one authentication contract and must
-never be publicly reachable (they are POST-only and rate-limited):
+never be publicly reachable. The maintenance, ingestion, and job-alert endpoints
+are POST-only and rate-limited in middleware. The Telegram publication endpoint
+is POST-only and protected by its internal key, but it is not currently included
+in the middleware rate-limit list.
 
 | Endpoint | Workflow | Schedule (UTC) |
 |---|---|---|
 | `POST /api/internal/maintenance/run` | [`.github/workflows/maintenance.yml`](./.github/workflows/maintenance.yml) | `0 3 * * *` — daily 03:00 |
 | `POST /api/internal/ingestion/run` | [`.github/workflows/ingestion.yml`](./.github/workflows/ingestion.yml) | `30 3 * * *` — daily 03:30 (after maintenance) |
 | `POST /api/internal/job-alerts/daily` | [`.github/workflows/job-alerts.yml`](./.github/workflows/job-alerts.yml) | `0 4 * * *` — daily 04:00 (after ingestion) |
-
-| `POST /api/internal/telegram/publish` | [`.github/workflows/telegram.yml`](./.github/workflows/telegram.yml) | `*/5 * * * *` - every 5 minutes |
+| `POST /api/internal/telegram/publish` | [`.github/workflows/telegram.yml`](./.github/workflows/telegram.yml) | `*/5 * * * *` — every 5 minutes when the workflow gate is enabled |
 
 `POST /api/internal/ingestion/dry-run?sourceId=<id>` is the on-demand (non-cron)
 sibling of the ingestion endpoint: it fetches a single source, validates and
@@ -396,17 +398,26 @@ dedicated secret in both the deploy environment and the GitHub workflow secret,
 keeping the shared key as a temporary fallback until the rotate-by-route is
 complete.
 
-**Failure behavior (all workflows):** any non-2xx (401/500/…) fails the workflow
-step. Retries (`429,500,502,503,504`, 3 attempts, 30s apart) apply to
-maintenance and ingestion (idempotent, dedup- and claim-guarded); the job-alerts
-digest does NOT retry because it sends email — the claim-before-send guard means
-a later manual rerun is safe. A malformed 2xx body and a network/timeout failure
-also fail the job so a missed run is never silently swallowed. All workflows use
-`concurrency` groups so runs never overlap.
+**Failure behavior:** any non-2xx (401/500/…) fails the relevant workflow step.
+Retries (`429,500,502,503,504`, 3 attempts) apply to maintenance and ingestion
+(30s apart) and to Telegram (15s apart); the job-alerts digest does NOT retry
+because it sends email — the claim-before-send guard means a later manual rerun
+is safe. A malformed 2xx body and a network/timeout failure also fail the job so
+a missed run is never silently swallowed.
+
+**Concurrency:** each scheduled workflow has its own concurrency group with
+`cancel-in-progress: false`; Telegram uses `telegram-outbox-production`. These
+groups prevent overlapping runs of the same workflow; they are not a shared
+cross-workflow lock.
+
+**Activation:** each scheduled job runs only when the repository variable
+`ENABLE_PRODUCTION_SCHEDULED_WORKFLOWS` is exactly `true`. This is a job-level
+condition, so `workflow_dispatch` does not bypass the gate.
 
 **Manual rerun:** each workflow is triggerable on demand via `workflow_dispatch`
-(Actions → "Run workflow"). Ingestion additionally supports
-`POST /api/internal/ingestion/run?sourceId=<id>` to run a single source, and
+(Actions → "Run workflow") when the job-level gate allows it. Ingestion
+additionally supports `POST /api/internal/ingestion/run?sourceId=<id>` to run a
+single source, and
 `POST /api/internal/ingestion/dry-run?sourceId=<id>` to preview a source
 read-only before enabling it.
 
@@ -467,15 +478,16 @@ concurrent/repeated runs safe.
 
 ## Telegram Publishing (Outbox)
 
-Successful auto-publications are written to the `telegram_publications`
-outbox and delivered asynchronously by
+Qualifying auto-publications and explicit administrator `PUBLISH` actions are
+written to the `telegram_publications` outbox and delivered asynchronously by
 [`.github/workflows/telegram.yml`](./.github/workflows/telegram.yml), which
-calls `POST /api/internal/telegram/publish` every 5 minutes. The endpoint claims
-due rows with `FOR UPDATE SKIP LOCKED`, sends one escaped HTML message per job,
-and records `SENT`, `RETRY`, `FAILED` or `SKIPPED`. HTTP 429/5xx responses are
-retried with exponential backoff (`retry_after` respected); permanent 4xx
-errors fail the row. The unique `(job_id, channel)` index prevents duplicate
-queue rows for the same job and channel.
+calls `POST /api/internal/telegram/publish` every 5 minutes only when
+`ENABLE_PRODUCTION_SCHEDULED_WORKFLOWS == 'true'`. The endpoint claims due rows
+with `FOR UPDATE SKIP LOCKED`, sends one escaped HTML message per job, and
+records `SENT`, `RETRY`, `FAILED` or `SKIPPED`. HTTP 429/5xx responses are retried
+with exponential backoff (`retry_after` respected); permanent 4xx errors fail the
+row. The unique `(job_id, channel)` index prevents duplicate queue rows for the
+same job and channel.
 
 - **Delivery semantics:** at-least-once. A row left in `SENDING` for 10 minutes
   or more is reclaimed atomically at the start of the next run (attempt
@@ -495,11 +507,19 @@ queue rows for the same job and channel.
 - **Channel access:** add the bot as an administrator of the target channel.
   Without configuration the worker returns `configured: false` and queued rows
   remain pending; the rest of the application keeps working.
-- **Repository configuration:** **Secret** `MAINTENANCE_API_KEY` (and
-  optionally `INTERNAL_TELEGRAM_API_KEY`); **Variable**
-  `MAINTENANCE_TARGET_URL`.
+- **Repository configuration:** **Secret** `MAINTENANCE_API_KEY` (fallback) or
+  `INTERNAL_TELEGRAM_API_KEY` (dedicated); **Variables**
+  `MAINTENANCE_TARGET_URL` and `ENABLE_PRODUCTION_SCHEDULED_WORKFLOWS`.
+- **Internal endpoint security:** the publication endpoint verifies the
+  `x-maintenance-key` header in constant time. It is not currently included in
+  the middleware rate-limit list, so treat its key as the sole public guard.
+- **Workflow scheduling:** the Telegram workflow has its own concurrency group
+  (`telegram-outbox-production`, `cancel-in-progress: false`). Its job-level
+  gate requires `ENABLE_PRODUCTION_SCHEDULED_WORKFLOWS == 'true'`; manual
+  dispatch does not bypass that gate.
 - **Manual drain:** `POST /api/internal/telegram/publish?limit=20` with the
-  `x-maintenance-key` header.
+  `x-maintenance-key` header. An authenticated request triggers real delivery
+  processing and is not a harmless health check.
 - **Monitoring:** review state and retry permanently failed rows from
   `/admin/telegram`. Audit events: `JOB_AUTO_PUBLISHED`,
   `TELEGRAM_OUTBOX_RUN`, and terminal publication outcomes.
@@ -662,6 +682,29 @@ Run these after every production deployment and after a PITR restore:
 **Maintenance**
 - [ ] `POST /api/internal/maintenance/run` with `x-maintenance-key` runs without
       error; wrong key → `401`.
+
+**Telegram**
+- [ ] Confirm `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHANNEL_ID` exist in the
+      Production environment scope without displaying secret values.
+- [ ] Confirm `APP_BASE_URL` resolves to `https://jobethiopia.et` and is set for
+      the Production build/runtime scope.
+- [ ] Confirm `INTERNAL_TELEGRAM_API_KEY`, or the documented
+      `MAINTENANCE_API_KEY` fallback when no dedicated key is used, is configured
+      consistently in Vercel Production and GitHub Actions.
+- [ ] Confirm an unauthenticated request to
+      `POST /api/internal/telegram/publish` is rejected with `401` or `500` when
+      no key is configured; do not send an authenticated request as a routine
+      smoke test.
+- [ ] Confirm the scheduled-workflow gate
+      (`ENABLE_PRODUCTION_SCHEDULED_WORKFLOWS == 'true'`) is explicitly verified
+      before activation; manual dispatch does not bypass it.
+- [ ] Verify outbox status through an approved read-only inspection (for example,
+      the admin outbox view or a read-only database query), not by draining the
+      queue.
+- [ ] Test delivery only in an explicitly approved test channel before production
+      activation. An authenticated POST to the Telegram publish endpoint
+      processes queued rows and can send real messages; use it only when a human
+      has explicitly authorized a controlled delivery test.
 
 **Resume storage (if enabled)**
 - [ ] A candidate can upload/replace/delete a PDF resume and an authorized
