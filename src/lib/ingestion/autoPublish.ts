@@ -2,7 +2,6 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { sources } from "@/db/schema/sources";
-import { telegramPublications } from "@/db/schema/telegramPublications";
 import { validateJobForPublish } from "@/lib/admin/jobs";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { isDeadlineExpired } from "@/lib/jobs/applicantEligibility";
@@ -10,6 +9,7 @@ import {
   getAdapterForSourceRecord,
 } from "@/lib/sources/adapters";
 import { getTelegramChannelId } from "@/lib/telegram/config";
+import { enqueueTelegramPublication } from "@/lib/telegram/enqueue";
 import { isFacebookIngestionEnabled } from "@/lib/facebook/config";
 
 export type AutoPublishReason =
@@ -167,16 +167,7 @@ export async function autoPublishIngestedJob(
     if (updated.length === 0) return "RACE_LOST" as const;
 
     if (channel) {
-      await tx
-        .insert(telegramPublications)
-        .values({
-          jobId,
-          channel,
-          state: "QUEUED",
-          attempts: 0,
-          nextRetryAt: now,
-        })
-        .onConflictDoNothing();
+      await enqueueTelegramPublication(tx, { jobId, channel, now });
     }
 
     return "PUBLISHED" as const;

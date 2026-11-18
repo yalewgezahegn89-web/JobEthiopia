@@ -16,6 +16,8 @@ import { organizations } from "@/db/schema/organizations";
 import { categories } from "@/db/schema/categories";
 import { locations } from "@/db/schema/locations";
 import { draftJobCorrectionSchema } from "@/lib/validations/jobCorrection";
+import { enqueueTelegramPublication } from "@/lib/telegram/enqueue";
+import { getTelegramChannelId } from "@/lib/telegram/config";
 
 // ---------------------------------------------------------------------------
 // Publish validation gate (Phase 5B)
@@ -669,7 +671,8 @@ export async function getModerationJob(id: string): Promise<ModerationJobDetail 
  *                        forbidden transition, already final, incomplete data)
  *   throws               on an unexpected DB error (caller maps to generic error)
  *
- * The job update and the audit insert happen atomically in a single transaction.
+ * The job update, audit insert, and optional Telegram outbox insert happen
+ * atomically in a single transaction.
  */
 export async function moderateJob(
   jobId: string,
@@ -696,6 +699,9 @@ export async function moderateJob(
       return { ok: false, code: validation.code };
     }
   }
+
+  const telegramChannel =
+    plan.event === "JOB_PUBLISHED" ? getTelegramChannelId() : null;
 
   try {
     await db.transaction(async (tx) => {
@@ -729,6 +735,14 @@ export async function moderateJob(
         targetId: jobId,
         metadata: auditMetadata,
       });
+
+      if (plan.event === "JOB_PUBLISHED" && telegramChannel) {
+        await enqueueTelegramPublication(tx, {
+          jobId,
+          channel: telegramChannel,
+          now,
+        });
+      }
     });
   } catch {
     throw new Error("Moderation update failed");

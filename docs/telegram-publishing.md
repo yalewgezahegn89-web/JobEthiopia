@@ -60,6 +60,30 @@ a unique `(job_id, channel)` index prevents duplicate queue rows. If any gate
 fails, the job stays a draft for manual review. A missing Telegram channel only
 skips the outbox insert; it does not block website publication.
 
+## Admin-approved publication
+
+An explicit administrator `PUBLISH` is editorial approval for Telegram
+distribution. When Telegram is configured, a successful admin `PUBLISH` writes
+one `QUEUED` row to the outbox in the same transaction as the job status update
+and the `JOB_PUBLISHED` audit event. Other moderation actions, including
+`REVERIFY`, never enqueue.
+
+Automatic ingestion and admin publication both call the same shared
+`enqueueTelegramPublication()` helper. The helper uses
+`ON CONFLICT DO NOTHING` against the unique `(job_id, channel)` index, so an
+existing outbox row is never duplicated. A row already in `FAILED`, `SKIPPED`,
+or `SENT` is not automatically requeued; existing retry and manual requeue
+behavior at `/admin/telegram` remains unchanged.
+
+If Telegram configuration is missing, website publication and the audit event
+still succeed, but no outbox row is created. There is no automatic backfill for
+jobs published before configuration was added or before this integration was
+deployed.
+
+Delivery remains **at-least-once**, not exactly-once, for both publication
+paths. See the outbox lifecycle below for retry, lease recovery, and the
+conditions under which a duplicate channel message can occur.
+
 ## Outbox lifecycle
 
 `telegram_publications.state` moves through:

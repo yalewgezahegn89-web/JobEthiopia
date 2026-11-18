@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   mockUpdateReturning: vi.fn(),
   mockInsertValues: vi.fn(),
   mockOnConflict: vi.fn(),
+  mockEnqueue: vi.fn(),
   mockFacebookEnabled: vi.fn(),
 }));
 
@@ -42,6 +43,10 @@ vi.mock("@/lib/sources/adapters", () => ({
 
 vi.mock("@/lib/telegram/config", () => ({
   getTelegramChannelId: () => mocks.mockChannel(),
+}));
+
+vi.mock("@/lib/telegram/enqueue", () => ({
+  enqueueTelegramPublication: (...args: unknown[]) => mocks.mockEnqueue(...args),
 }));
 
 vi.mock("@/lib/facebook/config", () => ({
@@ -101,6 +106,27 @@ beforeEach(() => {
   mocks.mockFacebookEnabled.mockReturnValue(true);
   mocks.mockUpdateReturning.mockResolvedValue([{ id: JOB_ID }]);
   mocks.mockOnConflict.mockResolvedValue(undefined);
+  mocks.mockEnqueue.mockImplementation(
+    async (
+      tx: {
+        insert: () => {
+          values: (values: unknown) => { onConflictDoNothing: () => unknown };
+        };
+      },
+      input: { jobId: string; channel: string; now: Date },
+    ) => {
+      await tx
+        .insert()
+        .values({
+          jobId: input.jobId,
+          channel: input.channel,
+          state: "QUEUED",
+          attempts: 0,
+          nextRetryAt: input.now,
+        })
+        .onConflictDoNothing();
+    },
+  );
   mocks.mockAudit.mockResolvedValue(undefined);
   mocks.mockTransaction.mockImplementation(
     (callback: (tx: unknown) => unknown) => callback(transactionTx()),
@@ -193,6 +219,7 @@ describe("autoPublishIngestedJob safety gates", () => {
     expect(result).toEqual({ published: true, reason: "PUBLISHED" });
     expect(mocks.mockTransaction).toHaveBeenCalled();
     expect(mocks.mockInsertValues).not.toHaveBeenCalled();
+    expect(mocks.mockEnqueue).not.toHaveBeenCalled();
     expect(mocks.mockAudit).toHaveBeenCalledWith(
       expect.objectContaining({
         action: "JOB_AUTO_PUBLISHED",
@@ -258,6 +285,12 @@ describe("autoPublishIngestedJob safety gates", () => {
       reason: "PUBLISHED",
       telegramChannel: "@jobs",
     });
+    expect(mocks.mockEnqueue).toHaveBeenCalledTimes(1);
+    expect(mocks.mockEnqueue).toHaveBeenCalledWith(expect.anything(), {
+      jobId: JOB_ID,
+      channel: "@jobs",
+      now: expect.any(Date),
+    });
     expect(mocks.mockInsertValues).toHaveBeenCalledWith({
       jobId: JOB_ID,
       channel: "@jobs",
@@ -281,6 +314,7 @@ describe("autoPublishIngestedJob safety gates", () => {
 
     expect(result).toEqual({ published: false, reason: "RACE_LOST" });
     expect(mocks.mockInsertValues).not.toHaveBeenCalled();
+    expect(mocks.mockEnqueue).not.toHaveBeenCalled();
     expect(mocks.mockAudit).not.toHaveBeenCalled();
   });
 });
