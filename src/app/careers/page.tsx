@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import {
   fetchCareerArticles,
   type PublicArticleList,
@@ -10,15 +10,23 @@ import { PageHeader } from "@/components/public/page-header";
 import { EmptyState } from "@/components/public/empty-state";
 import { Pagination } from "@/components/public/pagination";
 import { BookIcon, CalendarIcon } from "@/components/public/icons";
-import { getI18n } from "@/lib/i18n/server";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import { buildPageMetadata } from "@/lib/seo/metadata";
 import { trackPageView } from "@/lib/analytics/pageEvents";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Career Resources | JobEthiopia",
-  description: "Career advice and resources for Ethiopian job seekers.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const [t, locale] = await Promise.all([getI18n(), getCurrentLocale()]);
+  return buildPageMetadata({
+    path: "/careers",
+    locale,
+    title: t.seo.careers.title,
+    description: t.seo.careers.description,
+    includeAlternates: true,
+    includeXDefault: true,
+  });
+}
 
 type SearchParamsValue = string | string[] | undefined;
 type SearchParams = Record<string, SearchParamsValue>;
@@ -71,12 +79,12 @@ export default async function CareersPage({
       <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
         <h1 className="text-2xl font-bold">{t.careers.loadErrorHeading}</h1>
         <p className="mt-4 text-muted">{t.careers.loadErrorBody}</p>
-        <Link
+        <LocalizedLink
           href="/careers"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.careers.loadErrorCta}
-        </Link>
+        </LocalizedLink>
       </div>
     );
   }
@@ -130,17 +138,17 @@ export default async function CareersPage({
           className="mt-6 flex flex-wrap items-center gap-2"
         >
             {category && (
-              <Link
+              <LocalizedLink
                 href="/careers"
                 className="inline-flex items-center rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium text-muted transition-colors hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 {t.careers.allLabel}
-              </Link>
+              </LocalizedLink>
             )}
             {categories.map((name) => {
               const active = category === name;
               return (
-                <Link
+                <LocalizedLink
                   key={name}
                   href={active ? "/careers" : `/careers?category=${encodeURIComponent(name)}`}
                   aria-current={active ? "page" : undefined}
@@ -151,7 +159,7 @@ export default async function CareersPage({
                   }`}
                 >
                   {name}
-                </Link>
+                </LocalizedLink>
               );
             })}
         </nav>
@@ -209,12 +217,12 @@ function FeaturedArticle({
             </span>
           )}
           <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground">
-            <Link
+            <LocalizedLink
               href={`/careers/${article.id}`}
               className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary group-hover:text-primary"
             >
               {article.title}
-            </Link>
+            </LocalizedLink>
           </h2>
           {article.excerpt && (
             <p className="mt-2 line-clamp-3 text-base leading-7 text-muted">
@@ -241,7 +249,7 @@ function ArticleCard({
   publishedPrefix: string;
 }) {
   return (
-    <Link
+    <LocalizedLink
       href={`/careers/${article.id}`}
       className="group flex h-full flex-col rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
@@ -266,6 +274,6 @@ function ArticleCard({
           {publishedPrefix} {article.publishedAt}
         </p>
       )}
-    </Link>
+    </LocalizedLink>
   );
 }

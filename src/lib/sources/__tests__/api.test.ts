@@ -443,6 +443,82 @@ describe("POST /api/sources", () => {
     });
   });
 
+  describe("privileged field restrictions", () => {
+    it("rejects explicit HIGH trust with 403 and no write", async () => {
+      const request = makePostRequest({
+        name: "Privileged",
+        sourceType: "WEBSITE",
+        trustLevel: "HIGH",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data.error).toBe("Forbidden");
+      expect(mockDbInsert).not.toHaveBeenCalled();
+    });
+
+    it("rejects autoPublish=true with 403 and no write", async () => {
+      const request = makePostRequest({
+        name: "Privileged",
+        sourceType: "WEBSITE",
+        trustLevel: "MEDIUM",
+        autoPublish: true,
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data.error).toBe("Forbidden");
+      expect(mockDbInsert).not.toHaveBeenCalled();
+    });
+
+    it("rejects Facebook source creation with 403 and no write", async () => {
+      const request = makePostRequest({
+        name: "Facebook Page",
+        sourceType: "FACEBOOK",
+        baseUrl: "https://www.facebook.com/example",
+        facebookPageId: "page-1",
+        facebookPageKind: "OWNED_PAGE",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data.error).toBe("Forbidden");
+      expect(mockDbInsert).not.toHaveBeenCalled();
+    });
+
+    it("rejects self-asserted Facebook approval metadata", async () => {
+      const request = makePostRequest({
+        name: "Approval",
+        sourceType: "WEBSITE",
+        facebookApprovalState: "APPROVED",
+        facebookContentUseState: "AUTHORIZED",
+      });
+      const response = await POST(request);
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data.error).toBe("Forbidden");
+      expect(mockDbInsert).not.toHaveBeenCalled();
+    });
+
+    it("allows safe MEDIUM/LOW fields and explicit autoPublish=false", async () => {
+      mockInsertSuccess(CREATED_SOURCE);
+      const request = makePostRequest({
+        name: "Safe",
+        sourceType: "WEBSITE",
+        trustLevel: "LOW",
+        autoPublish: false,
+      });
+      const response = await POST(request);
+
+      expect(response.status).toBe(201);
+      expect(mockDbInsert).toHaveBeenCalled();
+    });
+  });
+
   describe("successful creation", () => {
     it("valid minimal body returns 201", async () => {
       mockInsertSuccess(CREATED_SOURCE);

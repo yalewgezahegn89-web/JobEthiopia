@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import {
   fetchLocations,
   type PublicLocationList,
@@ -10,14 +10,22 @@ import { PageHeader } from "@/components/public/page-header";
 import { EmptyState } from "@/components/public/empty-state";
 import { Pagination } from "@/components/public/pagination";
 import { PinIcon, GlobeIcon } from "@/components/public/icons";
-import { getI18n } from "@/lib/i18n/server";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import { buildPageMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Locations | JobEthiopia",
-  description: "Browse job locations across Ethiopia.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const [t, locale] = await Promise.all([getI18n(), getCurrentLocale()]);
+  return buildPageMetadata({
+    path: "/locations",
+    locale,
+    title: t.seo.locations.title,
+    description: t.seo.locations.description,
+    includeAlternates: true,
+    includeXDefault: true,
+  });
+}
 
 type SearchParamsValue = string | string[] | undefined;
 type SearchParams = Record<string, SearchParamsValue>;
@@ -57,12 +65,12 @@ export default async function LocationsPage({
       <div className="mx-auto w-full max-w-7xl px-4 py-16 text-center">
         <h1 className="text-2xl font-bold">{t.locations.loadErrorHeading}</h1>
         <p className="mt-4 text-muted">{t.locations.loadErrorBody}</p>
-        <Link
+        <LocalizedLink
           href="/locations"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.common.retry}
-        </Link>
+        </LocalizedLink>
       </div>
     );
   }
@@ -143,7 +151,7 @@ function LocationCard({
 }) {
   const amber = index % 2 === 1;
   return (
-    <Link
+    <LocalizedLink
       href={`/locations/${location.id}`}
       className="group flex h-full items-center gap-4 rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
@@ -168,6 +176,6 @@ function LocationCard({
       >
         →
       </span>
-    </Link>
+    </LocalizedLink>
   );
 }

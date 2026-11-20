@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 
 type Crumb = {
@@ -30,12 +30,12 @@ export function Breadcrumb({
                 </span>
               )}
               {item.href && !isLast ? (
-                <Link
+                <LocalizedLink
                   href={item.href}
                   className="truncate hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   {label}
-                </Link>
+                </LocalizedLink>
               ) : (
                 <span
                   aria-current={isLast ? "page" : undefined}

@@ -36,6 +36,69 @@ export function localizePath(
   return `/${targetLocale}${cleaned}`;
 }
 
+/**
+ * Locale-independent URL spaces. Internal application pages are localized;
+ * APIs, Next internals, static files and explicit well-known metadata files
+ * keep their canonical unprefixed paths.
+ */
+const LOCALE_INDEPENDENT_PREFIXES: readonly string[] = [
+  "/api",
+  "/_next",
+  "/favicon",
+  "/robots.txt",
+  "/sitemap.xml",
+  "/ads.txt",
+  "/manifest",
+  "/static",
+  "/assets",
+] as const;
+
+function splitHref(href: string): { pathname: string; suffix: string } {
+  const marker = href.search(/[?#]/);
+  if (marker === -1) return { pathname: href, suffix: "" };
+  return { pathname: href.slice(0, marker), suffix: href.slice(marker) };
+}
+
+export function isLocaleIndependentHref(href: string): boolean {
+  const { pathname } = splitHref(href);
+
+  // External, protocol-relative, scheme-based and relative hrefs are never
+  // rewritten (mailto:, tel:, https://, //cdn..., ?page=2, #section, ...).
+  if (!pathname.startsWith("/") || pathname.startsWith("//")) return true;
+
+  if (
+    LOCALE_INDEPENDENT_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    )
+  ) {
+    return true;
+  }
+
+  // Static files such as /images/logo.png are not localized pages.
+  return /\.[a-z0-9]+$/i.test(pathname);
+}
+
+/**
+ * Localizes a destination href while preserving its query string/hash and
+ * leaving locale-independent destinations untouched. This is the href-level
+ * counterpart of localizePath(); both share the same prefix rules.
+ */
+export function localizeHref(href: string, locale: Locale): string {
+  if (isLocaleIndependentHref(href)) return href;
+
+  const { pathname, suffix } = splitHref(href);
+  return `${localizePath(pathname, locale)}${suffix}`;
+}
+
+/** Active-link comparison that works on both canonical and prefixed paths. */
+export function isActivePath(currentPathname: string, href: string): boolean {
+  const current = stripLocalePrefix(splitHref(currentPathname).pathname);
+  const target = stripLocalePrefix(splitHref(href).pathname);
+
+  if (target === "/") return current === "/";
+  return current === target || current.startsWith(`${target}/`);
+}
+
 export function cookieValueForLocale(locale: Locale): string {
   return locale;
 }

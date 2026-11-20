@@ -1,24 +1,13 @@
 import type { MetadataRoute } from "next";
-import { getAppBaseUrl } from "@/lib/appBaseUrl";
-
-function siteUrl(): URL {
-  return new URL(getAppBaseUrl());
-}
+import { absoluteUrl, privateRobotsDisallowPaths } from "@/lib/seo/metadata";
 
 export default function robots(): MetadataRoute.Robots {
-  const base = siteUrl();
   return {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: [
-        "/admin/",
-        "/organization/",
-        "/api/",
-        "/cv/",
-        "/recommendations",
-      ],
+      disallow: privateRobotsDisallowPaths(),
     },
-    sitemap: new URL("/sitemap.xml", base).toString(),
+    sitemap: absoluteUrl("/sitemap.xml"),
   };
 }

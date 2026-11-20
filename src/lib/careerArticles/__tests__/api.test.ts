@@ -73,6 +73,12 @@ const SAMPLE_ARTICLE = {
   updatedAt: new Date("2026-01-15"),
 };
 
+const ELIGIBLE_ARTICLE = {
+  ...SAMPLE_ARTICLE,
+  status: "PUBLISHED" as const,
+  publishedAt: new Date(Date.now() - 60_000),
+};
+
 const lastFindManyWhere = () =>
   lastFindManyConfig()?.where;
 
@@ -363,6 +369,15 @@ describe("GET /api/career-articles", () => {
       expect(sqlContains(lastFindManyWhere(), "PUBLISHED")).toBe(true);
       expect(sqlContains(lastFindManyWhere(), "ARCHIVED")).toBe(false);
     });
+
+    it("listing excludes undated and future-dated articles", async () => {
+      const request = makeGetListRequest();
+      await GET(request);
+
+      const where = lastFindManyWhere();
+      expect(sqlContains(where, "published_at")).toBe(true);
+      expect(sqlContains(where, "IS NOT NULL")).toBe(true);
+    });
   });
 
   describe("validation", () => {
@@ -640,6 +655,10 @@ describe("POST /api/career-articles", () => {
 });
 
 describe("GET /api/career-articles/[id]", () => {
+  beforeEach(() => {
+    mockFindFirst.mockResolvedValue(ELIGIBLE_ARTICLE);
+  });
+
   describe("successful retrieval", () => {
     it("returns 200 with career article", async () => {
       const request = makeGetDetailRequest(VALID_ID);
@@ -694,6 +713,72 @@ describe("GET /api/career-articles/[id]", () => {
 
       expect(response.status).toBe(404);
       expect(data.error).toBe("Career article not found");
+    });
+  });
+
+  describe("publication eligibility", () => {
+    it("returns 200 for a PUBLISHED article with a past publishedAt", async () => {
+      const response = await GET_BY_ID(makeGetDetailRequest(VALID_ID), {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(200);
+    });
+
+    it("returns 200 when publishedAt equals the current time", async () => {
+      mockFindFirst.mockResolvedValue({
+        ...ELIGIBLE_ARTICLE,
+        publishedAt: new Date(),
+      });
+
+      const response = await GET_BY_ID(makeGetDetailRequest(VALID_ID), {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(200);
+    });
+
+    it("returns 404 for a PUBLISHED article with a future publishedAt", async () => {
+      mockFindFirst.mockResolvedValue({
+        ...ELIGIBLE_ARTICLE,
+        publishedAt: new Date(Date.now() + 60_000),
+      });
+
+      const response = await GET_BY_ID(makeGetDetailRequest(VALID_ID), {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe("Career article not found");
+    });
+
+    it("returns 404 for a PUBLISHED article with a null publishedAt", async () => {
+      mockFindFirst.mockResolvedValue({
+        ...ELIGIBLE_ARTICLE,
+        publishedAt: null,
+      });
+
+      const response = await GET_BY_ID(makeGetDetailRequest(VALID_ID), {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(404);
+      expect(data.error).toBe("Career article not found");
+    });
+
+    it("returns 404 for an unpublished article", async () => {
+      mockFindFirst.mockResolvedValue({
+        ...ELIGIBLE_ARTICLE,
+        status: "DRAFT",
+      });
+
+      const response = await GET_BY_ID(makeGetDetailRequest(VALID_ID), {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+
+      expect(response.status).toBe(404);
     });
   });
 

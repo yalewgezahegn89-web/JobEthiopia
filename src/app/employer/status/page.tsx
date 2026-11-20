@@ -6,11 +6,10 @@ import { db } from "@/db";
 import { employerOnboardingRequests } from "@/db/schema/employerOnboardingRequests";
 import { getCurrentUser } from "@/lib/auth/context";
 import { getI18n } from "@/lib/i18n/server";
+import { privateMetadata } from "@/lib/seo/metadata";
 import { EmployerResubmitForm } from "./resubmit-form";
 
-export const metadata: Metadata = {
-  title: "Employer request status",
-};
+export const metadata: Metadata = privateMetadata("Employer request status");
 
 export default async function EmployerStatusPage() {
   const user = await getCurrentUser();
@@ -103,7 +102,7 @@ export default async function EmployerStatusPage() {
               {t.employerAuth.resubmitBody}
             </p>
             <div className="mt-4 flex justify-center">
-              <EmployerResubmitForm t={t} />
+              <EmployerResubmitForm />
             </div>
           </div>
         </>

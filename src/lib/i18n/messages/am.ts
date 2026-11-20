@@ -24,6 +24,36 @@ export const am = {
     previous: "ቀዳሚ",
     next: "ቀጣይ",
   },
+  seo: {
+    jobs: {
+      title: "ስራዎች",
+      description: "በመላ ኢትዮጵያ የተረጋገጡ የስራ ክፍት ቦታዎችን ያስሱ።",
+    },
+    organizations: {
+      title: "ድርጅቶች",
+      description: "በኢትዮጵያ ስራዎችን የሚሰጡ ድርጅቶችን ያስሱ።",
+    },
+    categories: {
+      title: "ምድቦች",
+      description: "በኢትዮጵያ የስራ ምድቦችን ያስሱ።",
+    },
+    professions: {
+      title: "ሙያዎች",
+      description: "በኢትዮጵያ የሙያ መስኮችን ያስሱ።",
+    },
+    locations: {
+      title: "አካባቢዎች",
+      description: "በኢትዮጵያ የስራ አካባቢዎችን ያስሱ።",
+    },
+    careers: {
+      title: "የሙያ ገጾች",
+      description: "ለኢትዮጵያ የስራ ፈላጊዎች የሙያ ምክርና መርጃዎችን ያግኙ።",
+    },
+    contact: {
+      title: "እኛን ያነጋግሩ",
+      description: "ጆብኢትዮጵያን በኢሜል ያነጋግሩ።",
+    },
+  },
   nav: {
     home: "መነሻ",
     jobs: "ስራዎች",
@@ -1130,5 +1160,28 @@ primaryNavLabel: "ዋና",
   },
   footer: {
     footerNavLabel: "የግርጌ አሰሳ",
+    contact: "ያግኙን",
+  },
+  legalNav: {
+    privacy: "የግላዊነት መመሪያ",
+    terms: "የአጠቃቀም ውሎች",
+    cookies: "የኩኪ መመሪያ",
+  },
+  contact: {
+    heading: "ያግኙን",
+    intro:
+      "ጥያቄ፣ አስተያየት ወይም የሥራ ማስታወቂያ ለማጋራት? በኢሜይል ያግኙን፤ በተቻለ ፍጥነት እንመልስልዎታለን።",
+    emailLabel: "ኢሜይል",
+    emailAddress: "jobethiopiaet@gmail.com",
+    cta: "ወደ jobethiopiaet@gmail.com ኢሜይል ይላኩ",
+    responseNote: "በተቻለ ፍጥነት ለመመለስ እንጥራለን።",
+  },
+  googleAuth: {
+    divider: "ወይም",
+    button: "በGoogle ይግቡ",
+    hint: "በGoogle መለያዎ በደህንነት ይግቡ።",
+    error: "በGoogle መግባት አልተሳካም። እንደገና ይሞክሩ ወይም በኢሜይል ይግቡ።",
+    conflict:
+      "በዚህ ኢሜይል የተመዘገበ መለያ አስቀድሞ አለ። እባክዎ በነባር መንገድዎ ይግቡ።",
   },
 };

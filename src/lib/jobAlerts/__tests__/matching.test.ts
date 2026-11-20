@@ -40,7 +40,11 @@ vi.mock("@/lib/jobs/eligibility", () => ({
     mocks.mockEligibility(...a),
 }));
 
-import { splitAlertKeywords, matchJobsForAlert } from "@/lib/jobAlerts/matching";
+import {
+  splitAlertKeywords,
+  matchJobsForAlert,
+  TERMINAL_ALERT_DELIVERY_STATUSES,
+} from "@/lib/jobAlerts/matching";
 import type { JobAlertRow } from "@/lib/jobAlerts/dal";
 
 function alert(overrides: Record<string, unknown> = {}): JobAlertRow {
@@ -141,9 +145,29 @@ describe("matchJobsForAlert", () => {
     expect(mocks.mockEligibility).toHaveBeenCalledOnce();
   });
 
-  it("excludes jobs already delivered for the alert", async () => {
+  it("excludes jobs with a SENT delivery from future matching", async () => {
     await matchJobsForAlert(alert());
-    expect(lastWhere()).toContain("is null");
+    const where = lastWhere();
+    expect(where).toContain("not in");
+    expect(where).toContain("is null");
+    expect(where).toContain("sent");
+  });
+
+  it("excludes jobs with a SKIPPED_NO_EMAIL delivery from future matching", async () => {
+    await matchJobsForAlert(alert());
+    const where = lastWhere();
+    expect(where).toContain("not in");
+    expect(where).toContain("skipped_no_email");
+  });
+
+  it("keeps jobs with a FAILED delivery eligible for another attempt", async () => {
+    await matchJobsForAlert(alert());
+    const where = lastWhere();
+    expect(where).not.toContain("failed");
+    expect(TERMINAL_ALERT_DELIVERY_STATUSES).toEqual([
+      "SENT",
+      "SKIPPED_NO_EMAIL",
+    ]);
   });
 
   it("restricts to provided job ids for instant delivery", async () => {

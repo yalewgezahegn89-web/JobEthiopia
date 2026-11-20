@@ -3,8 +3,29 @@ import { httpUrlSchema } from "./employerJob";
 
 const OrganizationStatus = z.enum(["ACTIVE", "INACTIVE"]);
 const LocationType = z.enum(["COUNTRY", "REGION", "CITY", "DISTRICT", "OTHER"]);
-const SourceType = z.enum(["MANUAL", "WEBSITE", "API", "FEED", "EMPLOYER", "OTHER"]);
+const SourceType = z.enum([
+  "MANUAL",
+  "WEBSITE",
+  "API",
+  "FEED",
+  "EMPLOYER",
+  "OTHER",
+  "FACEBOOK",
+]);
 const TrustLevel = z.enum(["HIGH", "MEDIUM", "LOW"]);
+const FacebookPageKind = z.enum(["OWNED_PAGE", "EXTERNAL_PAGE"]);
+const FacebookApprovalState = z.enum([
+  "NOT_REQUESTED",
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+]);
+const FacebookContentUseState = z.enum([
+  "NOT_RECORDED",
+  "PENDING",
+  "AUTHORIZED",
+  "DENIED",
+]);
 const EmploymentType = z.enum([
   "FULL_TIME",
   "PART_TIME",
@@ -61,13 +82,60 @@ export const createProfessionSchema = z.object({
   isActive: z.boolean().optional().default(true),
 });
 
-export const createSourceSchema = z.object({
-  name: z.string().min(1, "Name is required"),
-  sourceType: SourceType,
-  baseUrl: z.string().url().nullable().optional(),
-  isActive: z.boolean().optional().default(true),
-  trustLevel: TrustLevel.optional().default("MEDIUM"),
-});
+const facebookSourceFields = {
+  facebookPageId: z.string().trim().min(1).max(200).nullable().optional(),
+  facebookPageKind: FacebookPageKind.nullable().optional(),
+  facebookApprovalState: FacebookApprovalState.optional(),
+  facebookContentUseState: FacebookContentUseState.optional(),
+  facebookAuthorizationNote: z
+    .string()
+    .trim()
+    .max(2000)
+    .nullable()
+    .optional(),
+};
+
+export const createSourceSchema = z
+  .object({
+    name: z.string().min(1, "Name is required"),
+    sourceType: SourceType,
+    baseUrl: z.string().url().nullable().optional(),
+    isActive: z.boolean().optional().default(true),
+    trustLevel: TrustLevel.optional().default("MEDIUM"),
+    autoPublish: z.boolean().optional().default(false),
+    checkFrequencyMinutes: z
+      .number()
+      .int()
+      .min(5)
+      .max(10080)
+      .nullable()
+      .optional(),
+    ...facebookSourceFields,
+  })
+  .superRefine((data, ctx) => {
+    if (data.sourceType !== "FACEBOOK") return;
+    if (!data.facebookPageId) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Facebook Page ID is required for Facebook sources",
+        path: ["facebookPageId"],
+      });
+    }
+    if (!data.facebookPageKind) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Facebook Page kind is required for Facebook sources",
+        path: ["facebookPageKind"],
+      });
+    }
+    if (!data.baseUrl) {
+      ctx.addIssue({
+        code: "custom",
+        message: "Facebook Page URL is required for Facebook sources",
+        path: ["baseUrl"],
+      });
+    }
+  });
 
 export const updateSourceSchema = z
   .object({
@@ -76,8 +144,86 @@ export const updateSourceSchema = z
     baseUrl: z.string().url().nullable(),
     isActive: z.boolean(),
     trustLevel: TrustLevel,
+    autoPublish: z.boolean(),
+    checkFrequencyMinutes: z.number().int().min(5).max(10080).nullable(),
+    ...facebookSourceFields,
   })
   .partial();
+
+export interface SourceInvariantInput {
+  sourceType?: string | null;
+  baseUrl?: string | null;
+  facebookPageId?: string | null;
+  facebookPageKind?: string | null;
+  facebookApprovalState?: string | null;
+  facebookContentUseState?: string | null;
+}
+
+/**
+ * Checks the Facebook-specific invariants that must hold after a partial
+ * update is merged with the stored source. `.partial()` alone cannot enforce
+ * these because the missing fields come from the existing row.
+ */
+export function sourceInvariantIssues(
+  source: SourceInvariantInput,
+): string[] {
+  if (source.sourceType !== "FACEBOOK") return [];
+
+  const issues: string[] = [];
+  if (!source.facebookPageId) {
+    issues.push("Facebook Page ID is required for Facebook sources");
+  }
+  if (!source.facebookPageKind) {
+    issues.push("Facebook Page kind is required for Facebook sources");
+  }
+  if (!source.baseUrl) {
+    issues.push("Facebook Page URL is required for Facebook sources");
+  }
+  if (
+    source.facebookPageKind === "EXTERNAL_PAGE" &&
+    (!source.facebookApprovalState || !source.facebookContentUseState)
+  ) {
+    issues.push(
+      "External Facebook Pages require approval and content-use metadata",
+    );
+  }
+  return issues;
+}
+
+export type MergedSourceValidation =
+  | { ok: true }
+  | { ok: false; issues: string[] };
+
+/** Validates the existing source and proposed patch as a single record. */
+export function validateMergedSourceUpdate(
+  existing: SourceInvariantInput,
+  patch: UpdateSourceInput,
+): MergedSourceValidation {
+  const merged: SourceInvariantInput = {
+    sourceType: patch.sourceType ?? existing.sourceType ?? null,
+    baseUrl:
+      patch.baseUrl !== undefined ? patch.baseUrl : (existing.baseUrl ?? null),
+    facebookPageId:
+      patch.facebookPageId !== undefined
+        ? patch.facebookPageId
+        : (existing.facebookPageId ?? null),
+    facebookPageKind:
+      patch.facebookPageKind !== undefined
+        ? patch.facebookPageKind
+        : (existing.facebookPageKind ?? null),
+    facebookApprovalState:
+      patch.facebookApprovalState !== undefined
+        ? patch.facebookApprovalState
+        : (existing.facebookApprovalState ?? null),
+    facebookContentUseState:
+      patch.facebookContentUseState !== undefined
+        ? patch.facebookContentUseState
+        : (existing.facebookContentUseState ?? null),
+  };
+
+  const issues = sourceInvariantIssues(merged);
+  return issues.length === 0 ? { ok: true } : { ok: false, issues };
+}
 
 export const createJobSchema = z
   .object({
@@ -114,13 +260,37 @@ export const createJobSchema = z
     { message: "experienceMax must be greater than or equal to experienceMin", path: ["experienceMax"] },
   );
 
+/** Bounds for career article text fields (plain text only, no markup). */
+export const CAREER_ARTICLE_TITLE_MAX = 200;
+export const CAREER_ARTICLE_EXCERPT_MAX = 500;
+export const CAREER_ARTICLE_CONTENT_MAX = 20000;
+export const CAREER_ARTICLE_CATEGORY_MAX = 100;
+
 export const createCareerArticleSchema = z
   .object({
-    title: z.string().min(1, "Title is required"),
+    title: z
+      .string()
+      .trim()
+      .min(1, "Title is required")
+      .max(CAREER_ARTICLE_TITLE_MAX, `Title must be at most ${CAREER_ARTICLE_TITLE_MAX} characters`),
     slug: z.string().regex(slugRegex, "Slug must be lowercase alphanumeric with hyphens"),
-    excerpt: z.string().nullable().optional(),
-    content: z.string().min(1, "Content is required"),
-    category: z.string().nullable().optional(),
+    excerpt: z
+      .string()
+      .trim()
+      .max(CAREER_ARTICLE_EXCERPT_MAX, `Excerpt must be at most ${CAREER_ARTICLE_EXCERPT_MAX} characters`)
+      .nullable()
+      .optional(),
+    content: z
+      .string()
+      .trim()
+      .min(1, "Content is required")
+      .max(CAREER_ARTICLE_CONTENT_MAX, `Content must be at most ${CAREER_ARTICLE_CONTENT_MAX} characters`),
+    category: z
+      .string()
+      .trim()
+      .max(CAREER_ARTICLE_CATEGORY_MAX, `Category must be at most ${CAREER_ARTICLE_CATEGORY_MAX} characters`)
+      .nullable()
+      .optional(),
     status: ArticleStatus.optional().default("DRAFT"),
   })
   .strict();

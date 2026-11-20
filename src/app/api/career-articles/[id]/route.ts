@@ -4,6 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { careerArticles } from "@/db/schema/careerArticles";
 import { careerArticleIdParamSchema } from "@/lib/validations/careerArticleQuery";
+import { isArticlePubliclyEligible } from "@/lib/careerArticles/eligibility";
 import { updateCareerArticleSchema } from "@/lib/validations";
 import { checkApiKey } from "@/lib/auth/apiKey";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
@@ -34,7 +35,10 @@ async function __wrapped_GET(
       ),
     });
 
-    if (!article) {
+    // PUBLISHED is filtered in SQL above; the shared predicate additionally
+    // rejects undated and future-dated articles so they are never publicly
+    // served (and therefore never indexed) before their publication time.
+    if (!article || !isArticlePubliclyEligible(article)) {
       return jsonError("Career article not found", 404);
     }
 

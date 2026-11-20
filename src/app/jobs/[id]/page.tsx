@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import { notFound } from "next/navigation";
 import {
   fetchJobById,
@@ -18,7 +18,15 @@ import type { Locale } from "@/lib/i18n/locale";
 import type { Messages } from "@/lib/i18n/dictionary";
 import { getCurrentUser } from "@/lib/auth/context";
 import { isJobSaved } from "@/lib/savedJobs/dal";
-import { getAppBaseUrl } from "@/lib/appBaseUrl";
+import {
+  absoluteUrl,
+  buildPageMetadata,
+  NOINDEX_METADATA,
+} from "@/lib/seo/metadata";
+import {
+  buildJobPostingLd,
+  serializeJsonLd,
+} from "@/lib/seo/structuredData";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import JobShare from "@/components/job-share";
 import { ApplyButton } from "@/components/applications/apply-button";
@@ -52,8 +60,9 @@ export async function generateMetadata({
 
   if (!job) {
     return {
-      title: "Job | JobEthiopia",
+      title: { absolute: "Job | JobEthiopia" },
       description: "Job details on JobEthiopia.",
+      robots: NOINDEX_METADATA,
     };
   }
 
@@ -63,32 +72,16 @@ export async function generateMetadata({
     ? truncateMetadata(job.description, 160)
     : `${title}${org ? ` at ${org}` : ""} — find verified jobs on JobEthiopia.`;
 
-  const baseUrl = getAppBaseUrl();
-  const canonicalUrl = `${baseUrl}/jobs/${id}`;
-
-  const openGraph = {
-    title: `${title} | JobEthiopia`,
-    description,
-    url: canonicalUrl,
-    type: "article" as const,
-    siteName: "JobEthiopia",
-  };
-
-  const twitter = {
-    card: "summary_large_image" as const,
-    title: `${title} | JobEthiopia`,
-    description,
-  };
-
-  return {
+  // DB-backed content is not translated: locale-prefixed URLs are UI shells, so
+  // every locale shares the English canonical and intentionally emits no hreflang.
+  return buildPageMetadata({
+    path: `/jobs/${id}`,
+    locale: "en",
+    canonicalLocale: "en",
     title,
     description,
-    openGraph,
-    twitter,
-    alternates: {
-      canonical: canonicalUrl,
-    },
-  };
+    openGraphType: "article",
+  });
 }
 
 function formatEmploymentType(value: string | null): string | null {
@@ -127,52 +120,6 @@ function orgInitials(name: string | null | undefined): string | null {
     return words[0].slice(0, 2).toUpperCase();
   }
   return (words[0][0] + words[1][0]).toUpperCase();
-}
-
-function buildJobPostingLd(
-  job: PublicJobDetail,
-): Record<string, unknown> | null {
-  if (
-    !job.title ||
-    !job.description ||
-    !job.postedAt ||
-    !job.deadline ||
-    !job.locationName ||
-    !job.employmentType ||
-    !job.organizationName
-  ) {
-    return null;
-  }
-
-  const ld: Record<string, unknown> = {
-    "@context": "https://schema.org",
-    "@type": "JobPosting",
-    title: job.title,
-    description: job.description,
-    datePosted: job.postedAt,
-    validThrough: job.deadline,
-    employmentType: job.employmentType,
-    hiringOrganization: {
-      "@type": "Organization",
-      name: job.organizationName,
-    },
-    jobLocation: {
-      "@type": "Place",
-      address: {
-        "@type": "PostalAddress",
-        addressLocality: job.locationName,
-      },
-    },
-  };
-
-  return ld;
-}
-
-function serializeJsonLd(data: Record<string, unknown>): string {
-  return JSON.stringify(data)
-    .replace(/</g, "\\u003c")
-    .replace(/>/g, "\\u003e")
-    .replace(/&/g, "\\u0026");
 }
 
 export default async function JobPage({
@@ -279,7 +226,7 @@ export default async function JobPage({
     relatedItems = [];
   }
 
-  const jsonLd = buildJobPostingLd(job);
+  const jsonLd = buildJobPostingLd(job, absoluteUrl(`/jobs/${id}`));
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:py-10">
@@ -353,18 +300,18 @@ export default async function JobPage({
                   <div className="mt-4 rounded-lg border border-border bg-surface p-4 text-center">
                     <p className="text-sm text-muted">{t.jobs.loginToApplyHint}</p>
                     <div className="mt-3 flex flex-wrap justify-center gap-2">
-                      <Link
+                      <LocalizedLink
                         href="/login"
                         className="inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       >
                         {t.jobs.loginToApplyCta}
-                      </Link>
-                      <Link
+                      </LocalizedLink>
+                      <LocalizedLink
                         href="/register"
                         className="inline-flex items-center justify-center rounded-lg border border-border px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                       >
                         {t.jobs.registerToApplyCta}
-                      </Link>
+                      </LocalizedLink>
                     </div>
                   </div>
                 )}
@@ -425,12 +372,12 @@ export default async function JobPage({
                 {t.jobs.moreOpportunities}
               </h2>
             </div>
-            <Link
+            <LocalizedLink
               href="/jobs"
               className="focus-visible:outline-2 hidden shrink-0 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary sm:inline-flex"
             >
               {t.home.viewAllJobs}
-            </Link>
+            </LocalizedLink>
           </div>
           <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {relatedItems.map((relatedJob) => (
@@ -476,7 +423,14 @@ function JobHeader({
     <header className="rounded-xl border border-border bg-surface p-6 sm:p-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-4">
-          {initials ? (
+          {job.organizationLogoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={job.organizationLogoUrl}
+              alt={t.organizations.logoAlt(job.organizationName ?? "Employer")}
+              className="h-14 w-14 shrink-0 rounded-xl bg-surface-raised object-contain"
+            />
+          ) : initials ? (
             <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary-light text-xl font-bold text-primary">
               {initials}
             </span>
@@ -804,12 +758,12 @@ function ErrorState({
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-6 py-16 text-center">
       <h1 className="text-2xl font-bold text-foreground">{heading}</h1>
       <p className="mt-2 max-w-md text-sm leading-6 text-muted">{body}</p>
-      <Link
+      <LocalizedLink
         href={ctaHref}
         className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         {ctaLabel}
-      </Link>
+      </LocalizedLink>
     </div>
   );
 }

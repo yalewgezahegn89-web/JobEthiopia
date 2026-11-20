@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireStaffAdmin } from "@/lib/auth/context";
+import { canManagePrivilegedSourceFields } from "@/lib/auth/roles";
 import AdminNav from "../../nav";
 import CreateSourceForm from "./create-source-form";
 
@@ -25,7 +26,11 @@ export default async function AdminSourceCreatePage() {
         <h1 className="mt-2 text-2xl font-semibold text-foreground">Create Source</h1>
 
         <div className="mt-4">
-          <CreateSourceForm />
+          <CreateSourceForm
+            canManagePrivilegedFields={canManagePrivilegedSourceFields(
+              guard.user.role,
+            )}
+          />
         </div>
       </main>
     </div>

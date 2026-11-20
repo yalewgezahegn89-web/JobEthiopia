@@ -23,6 +23,7 @@ import { updateLastSeenAt } from "./updateLastSeenAt";
 import { updateJob, getStoredHash, contentChanged } from "./updateJob";
 import { createJobSource } from "./createJobSource";
 import { validateRawJobInput } from "../validations/rawJobInput";
+import { normalizeApplicantEligibility } from "../jobs/applicantEligibility";
 import type { RawJobInput, IngestionResult } from "./types";
 
 /**
@@ -69,6 +70,9 @@ export async function ingestJob(
 
   const postedAt = input.postedAt ? new Date(input.postedAt) : null;
   const deadline = input.deadline ? new Date(input.deadline) : null;
+  const applicantEligibility = normalizeApplicantEligibility(
+    input.applicantEligibility,
+  );
 
   // 2. Resolve entities
   const organizationId = await resolveOrganization(normalizedOrgName);
@@ -142,6 +146,7 @@ export async function ingestJob(
           benefits: input.benefits ?? null,
           postedAt,
           deadline,
+          applicantEligibility,
           applicationUrl: input.applicationUrl ?? null,
           rawHash,
         });
@@ -201,6 +206,7 @@ export async function ingestJob(
           benefits: input.benefits ?? null,
           postedAt,
           deadline,
+          applicantEligibility,
           applicationUrl: input.applicationUrl ?? null,
           rawHash,
         });
@@ -303,6 +309,7 @@ export async function ingestJob(
     benefits: input.benefits ?? null,
     postedAt,
     deadline,
+    applicantEligibility,
     applicationUrl: input.applicationUrl ?? null,
     sourceId: input.sourceId,
     externalId: input.externalId ?? null,

@@ -5,6 +5,8 @@
  * and the ingestion orchestrator.
  */
 
+import type { ApplicantEligibility } from "@/lib/jobs/applicantEligibility";
+
 /**
  * Raw job data as provided by an external source.
  *
@@ -43,6 +45,11 @@ export interface RawJobInput {
   postedAt?: string | null;
   /** Raw deadline date string (ISO 8601) */
   deadline?: string | null;
+  /**
+   * Explicit applicant eligibility. Adapters must leave this unset/NOT_STATED
+   * unless the official vacancy supports a stronger statement.
+   */
+  applicantEligibility?: ApplicantEligibility | null;
   /** Application URL */
   applicationUrl?: string | null;
   /** ID of the source this listing comes from (references sources.id) */

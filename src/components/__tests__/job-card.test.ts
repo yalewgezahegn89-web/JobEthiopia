@@ -20,6 +20,7 @@ function makeJob(overrides: Record<string, unknown> = {}) {
     professionId: null,
     locationId: null,
     organizationName: "ACME Plc",
+    organizationLogoUrl: null,
     locationName: "Addis Ababa",
     categoryName: "Finance",
     professionName: "Accounting",
@@ -49,6 +50,15 @@ describe("JobCard", () => {
     const html = render(makeJob());
     expect(html).toContain("ACME Plc");
     expect(html).toContain("AC");
+  });
+
+  it("renders the organization logo when one is available", () => {
+    const html = render(
+      makeJob({ organizationLogoUrl: "https://cdn.example.com/acme.png" }),
+    );
+    expect(html).toContain('src="https://cdn.example.com/acme.png"');
+    expect(html).toContain('alt="ACME Plc logo"');
+    expect(html).not.toContain(">AC<");
   });
 
   it("renders location metadata", () => {

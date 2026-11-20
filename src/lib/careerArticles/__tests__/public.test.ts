@@ -287,6 +287,7 @@ describe("fetchCareerArticle", () => {
     expect(article?.excerpt).toBe("Practical tips for interviews.");
     expect(article?.status).toBe("PUBLISHED");
     expect(article?.publishedAt).toBe("Feb 10, 2026");
+    expect(article?.publishedAtIso).toBe("2026-02-10T00:00:00.000Z");
   });
 
   it("preserves the full content", async () => {
@@ -416,6 +417,16 @@ describe("view model mappers", () => {
     expect(detail.content).toBeNull();
     expect(detail.status).toBeNull();
     expect(detail.excerpt).toBeNull();
+    expect(detail.publishedAtIso).toBeNull();
+  });
+
+  it("keeps the exact source instant separate from the display label", () => {
+    const detail = toPublicArticleDetail({
+      publishedAt: "2026-02-10T23:30:00-05:00",
+    });
+
+    expect(detail.publishedAtIso).toBe("2026-02-11T04:30:00.000Z");
+    expect(detail.publishedAt).not.toContain("T");
   });
 
   it("toPublicArticleDetail coerces string content", () => {

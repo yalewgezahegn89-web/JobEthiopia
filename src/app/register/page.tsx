@@ -1,14 +1,21 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import RegisterForm from "./register-form";
 import { TelegramOption } from "@/components/auth/telegram-option";
+import { GoogleOption } from "@/components/auth/google-option";
 import { AuthCard } from "@/components/auth/auth-card";
+import AuthLegalLinks from "@/components/legal/auth-legal-links";
+import { getI18n } from "@/lib/i18n/server";
+import { privateMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Create an account",
-};
+export const metadata: Metadata = privateMetadata("Create an account");
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  const t = await getI18n();
+  const googleConfigured = Boolean(
+    process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
+  );
+
   return (
     <AuthCard
       eyebrow="Get started"
@@ -17,23 +24,25 @@ export default function RegisterPage() {
       footer={
         <>
           <div className="flex flex-col items-center gap-3">
-            <Link
+            <LocalizedLink
               href="/login"
               className="text-sm font-medium text-primary hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Already have an account? Sign in
-            </Link>
-            <Link
+            </LocalizedLink>
+            <LocalizedLink
               href="/"
               className="text-sm text-muted underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Back to JobEthiopia
-            </Link>
+            </LocalizedLink>
+            <AuthLegalLinks labels={t.legalNav} />
           </div>
         </>
       }
     >
       <RegisterForm />
+      <GoogleOption configured={googleConfigured} />
       <TelegramOption />
     </AuthCard>
   );

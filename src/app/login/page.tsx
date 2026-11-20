@@ -1,21 +1,32 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import LoginForm from "./login-form";
 import { TelegramOption } from "@/components/auth/telegram-option";
+import { GoogleOption } from "@/components/auth/google-option";
 import { Card } from "@/components/ui/card";
 import { BrandMark } from "@/components/ui/brand-mark";
+import AuthLegalLinks from "@/components/legal/auth-legal-links";
+import { getI18n } from "@/lib/i18n/server";
+import { privateMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Sign in",
-};
+export const metadata: Metadata = privateMetadata("Sign in");
 
 type LoginPageProps = {
-  searchParams: Promise<{ telegramError?: string | string[] }>;
+  searchParams: Promise<{
+    telegramError?: string | string[];
+    googleError?: string | string[];
+    googleConflict?: string | string[];
+  }>;
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const params = await searchParams;
+  const [params, t] = await Promise.all([searchParams, getI18n()]);
   const telegramError = params.telegramError === "1";
+  const googleError = params.googleError === "1";
+  const googleConflict = params.googleConflict === "1";
+  const googleConfigured = Boolean(
+    process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
+  );
 
   return (
     <section className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-16 sm:py-20">
@@ -39,23 +50,29 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </p>
           </div>
           <LoginForm />
+          <GoogleOption
+            configured={googleConfigured}
+            showError={googleError}
+            showConflict={googleConflict}
+          />
           <TelegramOption showError={telegramError} />
           <div className="mt-6 border-t border-border-subtle pt-6 text-center">
             <p className="text-sm text-muted">
               New to JobEthiopia?{" "}
-              <Link
+              <LocalizedLink
                 href="/register"
                 className="font-semibold text-primary hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 Create an account
-              </Link>
+              </LocalizedLink>
             </p>
-            <Link
+            <LocalizedLink
               href="/"
               className="mt-3 inline-block text-sm text-muted underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               Back to JobEthiopia
-            </Link>
+            </LocalizedLink>
+            <AuthLegalLinks labels={t.legalNav} />
           </div>
         </Card>
       </div>

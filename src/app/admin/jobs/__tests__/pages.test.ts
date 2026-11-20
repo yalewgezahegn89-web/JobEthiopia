@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => ({
   mockListJobs: vi.fn(),
   mockGetJob: vi.fn(),
   mockGetAudit: vi.fn(),
+  mockListActiveCategories: vi.fn(),
   mockNotFound: vi.fn(),
+  mockFacebookPreview: vi.fn(),
+  mockFacebookPublication: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -34,6 +37,17 @@ vi.mock("@/lib/admin/jobs", () => ({
   listModerationJobs: (...args: unknown[]) => mocks.mockListJobs(...args),
   getModerationJob: (...args: unknown[]) => mocks.mockGetJob(...args),
   getJobAuditHistory: (...args: unknown[]) => mocks.mockGetAudit(...args),
+  listActiveJobCategories: (...args: unknown[]) =>
+    mocks.mockListActiveCategories(...args),
+}));
+
+vi.mock("@/lib/facebook/publishing", () => ({
+  getFacebookPublishPreview: (...args: unknown[]) =>
+    mocks.mockFacebookPreview(...args),
+  getFacebookPublicationForJob: (...args: unknown[]) =>
+    mocks.mockFacebookPublication(...args),
+  OWNED_FACEBOOK_PAGE_ID: "872697352845055",
+  OWNED_FACEBOOK_PAGE_NAME: "Job Ethiopia",
 }));
 
 import AdminJobsPage from "@/app/admin/jobs/page";
@@ -88,6 +102,9 @@ beforeEach(() => {
     ok: true,
     user: { id: "u1", email: "a@b.com", name: "A", role: "MODERATOR" },
   });
+  mocks.mockFacebookPreview.mockResolvedValue(null);
+  mocks.mockFacebookPublication.mockResolvedValue(null);
+  mocks.mockListActiveCategories.mockResolvedValue([]);
 });
 
 describe("AdminJobsPage", () => {
@@ -263,6 +280,35 @@ describe("AdminJobDetailPage — last verified + stale display", () => {
     expect(html).toContain("PUBLISHED");
     expect(html).toContain(expectedLabel);
   });
+
+  it("renders the Facebook publish panel for a published job with a preview", async () => {
+    mocks.mockFacebookPreview.mockResolvedValue({
+      message: "Senior Pilot — Ethiopian Airlines",
+      link: `https://jobethiopia.et/jobs/${FULL_JOB.id}`,
+      status: "PUBLISHED",
+      verificationStatus: "VERIFIED",
+      deadlineExpired: false,
+      eligibilityConfirmed: true,
+      organizationName: "Ethiopian Airlines",
+      locationName: "Addis Ababa",
+    });
+    mocks.mockFacebookPublication.mockResolvedValue(null);
+
+    const html = await renderDetail(jobWith({ status: "PUBLISHED" }));
+
+    expect(html).toContain("Publish to Facebook");
+    expect(html).toContain("Job Ethiopia");
+    expect(html).toContain("872697352845055");
+    expect(html).toContain("Senior Pilot — Ethiopian Airlines");
+    expect(html).toContain(
+      "documented right to redistribute this listing",
+    );
+  });
+
+  it("does not render the Facebook publish panel without a preview", async () => {
+    const html = await renderDetail(jobWith({ status: "PUBLISHED" }));
+    expect(html).not.toContain("Publish to Facebook");
+  });
 });
 
 describe("AdminJobsPage — Source column", () => {
@@ -368,5 +414,129 @@ describe("AdminJobDetailPage — provenance section", () => {
   it("shows a clear No source recorded state when provenance is missing on the record", async () => {
     const html = await renderDetail(FULL_JOB);
     expect(html).toContain("No source recorded.");
+  });
+});
+
+describe("AdminJobDetailPage — category assignment", () => {
+  const WASH_ID = "852af5d8-b7a9-4825-a251-00cc2087f0e5";
+  const WASH_NAME = "Water, Sanitation and Hygiene (WASH)";
+
+  async function renderDetail(job: unknown) {
+    mocks.mockGetJob.mockResolvedValue(job);
+    mocks.mockGetAudit.mockResolvedValue([]);
+    const element = await AdminJobDetailPage({
+      params: Promise.resolve({ id: FULL_JOB.id }),
+    });
+    return renderToStaticMarkup(element);
+  }
+
+  it("offers the active WASH category in the dropdown for an uncategorized draft", async () => {
+    mocks.mockListActiveCategories.mockResolvedValue([
+      { id: WASH_ID, name: WASH_NAME },
+    ]);
+
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "DRAFT",
+      categoryId: null,
+      categoryName: null,
+    });
+
+    expect(html).toContain("No category assigned.");
+    expect(html).toContain("Assign category");
+    expect(html).toContain(WASH_NAME);
+    expect(html).toContain(`value="${WASH_ID}"`);
+    expect(mocks.mockListActiveCategories).toHaveBeenCalled();
+  });
+
+  it("shows the assigned category and no assignment form", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "DRAFT",
+      categoryId: WASH_ID,
+      categoryName: WASH_NAME,
+    });
+
+    expect(html).toContain("Current category:");
+    expect(html).toContain(WASH_NAME);
+    expect(html).not.toContain("Assign category");
+    expect(mocks.mockListActiveCategories).not.toHaveBeenCalled();
+  });
+
+  it("does not offer assignment for a non-draft job", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "PENDING_REVIEW",
+      categoryId: null,
+      categoryName: null,
+    });
+
+    expect(html).not.toContain("Assign category");
+    expect(html).toContain(
+      "A category can only be assigned while the job is a draft.",
+    );
+    expect(mocks.mockListActiveCategories).not.toHaveBeenCalled();
+  });
+
+  it("explains when no active categories are available", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "DRAFT",
+      categoryId: null,
+      categoryName: null,
+    });
+
+    expect(html).toContain("No active categories are available to assign.");
+  });
+});
+
+describe("AdminJobDetailPage — Ethiopia Time deadline and draft correction", () => {
+  const DEADLINE = new Date("2099-11-19T20:55:00.000Z");
+
+  async function renderDetail(job: unknown) {
+    mocks.mockGetJob.mockResolvedValue(job);
+    mocks.mockGetAudit.mockResolvedValue([]);
+    const element = await AdminJobDetailPage({
+      params: Promise.resolve({ id: FULL_JOB.id }),
+    });
+    return renderToStaticMarkup(element);
+  }
+
+  it("displays the stored instant in Ethiopia Time, not the server timezone", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "PENDING_REVIEW",
+      deadline: DEADLINE,
+    });
+
+    expect(html).toContain("Deadline (EAT)");
+    expect(html).toContain("19 Nov 2099, 23:55 EAT");
+  });
+
+  it("offers the correction form for a draft with EAT-prefilled values", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "DRAFT",
+      deadline: DEADLINE,
+      description: "Official description",
+      requirements: "Official requirements",
+    });
+
+    expect(html).toContain("Correct draft details");
+    expect(html).toContain('name="deadline"');
+    expect(html).toContain('value="2099-11-19T23:55"');
+    expect(html).toContain("Official description");
+    expect(html).toContain("Official requirements");
+    expect(html).toContain("does not publish the job");
+  });
+
+  it("does not offer the correction form for a non-draft job", async () => {
+    const html = await renderDetail({
+      ...FULL_JOB,
+      status: "PENDING_REVIEW",
+      deadline: DEADLINE,
+    });
+
+    expect(html).not.toContain("Correct draft details");
   });
 });

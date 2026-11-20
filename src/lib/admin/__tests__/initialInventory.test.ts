@@ -47,7 +47,7 @@ import {
   internalProvenanceUrl,
 } from "@/lib/sources/provenance";
 import { employerCreateJobSchema } from "@/lib/validations/employerJob";
-import type { EmployerCreateJobInput } from "@/lib/validations/employerJob";
+import type { CuratedCreateJobInput } from "@/lib/validations/curatedJob";
 import type { AuthUser } from "@/lib/auth/roles";
 import {
   REFERENCE_INVENTORY,
@@ -69,7 +69,7 @@ function staffActor(role: AuthUser["role"]): AuthUser {
 function recordInput(
   record: ReferenceInventoryRecord,
   overrides: Record<string, unknown> = {},
-): EmployerCreateJobInput {
+): CuratedCreateJobInput {
   return {
     organizationId: record.fixtureIds.organizationId,
     title: record.title,
@@ -84,7 +84,7 @@ function recordInput(
     deadline: new Date(Date.now() + record.deadlineDays * DAY_MS).toISOString(),
     applicationUrl: record.applicationUrl,
     ...overrides,
-  } as EmployerCreateJobInput;
+  } as CuratedCreateJobInput;
 }
 
 /** Maps a reference record to the job row the publication gate validates. */

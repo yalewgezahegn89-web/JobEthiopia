@@ -52,6 +52,7 @@ export type PublicJobSummary = {
   professionId: string | null;
   locationId: string | null;
   organizationName: string | null;
+  organizationLogoUrl: string | null;
   locationName: string | null;
   categoryName: string | null;
   professionName: string | null;
@@ -69,6 +70,7 @@ export type PublicJobDetail = {
   title: string;
   slug: string;
   organizationName: string | null;
+  organizationLogoUrl: string | null;
   locationName: string | null;
   categoryName: string | null;
   professionName: string | null;
@@ -104,7 +106,25 @@ export class PublicApiError extends Error {
   }
 }
 
-type EntityRef = { id?: string; name?: string } | null | undefined;
+type EntityRef = {
+  id?: string;
+  name?: string;
+  logoUrl?: string | null;
+} | null | undefined;
+
+/** Only HTTPS logo URLs are rendered; the public CSP allows https: images. */
+export function safeEmployerLogoUrl(value: unknown): string | null {
+  if (typeof value !== "string" || value.length === 0) return null;
+  try {
+    return new URL(value).protocol === "https:" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function entityLogoUrl(entity: EntityRef): string | null {
+  return safeEmployerLogoUrl(entity?.logoUrl);
+}
 
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -285,6 +305,7 @@ export function toPublicJobSummary(raw: Record<string, unknown>): PublicJobSumma
       entityId(raw.location as EntityRef) ??
       (typeof raw.locationId === "string" ? raw.locationId : null),
     organizationName: entityName(raw.organization as EntityRef),
+    organizationLogoUrl: entityLogoUrl(raw.organization as EntityRef),
     locationName: entityName(raw.location as EntityRef),
     categoryName: entityName(raw.category as EntityRef),
     professionName: entityName(raw.profession as EntityRef),
@@ -313,6 +334,7 @@ export function toPublicJobDetail(raw: Record<string, unknown>): PublicJobDetail
     title: String(raw.title ?? ""),
     slug: String(raw.slug ?? ""),
     organizationName: entityName(raw.organization as EntityRef),
+    organizationLogoUrl: entityLogoUrl(raw.organization as EntityRef),
     locationName: entityName(raw.location as EntityRef),
     categoryName: entityName(raw.category as EntityRef),
     professionName: entityName(raw.profession as EntityRef),

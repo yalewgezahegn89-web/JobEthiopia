@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import ResetPasswordForm from "./reset-password-form";
 import { AuthCard } from "@/components/auth/auth-card";
+import { privateMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Choose a new password",
-};
+export const metadata: Metadata = privateMetadata("Choose a new password");
 
 export default async function ResetPasswordPage({
   searchParams,

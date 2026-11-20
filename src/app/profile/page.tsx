@@ -10,14 +10,15 @@ import { getCandidateProfile } from "@/lib/candidateProfile/dal";
 import { ProfileForm } from "@/components/profile/profile-form";
 import { UserIcon, ArrowRightIcon } from "@/components/public/icons";
 import { getI18n } from "@/lib/i18n/server";
+import { privateMetadata } from "@/lib/seo/metadata";
 import ChangePasswordForm from "./change-password/change-password-form";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "My Profile | JobEthiopia",
-  description: "Your candidate profile on JobEthiopia.",
-};
+export const metadata: Metadata = privateMetadata(
+  "My Profile",
+  "Your candidate profile on JobEthiopia.",
+);
 
 function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
@@ -167,7 +168,6 @@ export default async function ProfilePage() {
                 totalExperienceYears={profile?.totalExperienceYears ?? null}
                 education={profile?.education ?? null}
                 locations={locationOptions}
-                t={t}
               />
             </div>
           )}
@@ -190,7 +190,7 @@ export default async function ProfilePage() {
             {t.profile.securitySubtitle}
           </p>
           <div className="mt-4">
-            <ChangePasswordForm t={t} />
+            <ChangePasswordForm />
           </div>
         </div>
       </section>

@@ -216,18 +216,19 @@ describe("LocationPage generateMetadata", () => {
     const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
     expect(metadata.alternates).toBeDefined();
     expect(metadata.alternates!.canonical).toContain(`/locations/${LOCATION_ID}`);
+    expect(metadata.alternates!.languages).toBeUndefined();
   });
 
   it("returns fallback metadata for a missing location", async () => {
     mocks.mockFetchLocationById.mockResolvedValue(null);
     const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
-    expect(metadata.title).toBe("Location | JobEthiopia");
+    expect(metadata.title).toEqual({ absolute: "Location | JobEthiopia" });
   });
 
   it("returns fallback metadata when fetching throws", async () => {
     mocks.mockFetchLocationById.mockRejectedValue(new Error("network error"));
     const metadata = await generateMetadata({ params: Promise.resolve({ id: LOCATION_ID }) });
-    expect(metadata.title).toBe("Location | JobEthiopia");
+    expect(metadata.title).toEqual({ absolute: "Location | JobEthiopia" });
   });
 
   it("formats location type in description", async () => {

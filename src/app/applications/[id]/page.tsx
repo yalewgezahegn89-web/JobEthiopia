@@ -21,6 +21,7 @@ import {
   ArrowRightIcon,
 } from "@/components/public/icons";
 import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import { NOINDEX_METADATA } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t.applications.detail.pageTitle,
     description: t.applications.detail.metaDescription,
+    robots: NOINDEX_METADATA,
   };
 }
 

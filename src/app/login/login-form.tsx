@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import { loginAction } from "./actions";
 import type { LoginActionState } from "./types";
 
@@ -33,12 +33,12 @@ export default function LoginForm() {
           <label htmlFor="password" className="block text-sm font-medium text-foreground">
             Password
           </label>
-          <Link
+          <LocalizedLink
             href="/forgot-password"
             className="text-sm font-medium text-primary hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             Forgot password?
-          </Link>
+          </LocalizedLink>
         </div>
         <input
           id="password"

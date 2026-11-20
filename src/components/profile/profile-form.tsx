@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { updateProfileAction, type ProfileActionResult } from "@/app/profile/actions";
-import type { Dictionary } from "@/lib/i18n/dictionary";
+import { useI18n } from "@/lib/i18n/client";
 
 type LocationOption = {
   id: string;
@@ -18,7 +18,6 @@ type ProfileFormProps = {
   totalExperienceYears: number | null;
   education: string | null;
   locations: LocationOption[];
-  t: Dictionary;
 };
 
 const INITIAL_STATE: ProfileActionResult = { ok: false };
@@ -40,8 +39,8 @@ export function ProfileForm({
   totalExperienceYears,
   education,
   locations,
-  t,
 }: ProfileFormProps) {
+  const { t } = useI18n();
   const [state, formAction, isPending] = useActionState<
     ProfileActionResult,
     FormData

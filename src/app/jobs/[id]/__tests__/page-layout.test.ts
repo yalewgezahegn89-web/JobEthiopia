@@ -88,6 +88,7 @@ function makeJob(overrides: Record<string, unknown> = {}) {
     title: "Senior Accountant",
     slug: "senior-accountant",
     organizationName: "ACME Plc",
+    organizationLogoUrl: null,
     locationName: "Addis Ababa",
     categoryName: "Finance",
     professionName: "Accounting",
@@ -105,7 +106,7 @@ function makeJob(overrides: Record<string, unknown> = {}) {
     postedAt: "2026-01-01T00:00:00.000Z",
     applicationUrl: null,
     verificationStatus: "VERIFIED",
-    lastVerifiedAt: "2026-01-02T00:00:00.000Z",
+    lastVerifiedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     firstSeenAt: null,
     createdAt: null,
     status: "PUBLISHED",
@@ -123,6 +124,7 @@ function makeSummary(overrides: Record<string, unknown> = {}) {
     professionId: null,
     locationId: null,
     organizationName: "Beta Ltd",
+    organizationLogoUrl: null,
     locationName: "Dire Dawa",
     categoryName: null,
     professionName: null,
@@ -175,6 +177,15 @@ describe("JobPage layout", () => {
     const html = await renderJob();
     expect(html).toContain("ACME Plc");
     expect(html).toContain("AC");
+  });
+
+  it("renders the organization logo on the job detail page when available", async () => {
+    mocks.mockFetchJobById.mockResolvedValue(
+      makeJob({ organizationLogoUrl: "https://cdn.example.com/acme.png" }),
+    );
+    const html = await renderJob();
+    expect(html).toContain('src="https://cdn.example.com/acme.png"');
+    expect(html).toContain('alt="ACME Plc logo"');
   });
 
   it("renders the verified state with success badge", async () => {
@@ -306,6 +317,28 @@ describe("JobPage layout", () => {
     expect(html).not.toContain('type="application/ld+json"');
   });
 
+  it("does not put inferred salary or application data in JobPosting JSON-LD", async () => {
+    mocks.mockFetchJobById.mockResolvedValue(
+      makeJob({
+        salaryText: "30,000 - 45,000 ETB",
+        applicationUrl: "https://employer.example.com/apply",
+        employmentType: "FREELANCE",
+      }),
+    );
+    const html = await renderJob();
+    const json = html.match(
+      /<script type="application\/ld\+json">(.*?)<\/script>/,
+    );
+
+    expect(json).not.toBeNull();
+    const ld = JSON.parse(json![1]);
+    expect(ld.employmentType).toBe("CONTRACTOR");
+    expect(ld).not.toHaveProperty("baseSalary");
+    expect(ld).not.toHaveProperty("applicationContact");
+    expect(json![1]).not.toContain("employer.example.com");
+    expect(ld.url).toContain(`/jobs/${JOB_ID}`);
+  });
+
   it("renders an error state when loading fails", async () => {
     mocks.mockFetchJobById.mockRejectedValue(new Error("boom"));
     const html = await renderJob();
@@ -356,19 +389,20 @@ describe("JobPage generateMetadata", () => {
     const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
     expect(metadata.alternates).toBeDefined();
     expect(metadata.alternates!.canonical).toContain(`/jobs/${JOB_ID}`);
+    expect(metadata.alternates!.languages).toBeUndefined();
   });
 
   it("returns fallback metadata for a missing job", async () => {
     mocks.mockFetchJobById.mockResolvedValue(null);
     const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
-    expect(metadata.title).toBe("Job | JobEthiopia");
+    expect(metadata.title).toEqual({ absolute: "Job | JobEthiopia" });
     expect(metadata.description).toBe("Job details on JobEthiopia.");
   });
 
   it("returns fallback metadata when fetching throws", async () => {
     mocks.mockFetchJobById.mockRejectedValue(new Error("network error"));
     const metadata = await generateMetadata({ params: Promise.resolve({ id: JOB_ID }) });
-    expect(metadata.title).toBe("Job | JobEthiopia");
+    expect(metadata.title).toEqual({ absolute: "Job | JobEthiopia" });
   });
 
   it("generates description from job title and org when description is null", async () => {

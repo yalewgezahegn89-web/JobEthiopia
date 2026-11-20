@@ -3,6 +3,7 @@ import { jobs } from "../../db/schema/jobs";
 import { jobSources } from "../../db/schema/jobSources";
 import { generateSlug } from "./slug";
 import { canonicalizeUrl } from "../dedup/canonicalUrl";
+import { normalizeApplicantEligibility } from "../jobs/applicantEligibility";
 
 const MAX_SLUG_RETRIES = 10;
 
@@ -26,6 +27,7 @@ export interface UpsertJobInput {
   benefits: string | null;
   postedAt: Date | null;
   deadline: Date | null;
+  applicantEligibility?: string;
   applicationUrl: string | null;
   sourceId: string;
   externalId: string | null;
@@ -87,6 +89,9 @@ export async function upsertJob(
           salaryPeriod: input.salaryPeriod as never,
           postedAt: input.postedAt,
           deadline: input.deadline,
+          applicantEligibility: normalizeApplicantEligibility(
+            input.applicantEligibility,
+          ) as never,
           applicationUrl: input.applicationUrl,
           status: "DRAFT",
           verificationStatus: "PENDING",

@@ -6,9 +6,10 @@ import type {
   ChangePasswordActionState,
   ChangePasswordFieldErrors,
 } from "../profile/change-password/types";
-import type { Dictionary } from "@/lib/i18n/dictionary";
+import { useI18n } from "@/lib/i18n/client";
 
-export function SettingsPasswordForm({ t }: { t: Dictionary }) {
+export function SettingsPasswordForm() {
+  const { t } = useI18n();
   const [state, formAction, isPending] = useActionState<
     ChangePasswordActionState,
     FormData

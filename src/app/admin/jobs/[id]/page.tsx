@@ -2,10 +2,25 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { requireStaffAdmin } from "@/lib/auth/context";
-import { getModerationJob, getJobAuditHistory } from "@/lib/admin/jobs";
+import {
+  getModerationJob,
+  getJobAuditHistory,
+  listActiveJobCategories,
+} from "@/lib/admin/jobs";
 import { isJobStale } from "@/lib/jobs/public";
+import {
+  getFacebookPublicationForJob,
+  getFacebookPublishPreview,
+  OWNED_FACEBOOK_PAGE_ID,
+  OWNED_FACEBOOK_PAGE_NAME,
+} from "@/lib/facebook/publishing";
+import { isFacebookPublishingLiveEnabled } from "@/lib/facebook/config";
 import AdminNav from "../../nav";
 import ModerationPanel from "./moderation-panel";
+import CategoryAssignmentPanel from "./category-assignment-panel";
+import DraftCorrectionPanel from "./draft-correction-panel";
+import FacebookPublishPanel from "./facebook-publish-panel";
+import { formatEthiopiaDateTime } from "@/lib/time/ethiopia";
 
 export const metadata = {
   title: "Job Moderation Detail | JobEthiopia Admin",
@@ -22,14 +37,29 @@ export default async function AdminJobDetailPage({
   }
 
   const { id } = await params;
+  const livePublishingEnabled = isFacebookPublishingLiveEnabled();
+  const previewDeployment = process.env.VERCEL_ENV?.trim() === "preview";
 
   let job;
   let audit: Awaited<ReturnType<typeof getJobAuditHistory>> = [];
+  let activeCategories: Awaited<ReturnType<typeof listActiveJobCategories>> = [];
   let loadError = false;
+  let facebookPreview: Awaited<ReturnType<typeof getFacebookPublishPreview>> =
+    null;
+  let facebookPublication:
+    | Awaited<ReturnType<typeof getFacebookPublicationForJob>>
+    | null = null;
   try {
     job = await getModerationJob(id);
     if (job) {
       audit = await getJobAuditHistory(job.id);
+      if (job.status === "DRAFT" && job.categoryId === null) {
+        activeCategories = await listActiveJobCategories();
+      }
+      if (job.status === "PUBLISHED") {
+        facebookPreview = await getFacebookPublishPreview(job.id);
+        facebookPublication = await getFacebookPublicationForJob(job.id);
+      }
     }
   } catch {
     loadError = true;
@@ -79,6 +109,56 @@ export default async function AdminJobDetailPage({
           />
         </div>
 
+        <div className="mt-6">
+          <CategoryAssignmentPanel
+            jobId={job.id}
+            status={job.status}
+            categoryId={job.categoryId}
+            categoryName={job.categoryName}
+            categories={activeCategories}
+          />
+        </div>
+
+        {job.status === "DRAFT" ? (
+          <div className="mt-6">
+            <DraftCorrectionPanel
+              jobId={job.id}
+              deadline={job.deadline}
+              description={job.description ?? ""}
+              requirements={job.requirements ?? null}
+            />
+          </div>
+        ) : null}
+
+        {job.status === "PUBLISHED" && facebookPreview ? (
+          <div className="mt-6">
+            <FacebookPublishPanel
+              jobId={job.id}
+              pageName={OWNED_FACEBOOK_PAGE_NAME}
+              pageId={OWNED_FACEBOOK_PAGE_ID}
+              postMessage={facebookPreview.message}
+              postLink={facebookPreview.link}
+              publication={
+                facebookPublication
+                  ? {
+                      state: facebookPublication.state,
+                      facebookPostId: facebookPublication.facebookPostId,
+                      lastError: facebookPublication.lastError,
+                    }
+                  : null
+              }
+              eligible={
+                facebookPreview.verificationStatus === "VERIFIED" &&
+                !facebookPreview.deadlineExpired &&
+                facebookPreview.eligibilityConfirmed
+              }
+              ineligibleReason={facebookIneligibleReason(facebookPreview)}
+              livePublishingEnabled={livePublishingEnabled}
+              previewDeployment={previewDeployment}
+            />
+          </div>
+        ) : null}
+
         <section className="mt-6 rounded-xl border border-border bg-surface p-6 text-sm shadow-sm">
           <h2 className="text-lg font-semibold text-foreground">Details</h2>
           <p className="mt-3 whitespace-pre-line text-foreground">
@@ -103,7 +183,7 @@ export default async function AdminJobDetailPage({
             <div><dt className="text-sm text-muted">Employment type</dt><dd className="text-sm font-medium text-foreground">{job.employmentType ?? "n/a"}</dd></div>
             <div><dt className="text-sm text-muted">Salary</dt><dd className="text-sm font-medium text-foreground">{formatSalary(job.salaryMin, job.salaryMax, job.salaryCurrency)}</dd></div>
             <div><dt className="text-sm text-muted">Posted</dt><dd className="text-sm font-medium text-foreground">{job.postedAt ? new Date(job.postedAt).toLocaleString() : "n/a"}</dd></div>
-            <div><dt className="text-sm text-muted">Deadline</dt><dd className="text-sm font-medium text-foreground">{job.deadline ? new Date(job.deadline).toLocaleString() : "n/a"}</dd></div>
+            <div><dt className="text-sm text-muted">Deadline (EAT)</dt><dd className="text-sm font-medium text-foreground">{job.deadline ? formatEthiopiaDateTime(job.deadline) : "n/a"}</dd></div>
             <div><dt className="text-sm text-muted">Last verified</dt><dd className="text-sm font-medium text-foreground">{job.lastVerifiedAt ? new Date(job.lastVerifiedAt).toLocaleString() : "Never"}{job.status === "PUBLISHED" && isJobStale(job.lastVerifiedAt ? job.lastVerifiedAt.toISOString() : null) ? (<span className="ml-2 inline-flex items-center rounded-full bg-warning-light px-2 py-0.5 text-xs font-semibold text-warning">Stale</span>) : null}</dd></div>
             {job.applicationUrl && (
               <div><dt className="text-sm text-muted">Application URL</dt><dd className="text-sm font-medium text-foreground"><a href={job.applicationUrl} target="_blank" rel="noopener noreferrer" className="text-primary underline">{job.applicationUrl}</a></dd></div>
@@ -180,6 +260,22 @@ function formatSalary(
   if (max != null) parts.push(String(max));
   const value = parts.length === 2 ? `${parts[0]} - ${parts[1]}` : parts[0];
   return currency ? `${value} ${currency}` : value;
+}
+
+function facebookIneligibleReason(
+  preview: Awaited<ReturnType<typeof getFacebookPublishPreview>>,
+): string | null {
+  if (!preview) return null;
+  if (preview.verificationStatus !== "VERIFIED") {
+    return "Only verified jobs can be shared to Facebook.";
+  }
+  if (preview.deadlineExpired) {
+    return "This vacancy has expired and cannot be shared to Facebook.";
+  }
+  if (!preview.eligibilityConfirmed) {
+    return "Applicant eligibility must be explicitly confirmed before this job can be shared to Facebook.";
+  }
+  return null;
 }
 
 function isSafeExternalUrl(url: string): boolean {

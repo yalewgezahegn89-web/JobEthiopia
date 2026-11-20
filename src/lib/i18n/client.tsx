@@ -30,3 +30,12 @@ export function useI18n(): { locale: Locale; t: Dictionary } {
   }
   return ctx;
 }
+
+/**
+ * Non-throwing access to the same locale context. Intended for small shared
+ * client primitives that render in isolated tests; the app layout always
+ * provides the context, so the fallback is only used outside that tree.
+ */
+export function useOptionalI18n(): { locale: Locale; t: Dictionary } | null {
+  return useContext(I18nContext);
+}

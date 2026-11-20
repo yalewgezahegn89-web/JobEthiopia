@@ -3,6 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const mockFindFirst = vi.fn();
 const mockDbUpdate = vi.fn();
 const mockDbDelete = vi.fn();
+const mockDbInsert = vi.fn();
+const mockTxSelect = vi.fn();
+const mockTxFor = vi.fn();
 
 vi.mock("../../../db", () => ({
   db: {
@@ -13,6 +16,26 @@ vi.mock("../../../db", () => ({
     },
     update: (...args: unknown[]) => mockDbUpdate(...args),
     delete: (...args: unknown[]) => mockDbDelete(...args),
+    transaction: async (fn: (tx: Record<string, unknown>) => Promise<unknown>) => {
+      const tx = {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              limit: () => ({
+                for: (...forArgs: unknown[]) => {
+                  mockTxFor(...forArgs);
+                  return mockTxSelect();
+                },
+              }),
+            }),
+          }),
+        }),
+        update: (...args: unknown[]) => mockDbUpdate(...args),
+        delete: (...args: unknown[]) => mockDbDelete(...args),
+        insert: (...args: unknown[]) => mockDbInsert(...args),
+      };
+      return fn(tx);
+    },
   },
 }));
 
@@ -320,7 +343,25 @@ describe("PUT /api/sources/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("INGESTION_API_KEY", API_KEY);
-    mockFindFirst.mockResolvedValue({ id: VALID_ID });
+    mockAssertTrustedCsrfFromRequest.mockResolvedValue(undefined);
+    mockTxSelect.mockResolvedValue([
+      {
+        id: VALID_ID,
+        name: "Manual Entry",
+        sourceType: "MANUAL",
+        baseUrl: null,
+        isActive: true,
+        trustLevel: "MEDIUM",
+        autoPublish: false,
+        checkFrequencyMinutes: null,
+        facebookPageId: null,
+        facebookPageKind: null,
+        facebookApprovalState: null,
+        facebookContentUseState: null,
+        facebookAuthorizationNote: null,
+      },
+    ]);
+    mockDbInsert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
   });
 
   describe("authentication", () => {
@@ -434,7 +475,7 @@ describe("PUT /api/sources/[id]", () => {
 
   describe("not found", () => {
     it("returns 404 when source does not exist", async () => {
-      mockFindFirst.mockResolvedValue(null);
+      mockTxSelect.mockResolvedValue([]);
 
       const request = makePutRequest(VALID_ID, { name: "Test" });
       const response = await PUT(request, {
@@ -444,6 +485,169 @@ describe("PUT /api/sources/[id]", () => {
 
       expect(response.status).toBe(404);
       expect(data.error).toBe("Source not found");
+      expect(mockDbUpdate).not.toHaveBeenCalled();
+      expect(mockDbInsert).not.toHaveBeenCalled();
+      expect(mockTxFor).toHaveBeenCalledWith("update");
+    });
+  });
+
+  describe("privileged field restrictions", () => {
+    it("rejects explicit HIGH trust with 403 and no write", async () => {
+      const request = makePutRequest(VALID_ID, { trustLevel: "HIGH" });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data.error).toBe("Forbidden");
+      expect(mockDbUpdate).not.toHaveBeenCalled();
+    });
+
+    it("rejects autoPublish=true with 403 and no write", async () => {
+      const request = makePutRequest(VALID_ID, {
+        trustLevel: "MEDIUM",
+        autoPublish: true,
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data.error).toBe("Forbidden");
+      expect(mockDbUpdate).not.toHaveBeenCalled();
+    });
+
+    it("rejects downgrading trust and disabling auto-publish", async () => {
+      const request = makePutRequest(VALID_ID, {
+        trustLevel: "LOW",
+        autoPublish: false,
+      });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data.error).toBe("Forbidden");
+      expect(mockDbUpdate).not.toHaveBeenCalled();
+    });
+
+    it("rejects redirecting or retyping a privileged source", async () => {
+      mockTxSelect.mockResolvedValue([{
+        id: VALID_ID,
+        name: "Trusted",
+        sourceType: "API",
+        baseUrl: "https://trusted.example.com/feed",
+        isActive: true,
+        trustLevel: "HIGH",
+        autoPublish: true,
+        checkFrequencyMinutes: 60,
+        facebookPageId: null,
+        facebookPageKind: null,
+        facebookApprovalState: null,
+        facebookContentUseState: null,
+        facebookAuthorizationNote: null,
+      }]);
+
+      for (const body of [
+        { baseUrl: "https://evil.example.com/feed" },
+        { sourceType: "FEED" },
+        { isActive: false },
+        { facebookApprovalState: "APPROVED" },
+      ]) {
+        const request = makePutRequest(VALID_ID, body);
+        const response = await PUT(request, {
+          params: Promise.resolve({ id: VALID_ID }),
+        });
+        expect(response.status).toBe(403);
+        expect(mockDbUpdate).not.toHaveBeenCalled();
+        expect(mockDbInsert).not.toHaveBeenCalled();
+        vi.clearAllMocks();
+        vi.stubEnv("INGESTION_API_KEY", API_KEY);
+        mockAssertTrustedCsrfFromRequest.mockResolvedValue(undefined);
+        mockTxSelect.mockResolvedValue([{
+          id: VALID_ID, name: "Trusted", sourceType: "API", baseUrl: "https://trusted.example.com/feed", isActive: true, trustLevel: "HIGH", autoPublish: true, checkFrequencyMinutes: 60, facebookPageId: null, facebookPageKind: null, facebookApprovalState: null, facebookContentUseState: null, facebookAuthorizationNote: null,
+        }]);
+        mockDbInsert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
+      }
+    });
+
+    it("does not write privileged fields omitted from a partial update", async () => {
+      mockUpdateSuccess({ ...UPDATED_SOURCE, name: "Renamed" });
+      const request = makePutRequest(VALID_ID, { name: "Renamed" });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const payload = mockDbUpdate.mock.results[0].value.set.mock.calls[0][0];
+
+      expect(response.status).toBe(200);
+      expect(payload).not.toHaveProperty("trustLevel");
+      expect(payload).not.toHaveProperty("autoPublish");
+    });
+  });
+
+  describe("merged Facebook validation", () => {
+    const FACEBOOK_EXISTING = {
+      id: VALID_ID,
+      sourceType: "FACEBOOK" as const,
+      baseUrl: "https://www.facebook.com/example",
+      facebookPageId: "page-1",
+      facebookPageKind: "OWNED_PAGE" as const,
+      facebookApprovalState: "NOT_REQUESTED" as const,
+      facebookContentUseState: "NOT_RECORDED" as const,
+    };
+
+    it("rejects switching a source to FACEBOOK", async () => {
+      mockFindFirst.mockResolvedValue({
+        id: VALID_ID,
+        sourceType: "WEBSITE",
+        baseUrl: "https://example.com",
+        facebookPageId: null,
+        facebookPageKind: null,
+        facebookApprovalState: null,
+        facebookContentUseState: null,
+      });
+
+      const request = makePutRequest(VALID_ID, { sourceType: "FACEBOOK" });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data.error).toBe("Forbidden");
+      expect(mockDbUpdate).not.toHaveBeenCalled();
+    });
+
+    it("rejects clearing required metadata from an existing FACEBOOK source", async () => {
+      mockTxSelect.mockResolvedValue([{ ...FACEBOOK_EXISTING, name: "FB", isActive: true, trustLevel: "HIGH", autoPublish: true, checkFrequencyMinutes: 60, facebookAuthorizationNote: null }]);
+
+      const request = makePutRequest(VALID_ID, { facebookPageId: null });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data.error).toBe("Forbidden");
+      expect(mockDbUpdate).not.toHaveBeenCalled();
+      expect(mockDbInsert).not.toHaveBeenCalled();
+    });
+
+    it("allows a valid partial update on an existing FACEBOOK source", async () => {
+      mockFindFirst.mockResolvedValue(FACEBOOK_EXISTING);
+      mockUpdateSuccess({ ...UPDATED_SOURCE, name: "Renamed Page" });
+
+      const request = makePutRequest(VALID_ID, { name: "Renamed Page" });
+      const response = await PUT(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const payload = mockDbUpdate.mock.results[0].value.set.mock.calls[0][0];
+
+      expect(response.status).toBe(200);
+      expect(payload).toEqual({ name: "Renamed Page" });
     });
   });
 
@@ -456,7 +660,6 @@ describe("PUT /api/sources/[id]", () => {
         sourceType: "API",
         baseUrl: "https://updated.example.com",
         isActive: false,
-        trustLevel: "LOW",
       });
       const response = await PUT(request, {
         params: Promise.resolve({ id: VALID_ID }),
@@ -622,7 +825,17 @@ describe("DELETE /api/sources/[id]", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubEnv("INGESTION_API_KEY", API_KEY);
-    mockFindFirst.mockResolvedValue({ id: VALID_ID });
+    mockAssertTrustedCsrfFromRequest.mockResolvedValue(undefined);
+    mockTxSelect.mockResolvedValue([
+      {
+        id: VALID_ID,
+        name: "Manual Entry",
+        sourceType: "WEBSITE",
+        trustLevel: "MEDIUM",
+        autoPublish: false,
+      },
+    ]);
+    mockDbInsert.mockReturnValue({ values: vi.fn().mockResolvedValue(undefined) });
   });
 
   describe("authentication", () => {
@@ -674,7 +887,7 @@ describe("DELETE /api/sources/[id]", () => {
 
   describe("not found", () => {
     it("returns 404 when source does not exist", async () => {
-      mockFindFirst.mockResolvedValue(null);
+      mockTxSelect.mockResolvedValue([]);
 
       const request = makeDeleteRequest(VALID_ID);
       const response = await DELETE(request, {
@@ -684,6 +897,33 @@ describe("DELETE /api/sources/[id]", () => {
 
       expect(response.status).toBe(404);
       expect(data.error).toBe("Source not found");
+      expect(mockDbDelete).not.toHaveBeenCalled();
+      expect(mockDbInsert).not.toHaveBeenCalled();
+      expect(mockTxFor).toHaveBeenCalledWith("update");
+    });
+  });
+
+  describe("privileged deletion restrictions", () => {
+    it("rejects deleting a privileged source with 403 and no delete", async () => {
+      mockTxSelect.mockResolvedValue([{
+        id: VALID_ID,
+        name: "Trusted",
+        sourceType: "API",
+        trustLevel: "HIGH",
+        autoPublish: true,
+      }]);
+
+      const request = makeDeleteRequest(VALID_ID);
+      const response = await DELETE(request, {
+        params: Promise.resolve({ id: VALID_ID }),
+      });
+      const data = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(data.error).toBe("Forbidden");
+      expect(mockDbDelete).not.toHaveBeenCalled();
+      expect(mockDbInsert).not.toHaveBeenCalled();
+      expect(mockTxFor).toHaveBeenCalledWith("update");
     });
   });
 

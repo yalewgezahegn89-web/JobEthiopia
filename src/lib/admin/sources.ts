@@ -5,6 +5,10 @@
  * workflow. All functions assume the caller has already performed session
  * authentication and role authorization. Identity is never taken from
  * client input.
+ *
+ * createSource() and updateSource() also enforce the privileged-field policy
+ * from their explicit actor context so a future caller cannot grant HIGH trust
+ * or enable auto-publish by calling the service directly.
  */
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -12,7 +16,18 @@ import { sources } from "@/db/schema/sources";
 import { auditLog } from "@/db/schema/auditLog";
 import { users } from "@/db/schema/users";
 import { isPgForeignKeyViolation, isPgUniqueViolation } from "@/lib/pgErrors";
-import { createSourceSchema, updateSourceSchema } from "@/lib/validations";
+import {
+  authorizeSourceMutation,
+  changedSourceFields,
+  type SourceMutationActor,
+} from "@/lib/auth/roles";
+import {
+  createSourceSchema,
+  updateSourceSchema,
+  validateMergedSourceUpdate,
+} from "@/lib/validations";
+
+export type { SourceMutationActor } from "@/lib/auth/roles";
 
 export type SourceAdminSummary = {
   id: string;
@@ -21,9 +36,15 @@ export type SourceAdminSummary = {
   baseUrl: string | null;
   isActive: boolean;
   trustLevel: string;
+  autoPublish: boolean;
+  checkFrequencyMinutes: number | null;
   lastSuccessfulCheck: string | null;
   consecutiveFailures: number;
   createdAt: string;
+  facebookPageId: string | null;
+  facebookPageKind: string | null;
+  facebookApprovalState: string | null;
+  facebookContentUseState: string | null;
 };
 
 export type SourceAdminPaginated = {
@@ -48,6 +69,18 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 
 export function isValidUuid(value: string): boolean {
   return UUID_REGEX.test(value);
+}
+
+function pickAuditFields(
+  source: object,
+  fields: readonly string[],
+): Record<string, unknown> {
+  const record = source as Record<string, unknown>;
+  const picked: Record<string, unknown> = {};
+  for (const field of fields) {
+    picked[field] = record[field] ?? null;
+  }
+  return picked;
 }
 
 /**
@@ -85,9 +118,15 @@ export async function listSources(input: {
         baseUrl: true,
         isActive: true,
         trustLevel: true,
+        autoPublish: true,
+        checkFrequencyMinutes: true,
         lastSuccessfulCheck: true,
         consecutiveFailures: true,
         createdAt: true,
+        facebookPageId: true,
+        facebookPageKind: true,
+        facebookApprovalState: true,
+        facebookContentUseState: true,
       },
     }),
     db
@@ -105,9 +144,15 @@ export async function listSources(input: {
       baseUrl: r.baseUrl,
       isActive: r.isActive,
       trustLevel: r.trustLevel,
+      autoPublish: r.autoPublish,
+      checkFrequencyMinutes: r.checkFrequencyMinutes,
       lastSuccessfulCheck: r.lastSuccessfulCheck ? r.lastSuccessfulCheck.toISOString() : null,
       consecutiveFailures: r.consecutiveFailures,
       createdAt: r.createdAt.toISOString(),
+      facebookPageId: r.facebookPageId,
+      facebookPageKind: r.facebookPageKind,
+      facebookApprovalState: r.facebookApprovalState,
+      facebookContentUseState: r.facebookContentUseState,
     })),
     page,
     limit,
@@ -134,15 +179,38 @@ export async function getSource(id: string): Promise<(typeof sources.$inferSelec
  *   throws  on an unexpected DB error
  */
 export async function createSource(
-  input: { name: string; sourceType: string; baseUrl?: string | null; isActive?: boolean; trustLevel?: string },
-  actorUserId: string,
-): Promise<{ ok: true; id: string } | { ok: false; code: "VALIDATION" | "DUPLICATE" }> {
+  input: {
+    name: string;
+    sourceType: string;
+    baseUrl?: string | null;
+    isActive?: boolean;
+    trustLevel?: string;
+    autoPublish?: boolean;
+    checkFrequencyMinutes?: number | null;
+    facebookPageId?: string | null;
+    facebookPageKind?: string | null;
+    facebookApprovalState?: string | null;
+    facebookContentUseState?: string | null;
+    facebookAuthorizationNote?: string | null;
+  },
+  actor: SourceMutationActor,
+): Promise<
+  | { ok: true; id: string }
+  | { ok: false; code: "VALIDATION" | "DUPLICATE" | "FORBIDDEN" }
+> {
   const parsed = createSourceSchema.safeParse(input);
   if (!parsed.success) {
     return { ok: false, code: "VALIDATION" };
   }
 
   const data = parsed.data;
+  const authorization = authorizeSourceMutation(actor, {
+    ...data,
+    operation: "create",
+  });
+  if (!authorization.ok) {
+    return { ok: false, code: "FORBIDDEN" };
+  }
 
   try {
     let sourceId: string = "";
@@ -155,31 +223,61 @@ export async function createSource(
           baseUrl: data.baseUrl ?? null,
           isActive: data.isActive ?? true,
           trustLevel: (data.trustLevel ?? "MEDIUM") as never,
+          autoPublish: data.autoPublish ?? false,
+          checkFrequencyMinutes: data.checkFrequencyMinutes ?? null,
+          facebookPageId: data.facebookPageId ?? null,
+          facebookPageKind: (data.facebookPageKind ?? null) as never,
+          facebookApprovalState: (data.facebookApprovalState ??
+            "NOT_REQUESTED") as never,
+          facebookContentUseState: (data.facebookContentUseState ??
+            "NOT_RECORDED") as never,
+          facebookAuthorizationNote: data.facebookAuthorizationNote ?? null,
         })
         .returning({ id: sources.id });
 
       sourceId = inserted.id;
 
       await tx.insert(auditLog).values({
-        actorUserId,
+        actorUserId: actor.kind === "staff" ? actor.id : null,
         action: "SOURCE_CREATED",
         targetType: "source",
         targetId: inserted.id,
         metadata: {
           name: data.name,
           sourceType: data.sourceType,
+          fields: Object.keys(data),
+          after: pickAuditFields(data, Object.keys(data)),
         },
       });
     });
 
     return { ok: true, id: sourceId };
   } catch (err: unknown) {
-    if (isPgUniqueViolation(err, "sources_name_unique")) {
+    if (
+      isPgUniqueViolation(err, "sources_name_unique") ||
+      isPgUniqueViolation(err, "sources_facebook_page_id_unique")
+    ) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;
   }
 }
+
+const SOURCE_MUTATION_LOCK_COLUMNS = {
+  id: sources.id,
+  name: sources.name,
+  sourceType: sources.sourceType,
+  baseUrl: sources.baseUrl,
+  isActive: sources.isActive,
+  trustLevel: sources.trustLevel,
+  autoPublish: sources.autoPublish,
+  checkFrequencyMinutes: sources.checkFrequencyMinutes,
+  facebookPageId: sources.facebookPageId,
+  facebookPageKind: sources.facebookPageKind,
+  facebookApprovalState: sources.facebookApprovalState,
+  facebookContentUseState: sources.facebookContentUseState,
+  facebookAuthorizationNote: sources.facebookAuthorizationNote,
+} as const;
 
 /**
  * Updates an existing source with audit logging.
@@ -192,8 +290,11 @@ export async function createSource(
 export async function updateSource(
   sourceId: string,
   input: Record<string, unknown>,
-  actorUserId: string,
-): Promise<{ ok: true } | { ok: false; code: "NOT_FOUND" | "VALIDATION" | "DUPLICATE" }> {
+  actor: SourceMutationActor,
+): Promise<
+  | { ok: true }
+  | { ok: false; code: "NOT_FOUND" | "VALIDATION" | "DUPLICATE" | "FORBIDDEN" }
+> {
   if (!isValidUuid(sourceId)) {
     return { ok: false, code: "NOT_FOUND" };
   }
@@ -203,21 +304,40 @@ export async function updateSource(
     return { ok: false, code: "VALIDATION" };
   }
 
-  const existing = await db.query.sources.findFirst({
-    where: eq(sources.id, sourceId),
-    columns: { id: true, name: true },
-  });
-  if (!existing) {
-    return { ok: false, code: "NOT_FOUND" };
-  }
-
   const data = parsed.data;
   if (Object.keys(data).length === 0) {
     return { ok: true };
   }
 
   try {
-    await db.transaction(async (tx) => {
+    return await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select(SOURCE_MUTATION_LOCK_COLUMNS)
+        .from(sources)
+        .where(eq(sources.id, sourceId))
+        .limit(1)
+        .for("update");
+
+      if (!current) {
+        return { ok: false, code: "NOT_FOUND" };
+      }
+
+      const authorization = authorizeSourceMutation(actor, {
+        ...data,
+        existing: current,
+        operation: "update",
+      });
+      if (!authorization.ok) {
+        return { ok: false, code: "FORBIDDEN" };
+      }
+
+      // A partial patch must not invalidate the stored Facebook configuration
+      // (for example by removing the Page ID or downgrading required metadata).
+      const merged = validateMergedSourceUpdate(current, data);
+      if (!merged.ok) {
+        return { ok: false, code: "VALIDATION" };
+      }
+
       await tx
         .update(sources)
         .set({
@@ -226,24 +346,49 @@ export async function updateSource(
           ...(data.baseUrl !== undefined && { baseUrl: data.baseUrl }),
           ...(data.isActive !== undefined && { isActive: data.isActive }),
           ...(data.trustLevel !== undefined && { trustLevel: data.trustLevel as never }),
+          ...(data.autoPublish !== undefined && { autoPublish: data.autoPublish }),
+          ...(data.checkFrequencyMinutes !== undefined && {
+            checkFrequencyMinutes: data.checkFrequencyMinutes,
+          }),
+          ...(data.facebookPageId !== undefined && {
+            facebookPageId: data.facebookPageId,
+          }),
+          ...(data.facebookPageKind !== undefined && {
+            facebookPageKind: data.facebookPageKind as never,
+          }),
+          ...(data.facebookApprovalState !== undefined && {
+            facebookApprovalState: data.facebookApprovalState as never,
+          }),
+          ...(data.facebookContentUseState !== undefined && {
+            facebookContentUseState: data.facebookContentUseState as never,
+          }),
+          ...(data.facebookAuthorizationNote !== undefined && {
+            facebookAuthorizationNote: data.facebookAuthorizationNote,
+          }),
           updatedAt: new Date(),
         })
         .where(eq(sources.id, sourceId));
 
+      const auditFields = changedSourceFields({ ...data, existing: current });
       await tx.insert(auditLog).values({
-        actorUserId,
+        actorUserId: actor.kind === "staff" ? actor.id : null,
         action: "SOURCE_UPDATED",
         targetType: "source",
         targetId: sourceId,
         metadata: {
-          fields: Object.keys(data),
+          fields: auditFields,
+          before: pickAuditFields(current, auditFields),
+          after: pickAuditFields(data, auditFields),
         },
       });
-    });
 
-    return { ok: true };
+      return { ok: true };
+    });
   } catch (err: unknown) {
-    if (isPgUniqueViolation(err, "sources_name_unique")) {
+    if (
+      isPgUniqueViolation(err, "sources_name_unique") ||
+      isPgUniqueViolation(err, "sources_facebook_page_id_unique")
+    ) {
       return { ok: false, code: "DUPLICATE" };
     }
     throw err;
@@ -260,36 +405,62 @@ export async function updateSource(
  */
 export async function deleteSource(
   sourceId: string,
-  actorUserId: string,
-): Promise<{ ok: true } | { ok: false; code: "NOT_FOUND" | "FK_VIOLATION" }> {
+  actor: SourceMutationActor,
+): Promise<
+  | { ok: true }
+  | { ok: false; code: "NOT_FOUND" | "FK_VIOLATION" | "FORBIDDEN" }
+> {
   if (!isValidUuid(sourceId)) {
     return { ok: false, code: "NOT_FOUND" };
   }
 
-  const existing = await db.query.sources.findFirst({
-    where: eq(sources.id, sourceId),
-    columns: { id: true, name: true },
-  });
-  if (!existing) {
-    return { ok: false, code: "NOT_FOUND" };
-  }
-
   try {
-    await db.transaction(async (tx) => {
+    return await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          id: sources.id,
+          name: sources.name,
+          sourceType: sources.sourceType,
+          trustLevel: sources.trustLevel,
+          autoPublish: sources.autoPublish,
+        })
+        .from(sources)
+        .where(eq(sources.id, sourceId))
+        .limit(1)
+        .for("update");
+
+      if (!current) {
+        return { ok: false, code: "NOT_FOUND" };
+      }
+
+      const authorization = authorizeSourceMutation(actor, {
+        existing: current,
+        operation: "delete",
+      });
+      if (!authorization.ok) {
+        return { ok: false, code: "FORBIDDEN" };
+      }
+
       await tx.delete(sources).where(eq(sources.id, sourceId));
 
       await tx.insert(auditLog).values({
-        actorUserId,
+        actorUserId: actor.kind === "staff" ? actor.id : null,
         action: "SOURCE_DELETED",
         targetType: "source",
         targetId: sourceId,
         metadata: {
-          name: existing.name,
+          name: current.name,
+          before: pickAuditFields(current, [
+            "name",
+            "sourceType",
+            "trustLevel",
+            "autoPublish",
+          ]),
         },
       });
-    });
 
-    return { ok: true };
+      return { ok: true };
+    });
   } catch (err: unknown) {
     if (isPgForeignKeyViolation(err) || (err instanceof Error && err.message.includes("job_sources"))) {
       return { ok: false, code: "FK_VIOLATION" };
@@ -308,43 +479,64 @@ export async function deleteSource(
  */
 export async function toggleSourceActive(
   sourceId: string,
-  actorUserId: string,
-): Promise<{ ok: true; isActive: boolean } | { ok: false; code: "NOT_FOUND" }> {
+  actor: SourceMutationActor,
+): Promise<
+  | { ok: true; isActive: boolean }
+  | { ok: false; code: "NOT_FOUND" | "FORBIDDEN" }
+> {
   if (!isValidUuid(sourceId)) {
     return { ok: false, code: "NOT_FOUND" };
   }
 
-  const existing = await db.query.sources.findFirst({
-    where: eq(sources.id, sourceId),
-    columns: { id: true, isActive: true },
-  });
-  if (!existing) {
-    return { ok: false, code: "NOT_FOUND" };
-  }
-
-  const newIsActive = !existing.isActive;
-  const auditEvent = newIsActive ? "SOURCE_ACTIVATED" : "SOURCE_DEACTIVATED";
-
   try {
-    await db.transaction(async (tx) => {
+    return await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          id: sources.id,
+          name: sources.name,
+          sourceType: sources.sourceType,
+          isActive: sources.isActive,
+          trustLevel: sources.trustLevel,
+          autoPublish: sources.autoPublish,
+        })
+        .from(sources)
+        .where(eq(sources.id, sourceId))
+        .limit(1)
+        .for("update");
+
+      if (!current) {
+        return { ok: false, code: "NOT_FOUND" };
+      }
+
+      const newIsActive = !current.isActive;
+      const auditEvent = newIsActive ? "SOURCE_ACTIVATED" : "SOURCE_DEACTIVATED";
+      const authorization = authorizeSourceMutation(actor, {
+        existing: current,
+        operation: newIsActive ? "activate" : "deactivate",
+      });
+      if (!authorization.ok) {
+        return { ok: false, code: "FORBIDDEN" };
+      }
+
       await tx
         .update(sources)
         .set({ isActive: newIsActive, updatedAt: new Date() })
         .where(eq(sources.id, sourceId));
 
       await tx.insert(auditLog).values({
-        actorUserId,
+        actorUserId: actor.kind === "staff" ? actor.id : null,
         action: auditEvent,
         targetType: "source",
         targetId: sourceId,
         metadata: {
-          fromIsActive: existing.isActive,
+          name: current.name,
+          fromIsActive: current.isActive,
           toIsActive: newIsActive,
         },
       });
-    });
 
-    return { ok: true, isActive: newIsActive };
+      return { ok: true, isActive: newIsActive };
+    });
   } catch {
     throw new Error("Source toggle failed");
   }

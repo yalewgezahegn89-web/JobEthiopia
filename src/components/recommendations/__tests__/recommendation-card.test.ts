@@ -47,6 +47,7 @@ function item(
       professionId: null,
       locationId: null,
       organizationName: "ACME Plc",
+      organizationLogoUrl: null,
       locationName: null,
       categoryName: null,
       professionName: null,

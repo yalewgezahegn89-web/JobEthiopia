@@ -196,6 +196,7 @@ async function recordDelivery(
   status: "SENT" | "SKIPPED_NO_EMAIL" | "FAILED",
 ): Promise<void> {
   if (matches.length === 0) return;
+  const sentAt = new Date();
   await db
     .insert(jobAlertDeliveries)
     .values(
@@ -203,9 +204,16 @@ async function recordDelivery(
         alertId,
         jobId: job.id,
         status,
+        sentAt,
       })),
     )
-    .onConflictDoNothing();
+    .onConflictDoUpdate({
+      target: [jobAlertDeliveries.alertId, jobAlertDeliveries.jobId],
+      set: { status, sentAt },
+      // Only a previously FAILED attempt may be overwritten. SENT and
+      // SKIPPED_NO_EMAIL are terminal and must never regress.
+      setWhere: eq(jobAlertDeliveries.status, "FAILED"),
+    });
 }
 
 export interface DigestResult {

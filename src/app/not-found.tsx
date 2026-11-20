@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+﻿import { LocalizedLink } from "@/components/i18n/localized-link";
 import { getI18n } from "@/lib/i18n/server";
 
 export default async function NotFound() {
@@ -14,30 +14,30 @@ export default async function NotFound() {
       </h1>
       <p className="mt-3 max-w-md text-muted">{t.notFound.body}</p>
       <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <Link
+        <LocalizedLink
           href="/"
           className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-primary-hover hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.common.home}
-        </Link>
-        <Link
+        </LocalizedLink>
+        <LocalizedLink
           href="/jobs"
           className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.notFound.jobs}
-        </Link>
-        <Link
+        </LocalizedLink>
+        <LocalizedLink
           href="/careers"
           className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.notFound.careers}
-        </Link>
-        <Link
+        </LocalizedLink>
+        <LocalizedLink
           href="/organizations"
           className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.notFound.organizations}
-        </Link>
+        </LocalizedLink>
       </div>
     </div>
   );

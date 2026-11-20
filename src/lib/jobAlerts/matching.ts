@@ -8,9 +8,21 @@
  *     employment type (each set filter ANDs)
  *   - every keyword token (whitespace/comma separated) appears in the job
  *     title, description, or organization name (case-insensitive, LIKE-escaped)
- *   - it has not already been delivered for this alert (dedup)
+ *   - it has no terminal delivery for this alert. `SENT` and
+ *     `SKIPPED_NO_EMAIL` are terminal; `FAILED` stays eligible so a later
+ *     attempt can retry it.
  */
-import { and, desc, eq, ilike, inArray, isNull, or, type SQL } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNull,
+  notInArray,
+  or,
+  type SQL,
+} from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { organizations } from "@/db/schema/organizations";
@@ -47,6 +59,15 @@ export function splitAlertKeywords(keywords: string | null | undefined): string[
     .filter(Boolean)
     .map((token) => token.toLowerCase());
 }
+
+/**
+ * Delivery statuses that end the dedup lifecycle for an alert/job pair. Any
+ * other status (currently only `FAILED`) leaves the job eligible for a retry.
+ */
+export const TERMINAL_ALERT_DELIVERY_STATUSES = [
+  "SENT",
+  "SKIPPED_NO_EMAIL",
+] as const;
 
 export interface MatchOptions {
   /** Restrict matching to these job ids (instant alerts for a single job). */
@@ -120,8 +141,16 @@ export async function matchJobsForAlert(
     if (combinedTokenCondition) conditions.push(combinedTokenCondition);
   }
 
-  // Never re-deliver a job already sent for this alert.
-  conditions.push(isNull(jobAlertDeliveries.id));
+  // Exclude terminal deliveries only. A `FAILED` row must stay eligible so the
+  // next digest or instant run can retry it.
+  conditions.push(
+    or(
+      isNull(jobAlertDeliveries.id),
+      notInArray(jobAlertDeliveries.status, [
+        ...TERMINAL_ALERT_DELIVERY_STATUSES,
+      ]),
+    ) as SQL,
+  );
 
   return query
     .where(and(...conditions))

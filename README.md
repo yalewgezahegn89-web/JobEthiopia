@@ -77,11 +77,20 @@ Run migrations:
 npm run db:migrate
 ```
 
-Seed development data (development only — never against production):
+Seed development data (guarded — never against an unvalidated target):
 
 ```bash
 npm run db:seed
 ```
+
+`db:seed` is protected by an environment-and-database-target guard and fails closed for unsafe targets. Configure these variables in your local (uncommitted) environment before seeding:
+
+- `DATABASE_URL` — PostgreSQL connection URL for the intended seed target (credentials must never be committed).
+- `SEED_PRODUCTION_DATABASE_HOST` — exact hostname of the Production database (placeholder: `<production-db-host>`). Required so non-production runs can be proven not to target Production.
+- `SEED_ALLOWED_DATABASE_HOSTS` — comma-separated exact hostnames approved for non-production seeding (placeholder: `<preview-db-host>,<staging-db-host>`). Required for remote non-production targets.
+- `SEED_ALLOW_PRODUCTION` — Production seeding only: must be the exact value `CONFIRM_PRODUCTION_SEED` **and** `DATABASE_URL` must target `SEED_PRODUCTION_DATABASE_HOST`.
+
+A Preview/local environment is never safe just because of `VERCEL_ENV`; the target host is independently validated (Preview/remote must be allowlisted and must not equal the Production host). Local loopback PostgreSQL targets (`localhost`, `127.0.0.1`, `::1`) are allowed for local development. Never point Preview at Production. Do not run seeds against a production database.
 
 ### Development
 

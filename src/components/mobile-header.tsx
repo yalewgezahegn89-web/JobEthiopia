@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { Suspense, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useI18n } from "@/lib/i18n/client";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import { LanguageSwitcher } from "@/components/language-switcher";
+import { isActivePath } from "@/lib/i18n/routing";
 
 type LinkItem = { href: string; label: string };
 
@@ -79,7 +80,7 @@ export function MobileHeader({
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 md:hidden" data-testid="mobile-menu-panel">
+        <div className="fixed inset-0 z-50 xl:hidden" data-testid="mobile-menu-panel">
           <div
             className="absolute inset-0 bg-black/20 backdrop-blur-sm"
             onClick={close}
@@ -122,12 +123,10 @@ export function MobileHeader({
             <nav aria-label={t.nav.mobileNavLabel} className="p-4">
               <ul className="space-y-1">
                 {primaryLinks.map((link) => {
-                  const isActive =
-                    pathname === link.href ||
-                    pathname.startsWith(`${link.href}/`);
+                  const isActive = isActivePath(pathname, link.href);
                   return (
                     <li key={link.href}>
-                      <Link
+                      <LocalizedLink
                         href={link.href}
                         onClick={close}
                         aria-current={isActive ? "page" : undefined}
@@ -136,13 +135,15 @@ export function MobileHeader({
                         }`}
                       >
                         {link.label}
-                      </Link>
+                      </LocalizedLink>
                     </li>
                   );
                 })}
               </ul>
               <div className="pt-4">
-                <LanguageSwitcher />
+                <Suspense fallback={null}>
+                  <LanguageSwitcher />
+                </Suspense>
               </div>
             </nav>
 
@@ -153,12 +154,10 @@ export function MobileHeader({
               {userInfo ? (
                 <ul className="mt-1 space-y-1">
                   {roleLinks.map((link) => {
-                    const isActive =
-                      pathname === link.href ||
-                      pathname.startsWith(`${link.href}/`);
+                    const isActive = isActivePath(pathname, link.href);
                     return (
                       <li key={link.href}>
-                        <Link
+                        <LocalizedLink
                           href={link.href}
                           onClick={close}
                           aria-current={isActive ? "page" : undefined}
@@ -167,7 +166,7 @@ export function MobileHeader({
                           }`}
                         >
                           {link.label}
-                        </Link>
+                        </LocalizedLink>
                       </li>
                     );
                   })}
@@ -186,13 +185,13 @@ export function MobileHeader({
                 <ul className="mt-1 space-y-1">
                   {anonymousLinks.map((link) => (
                     <li key={link.href}>
-                      <Link
+                      <LocalizedLink
                         href={link.href}
                         onClick={close}
                         className={`${focusRing} ${itemIdle}`}
                       >
                         {link.label}
-                      </Link>
+                      </LocalizedLink>
                     </li>
                   ))}
                 </ul>

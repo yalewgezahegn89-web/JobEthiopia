@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 
 export function EmployerCta({ t }: { t: Dictionary }) {
@@ -35,18 +35,18 @@ export function EmployerCta({ t }: { t: Dictionary }) {
           {t.home.employerCtaBody}
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-          <Link
+          <LocalizedLink
             href="/employer/register"
             className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             {t.home.employerCtaPrimary}
-          </Link>
-          <Link
+          </LocalizedLink>
+          <LocalizedLink
             href="/jobs"
             className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg border border-white/40 px-6 py-3 text-sm font-semibold text-white transition-colors duration-200 hover:bg-white/10 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             {t.home.employerCtaSecondary}
-          </Link>
+          </LocalizedLink>
         </div>
       </div>
     </section>

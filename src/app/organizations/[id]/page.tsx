@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import { notFound } from "next/navigation";
 import {
   fetchOrganizationById,
   type PublicOrganizationDetail,
 } from "@/lib/organizations/public";
 import { fetchJobs, type PublicJobSummary } from "@/lib/jobs/public";
-import { getAppBaseUrl } from "@/lib/appBaseUrl";
+import {
+  buildPageMetadata,
+  NOINDEX_METADATA,
+} from "@/lib/seo/metadata";
 import JobCard from "@/components/job-card";
 import { getI18n } from "@/lib/i18n/server";
 import { Breadcrumb } from "@/components/public/breadcrumb";
@@ -40,13 +43,11 @@ export async function generateMetadata({
 
   if (!organization) {
     return {
-      title: "Organization | JobEthiopia",
+      title: { absolute: "Organization | JobEthiopia" },
       description: "Organization profile and open jobs on JobEthiopia.",
+      robots: NOINDEX_METADATA,
     };
   }
-
-  const baseUrl = getAppBaseUrl();
-  const canonicalUrl = `${baseUrl}/organizations/${id}`;
 
   const isPubliclyEligible = organization.status === "ACTIVE";
   const title = organization.name;
@@ -54,34 +55,16 @@ export async function generateMetadata({
     ? truncateMetadata(organization.description, 160)
     : `${title} — explore open jobs on JobEthiopia.`;
 
-  if (!isPubliclyEligible) {
-    return {
-      title,
-      description,
-      robots: { index: false, follow: false },
-      alternates: { canonical: canonicalUrl },
-    };
-  }
-
-  return {
+  // DB-backed content is not translated: locale-prefixed URLs are UI shells, so
+  // every locale shares the English canonical and intentionally emits no hreflang.
+  return buildPageMetadata({
+    path: `/organizations/${id}`,
+    locale: "en",
+    canonicalLocale: "en",
     title,
     description,
-    openGraph: {
-      title: `${title} | JobEthiopia`,
-      description,
-      url: canonicalUrl,
-      type: "website",
-      siteName: "JobEthiopia",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${title} | JobEthiopia`,
-      description,
-    },
-    alternates: {
-      canonical: canonicalUrl,
-    },
-  };
+    robots: isPubliclyEligible ? undefined : NOINDEX_METADATA,
+  });
 }
 
 export default async function OrganizationPage({
@@ -109,12 +92,12 @@ export default async function OrganizationPage({
           We could not load this organization right now. Please try again
           shortly.
         </p>
-        <Link
+        <LocalizedLink
           href="/organizations"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           Back to Organizations
-        </Link>
+        </LocalizedLink>
       </div>
     );
   }
@@ -220,12 +203,12 @@ export default async function OrganizationPage({
               Open jobs
             </h2>
           </div>
-          <Link
+          <LocalizedLink
             href={`/jobs?organizationId=${encodeURIComponent(organization.id)}`}
             className="focus-visible:outline-2 hidden shrink-0 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary sm:inline-flex"
           >
             Browse all jobs
-          </Link>
+          </LocalizedLink>
         </div>
 
         {jobsLoadError ? (

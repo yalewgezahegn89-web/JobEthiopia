@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LocalizedLink } from "@/components/i18n/localized-link";
+import { isActivePath } from "@/lib/i18n/routing";
 
 const focus =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
@@ -18,19 +19,18 @@ export function HeaderNavLink({
   className?: string;
 }) {
   const pathname = usePathname();
-  const isActive =
-    href === "/" ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  const isActive = isActivePath(pathname, href);
 
   return (
-    <Link
+    <LocalizedLink
       href={href}
       aria-current={isActive ? "page" : undefined}
-      className={`px-3 py-2 rounded-lg text-sm ${focus} ${
+      className={`whitespace-nowrap px-2.5 py-2 rounded-lg text-sm ${focus} ${
         isActive ? active : idle
       } ${className}`}
     >
       {children}
-    </Link>
+    </LocalizedLink>
   );
 }
 
@@ -46,19 +46,18 @@ export function HeaderNavItems({
   return (
     <>
       {links.map((link) => {
-        const isActive =
-          pathname === link.href || pathname.startsWith(`${link.href}/`);
+        const isActive = isActivePath(pathname, link.href);
         return (
           <li key={link.href}>
-            <Link
+            <LocalizedLink
               href={link.href}
               aria-current={isActive ? "page" : undefined}
-              className={`px-3 py-2 rounded-lg text-sm ${focus} ${
+              className={`whitespace-nowrap px-2.5 py-2 rounded-lg text-sm ${focus} ${
                 isActive ? active : idle
               } ${className}`}
             >
               {link.label}
-            </Link>
+            </LocalizedLink>
           </li>
         );
       })}

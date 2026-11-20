@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 const mocks = vi.hoisted(() => ({
   mockPathname: vi.fn(),
+  mockSearch: vi.fn(),
 }));
 
 vi.mock("@/lib/i18n/client", async (importOriginal) => {
@@ -16,6 +17,7 @@ vi.mock("@/lib/i18n/client", async (importOriginal) => {
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.mockPathname(),
+  useSearchParams: () => new URLSearchParams(mocks.mockSearch()),
 }));
 
 vi.mock("next/link", () => ({
@@ -38,6 +40,7 @@ function renderSwitcher(): string {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.mockPathname.mockReturnValue("/jobs");
+  mocks.mockSearch.mockReturnValue("");
 });
 
 describe("LanguageSwitcher", () => {

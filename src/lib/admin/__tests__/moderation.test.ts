@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   mockOrganizationsFindFirst: vi.fn(),
   mockCategoriesFindFirst: vi.fn(),
   mockLocationsFindFirst: vi.fn(),
+  mockTelegramChannel: vi.fn(),
+  mockOnConflictDoNothing: vi.fn(),
 }));
 
 const capturedTx = vi.hoisted(() => ({ fn: null as null | ((tx: Record<string, unknown>) => Promise<void>) }));
@@ -74,6 +76,10 @@ vi.mock("@/db", () => {
     },
   };
 });
+
+vi.mock("@/lib/telegram/config", () => ({
+  getTelegramChannelId: (...args: unknown[]) => mocks.mockTelegramChannel(...args),
+}));
 
 import {
   listModerationJobs,
@@ -140,7 +146,10 @@ function makeTxMocks() {
   mocks.mockInsert.mockImplementation((_table: unknown) => ({
     values: (values: Record<string, unknown>) => {
       capturedAudits.push(values);
-      return { returning: async () => [] };
+      return {
+        returning: async () => [],
+        onConflictDoNothing: () => mocks.mockOnConflictDoNothing(),
+      };
     },
   }));
   return { capturedSets, capturedAudits };
@@ -177,10 +186,39 @@ beforeEach(() => {
   mocks.mockLocationsFindFirst.mockResolvedValue(null);
   mocks.mockJobSourcesFindMany.mockResolvedValue([]);
   mocks.mockSourcesFindMany.mockResolvedValue([]);
+  mocks.mockTelegramChannel.mockReturnValue(null);
+  mocks.mockOnConflictDoNothing.mockResolvedValue(undefined);
   // A job_sources record exists by default so the Phase 6 provenance gate
   // passes unless a specific test removes it.
   mocks.mockJobSourcesFindFirst.mockResolvedValue({ id: "provenance-1" });
 });
+
+/** Collects literal filter values embedded in a Drizzle SQL condition. */
+function sqlLiterals(value: unknown): string[] {
+  const found: string[] = [];
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (node && typeof node === "object") {
+      if ("value" in node) {
+        const v = (node as { value: unknown }).value;
+        if (typeof v === "string") found.push(v);
+      }
+      if ("queryChunks" in node) {
+        visit((node as { queryChunks: unknown[] }).queryChunks);
+      }
+    }
+  };
+  visit(value);
+  return found;
+}
+
+function lastJobsWhere(): unknown {
+  const calls = mocks.mockJobsFindMany.mock.calls;
+  return (calls[calls.length - 1]?.[0] as { where?: unknown } | undefined)?.where;
+}
 
 describe("VALID_STATUS_TRANSITIONS (Batch 51 authoritative)", () => {
   it("matches the existing job route lifecycle table", () => {
@@ -225,6 +263,114 @@ describe("listModerationJobs", () => {
   it("propagates a DB error to the caller (generic handling upstream)", async () => {
     mocks.mockJobsFindMany.mockRejectedValue(new Error("db down"));
     await expect(listModerationJobs({ page: 1, limit: 20 })).rejects.toThrow();
+  });
+
+  it("defaults to the moderation queue when no filters are supplied", async () => {
+    mocks.mockJobsFindMany.mockResolvedValue([JOB]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    await listModerationJobs({ page: 1, limit: 20 });
+
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("PENDING_REVIEW");
+    expect(values).toContain("NEEDS_REVIEW");
+  });
+
+  it("honors an explicit DRAFT status filter without the default moderation condition", async () => {
+    const draft = { ...JOB, status: "DRAFT", verificationStatus: "PENDING" };
+    mocks.mockJobsFindMany.mockResolvedValue([draft]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    const result = await listModerationJobs({
+      page: 1,
+      limit: 20,
+      status: "DRAFT",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].status).toBe("DRAFT");
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("DRAFT");
+    expect(values).not.toContain("PENDING_REVIEW");
+    expect(values).not.toContain("NEEDS_REVIEW");
+  });
+
+  it("combines DRAFT status and PENDING verification filters with AND", async () => {
+    const draft = { ...JOB, status: "DRAFT", verificationStatus: "PENDING" };
+    mocks.mockJobsFindMany.mockResolvedValue([draft]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    const result = await listModerationJobs({
+      page: 1,
+      limit: 20,
+      status: "DRAFT",
+      verificationStatus: "PENDING",
+    });
+
+    expect(result.items[0].status).toBe("DRAFT");
+    expect(result.items[0].verificationStatus).toBe("PENDING");
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("DRAFT");
+    expect(values).toContain("PENDING");
+    expect(values).not.toContain("PENDING_REVIEW");
+    expect(values).not.toContain("NEEDS_REVIEW");
+  });
+
+  it("honors an explicit PUBLISHED status filter", async () => {
+    const published = { ...JOB, status: "PUBLISHED", verificationStatus: "VERIFIED" };
+    mocks.mockJobsFindMany.mockResolvedValue([published]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    const result = await listModerationJobs({
+      page: 1,
+      limit: 20,
+      status: "PUBLISHED",
+    });
+
+    expect(result.items[0].status).toBe("PUBLISHED");
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("PUBLISHED");
+    expect(values).not.toContain("PENDING_REVIEW");
+    expect(values).not.toContain("NEEDS_REVIEW");
+  });
+
+  it("honors an explicit EXPIRED status filter", async () => {
+    const expired = { ...JOB, status: "EXPIRED", verificationStatus: "VERIFIED" };
+    mocks.mockJobsFindMany.mockResolvedValue([expired]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    const result = await listModerationJobs({
+      page: 1,
+      limit: 20,
+      status: "EXPIRED",
+    });
+
+    expect(result.items[0].status).toBe("EXPIRED");
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("EXPIRED");
+    expect(values).not.toContain("PENDING_REVIEW");
+    expect(values).not.toContain("NEEDS_REVIEW");
+  });
+
+  it("preserves explicit NEEDS_REVIEW verification filtering without the status default", async () => {
+    const needsReview = {
+      ...JOB,
+      status: "PUBLISHED",
+      verificationStatus: "NEEDS_REVIEW",
+    };
+    mocks.mockJobsFindMany.mockResolvedValue([needsReview]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    const result = await listModerationJobs({
+      page: 1,
+      limit: 20,
+      verificationStatus: "NEEDS_REVIEW",
+    });
+
+    expect(result.items[0].verificationStatus).toBe("NEEDS_REVIEW");
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("NEEDS_REVIEW");
+    expect(values).not.toContain("PENDING_REVIEW");
   });
 });
 
@@ -471,6 +617,114 @@ describe("moderateJob action mapping", () => {
     await expect(moderateJob(JOB.id, "PUBLISH", "actor-1")).rejects.toThrow(
       "Moderation update failed",
     );
+  });
+});
+
+describe("moderateJob Telegram outbox enqueue", () => {
+  it("enqueues exactly one QUEUED row on PUBLISH when configured", async () => {
+    const job = makeJobWithFields();
+    mocks.mockJobsFindFirst.mockResolvedValue(job);
+    setupValidJobMocks();
+    mocks.mockTelegramChannel.mockReturnValue("@jobs");
+    const { capturedSets, capturedAudits } = makeTxMocks();
+
+    const result = await moderateJob(JOB.id, "PUBLISH", "actor-1");
+
+    expect(result.ok).toBe(true);
+    expect(capturedSets[0]).toMatchObject({
+      status: "PUBLISHED",
+      verificationStatus: "VERIFIED",
+    });
+    expect(capturedAudits).toHaveLength(2);
+    expect(capturedAudits[0]).toMatchObject({ action: "JOB_PUBLISHED" });
+    expect(capturedAudits[1]).toEqual({
+      jobId: JOB.id,
+      channel: "@jobs",
+      state: "QUEUED",
+      attempts: 0,
+      nextRetryAt: expect.any(Date),
+    });
+    expect(mocks.mockTelegramChannel).toHaveBeenCalledTimes(1);
+    expect(mocks.mockOnConflictDoNothing).toHaveBeenCalledTimes(1);
+  });
+
+  it("publishes without an outbox row when Telegram is not configured", async () => {
+    const job = makeJobWithFields();
+    mocks.mockJobsFindFirst.mockResolvedValue(job);
+    setupValidJobMocks();
+    mocks.mockTelegramChannel.mockReturnValue(null);
+    const { capturedSets, capturedAudits } = makeTxMocks();
+
+    const result = await moderateJob(JOB.id, "PUBLISH", "actor-1");
+
+    expect(result.ok).toBe(true);
+    expect(capturedSets[0]).toMatchObject({ status: "PUBLISHED" });
+    expect(capturedAudits).toHaveLength(1);
+    expect(capturedAudits[0]).toMatchObject({ action: "JOB_PUBLISHED" });
+    expect(mocks.mockOnConflictDoNothing).not.toHaveBeenCalled();
+  });
+
+  it("uses ON CONFLICT DO NOTHING so an existing outbox row is not duplicated", async () => {
+    const job = makeJobWithFields();
+    mocks.mockJobsFindFirst.mockResolvedValue(job);
+    setupValidJobMocks();
+    mocks.mockTelegramChannel.mockReturnValue("@jobs");
+    const { capturedAudits } = makeTxMocks();
+
+    await moderateJob(JOB.id, "PUBLISH", "actor-1");
+
+    const publicationRows = capturedAudits.filter(
+      (values) => "channel" in values,
+    );
+    expect(publicationRows).toHaveLength(1);
+    expect(mocks.mockInsert).toHaveBeenCalledTimes(2);
+    expect(mocks.mockOnConflictDoNothing).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not enqueue for REJECT, MARK_INVALID, REQUEST_REVIEW, or REVERIFY", async () => {
+    const actions = [
+      { action: "REJECT" as const, job: JOB },
+      { action: "MARK_INVALID" as const, job: JOB },
+      { action: "REQUEST_REVIEW" as const, job: JOB },
+      {
+        action: "REVERIFY" as const,
+        job: { ...JOB, status: "PUBLISHED" },
+      },
+    ];
+    mocks.mockTelegramChannel.mockReturnValue("@jobs");
+
+    for (const { action, job } of actions) {
+      mocks.mockJobsFindFirst.mockResolvedValue(job);
+      const { capturedAudits } = makeTxMocks();
+
+      const result = await moderateJob(JOB.id, action, "actor-1");
+
+      expect(result.ok).toBe(true);
+      expect(capturedAudits).toHaveLength(1);
+      expect(capturedAudits[0].action).not.toBe("JOB_PUBLISHED");
+    }
+
+    expect(mocks.mockTelegramChannel).not.toHaveBeenCalled();
+    expect(mocks.mockInsert).toHaveBeenCalledTimes(4);
+    expect(mocks.mockOnConflictDoNothing).not.toHaveBeenCalled();
+  });
+
+  it("fails the transaction when Telegram enqueue fails", async () => {
+    const job = makeJobWithFields();
+    mocks.mockJobsFindFirst.mockResolvedValue(job);
+    setupValidJobMocks();
+    mocks.mockTelegramChannel.mockReturnValue("@jobs");
+    const { capturedAudits } = makeTxMocks();
+    mocks.mockOnConflictDoNothing.mockImplementationOnce(() => {
+      throw new Error("enqueue failed");
+    });
+
+    await expect(moderateJob(JOB.id, "PUBLISH", "actor-1")).rejects.toThrow(
+      "Moderation update failed",
+    );
+
+    expect(capturedAudits).toHaveLength(2);
+    expect(mocks.mockOnConflictDoNothing).toHaveBeenCalledTimes(1);
   });
 });
 

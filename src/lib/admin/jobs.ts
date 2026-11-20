@@ -5,7 +5,7 @@
  * All functions assume the caller has already performed session authentication
  * and role authorization. Identity is never taken from client input.
  */
-import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { jobs } from "@/db/schema/jobs";
 import { jobSources } from "@/db/schema/jobSources";
@@ -15,6 +15,9 @@ import { users } from "@/db/schema/users";
 import { organizations } from "@/db/schema/organizations";
 import { categories } from "@/db/schema/categories";
 import { locations } from "@/db/schema/locations";
+import { draftJobCorrectionSchema } from "@/lib/validations/jobCorrection";
+import { enqueueTelegramPublication } from "@/lib/telegram/enqueue";
+import { getTelegramChannelId } from "@/lib/telegram/config";
 
 // ---------------------------------------------------------------------------
 // Publish validation gate (Phase 5B)
@@ -35,6 +38,13 @@ export type PublishValidationResult =
     };
 
 type JobRow = typeof jobs.$inferSelect;
+
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUuid(value: string): boolean {
+  return UUID_REGEX.test(value);
+}
 
 /**
  * Validates that a job meets all publication requirements.
@@ -222,6 +232,7 @@ export type ModerationJobSummary = {
 
 export type ModerationJobDetail = JobRow & {
   provenance: JobProvenance | null;
+  categoryName: string | null;
 };
 
 export type ModerationJobPaginated = {
@@ -323,6 +334,10 @@ async function resolveJobProvenance(
 /**
  * Returns the moderation queue: jobs that are PENDING_REVIEW by lifecycle or
  * NEEDS_REVIEW by verification. A job satisfying both conditions appears once.
+ *
+ * When an explicit status and/or verificationStatus filter is supplied, the
+ * selected filters are honored on their own (combined with AND) instead of
+ * implicitly restricting results to the default moderation queue.
  */
 export async function listModerationJobs(input: {
   page?: number;
@@ -334,17 +349,18 @@ export async function listModerationJobs(input: {
   const limit = Math.min(100, Math.max(1, Number.isFinite(input.limit) ? Math.trunc(input.limit ?? 20) : 20));
   const offset = (page - 1) * limit;
 
-  const baseCondition = or(
-    eq(jobs.status, "PENDING_REVIEW"),
-    eq(jobs.verificationStatus, "NEEDS_REVIEW"),
-  );
-
-  const filters = [baseCondition];
-  if (input.status) filters.push(eq(jobs.status, input.status as never));
-  if (input.verificationStatus) {
-    filters.push(eq(jobs.verificationStatus, input.verificationStatus as never));
-  }
-  const where = and(...filters);
+  const where =
+    input.status || input.verificationStatus
+      ? and(
+          input.status ? eq(jobs.status, input.status as never) : undefined,
+          input.verificationStatus
+            ? eq(jobs.verificationStatus, input.verificationStatus as never)
+            : undefined,
+        )
+      : or(
+          eq(jobs.status, "PENDING_REVIEW"),
+          eq(jobs.verificationStatus, "NEEDS_REVIEW"),
+        );
 
   const [rows, totalRows] = await Promise.all([
     db.query.jobs.findMany({
@@ -417,6 +433,214 @@ export async function listModerationJobs(input: {
   };
 }
 
+/** Returns active categories available for assignment, ordered by name. */
+export async function listActiveJobCategories(): Promise<
+  { id: string; name: string }[]
+> {
+  return db
+    .select({ id: categories.id, name: categories.name })
+    .from(categories)
+    .where(eq(categories.isActive, true))
+    .orderBy(asc(categories.name));
+}
+
+const JOB_CATEGORY_LOCK_COLUMNS = {
+  id: jobs.id,
+  status: jobs.status,
+  verificationStatus: jobs.verificationStatus,
+  categoryId: jobs.categoryId,
+} as const;
+
+export type AssignJobCategoryResult =
+  | { ok: true; categoryId: string }
+  | {
+      ok: false;
+      code:
+        | "NOT_FOUND"
+        | "NOT_DRAFT"
+        | "ALREADY_ASSIGNED"
+        | "CATEGORY_NOT_FOUND"
+        | "CATEGORY_INACTIVE";
+    };
+
+/**
+ * Assigns an active category to an existing DRAFT job that has no category.
+ *
+ * Only `categoryId` and `updatedAt` are written: lifecycle status, verification
+ * status, timestamps, provenance, and every other job field are preserved. The
+ * job row is locked for the duration of the check-and-write so a category can
+ * never be silently overwritten by a concurrent request. The audit row is
+ * committed in the same transaction.
+ */
+export async function assignJobCategory(
+  jobId: string,
+  categoryId: string,
+  actorUserId: string,
+): Promise<AssignJobCategoryResult> {
+  if (!isValidUuid(jobId) || !isValidUuid(categoryId)) {
+    return { ok: false, code: "NOT_FOUND" };
+  }
+
+  return await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select(JOB_CATEGORY_LOCK_COLUMNS)
+      .from(jobs)
+      .where(eq(jobs.id, jobId))
+      .limit(1)
+      .for("update");
+
+    if (!current) {
+      return { ok: false, code: "NOT_FOUND" };
+    }
+    if (current.status !== "DRAFT") {
+      return { ok: false, code: "NOT_DRAFT" };
+    }
+    if (current.categoryId !== null) {
+      return { ok: false, code: "ALREADY_ASSIGNED" };
+    }
+
+    const [category] = await tx
+      .select({
+        id: categories.id,
+        name: categories.name,
+        isActive: categories.isActive,
+      })
+      .from(categories)
+      .where(eq(categories.id, categoryId))
+      .limit(1);
+
+    if (!category) {
+      return { ok: false, code: "CATEGORY_NOT_FOUND" };
+    }
+    if (!category.isActive) {
+      return { ok: false, code: "CATEGORY_INACTIVE" };
+    }
+
+    await tx
+      .update(jobs)
+      .set({ categoryId, updatedAt: new Date() })
+      .where(eq(jobs.id, jobId));
+
+    await tx.insert(auditLog).values({
+      actorUserId,
+      action: "JOB_CATEGORY_ASSIGNED",
+      targetType: "job",
+      targetId: jobId,
+      metadata: {
+        previousCategoryId: current.categoryId,
+        categoryId,
+        categoryName: category.name,
+        status: current.status,
+        verificationStatus: current.verificationStatus,
+      },
+    });
+
+    return { ok: true, categoryId };
+  });
+}
+
+const JOB_CORRECTION_LOCK_COLUMNS = {
+  id: jobs.id,
+  status: jobs.status,
+  deadline: jobs.deadline,
+  description: jobs.description,
+  requirements: jobs.requirements,
+} as const;
+
+export type CorrectDraftJobResult =
+  | { ok: true; changedFields: string[] }
+  | {
+      ok: false;
+      code: "NOT_FOUND" | "NOT_DRAFT" | "INVALID_INPUT";
+    };
+
+/**
+ * Corrects the deadline, description, and requirements of an existing DRAFT
+ * job. Every other column — including status, verification status, category,
+ * organization, location, provenance, and timestamps other than updatedAt — is
+ * preserved.
+ *
+ * The job row is locked while its DRAFT invariant is re-checked, so a job that
+ * is published concurrently can never be edited through this path. The update
+ * and its audit event commit atomically, and a no-op correction writes nothing.
+ */
+export async function correctDraftJob(
+  jobId: string,
+  input: { deadline: Date; description: string; requirements: string | null },
+  actorUserId: string,
+): Promise<CorrectDraftJobResult> {
+  if (!isValidUuid(jobId)) {
+    return { ok: false, code: "NOT_FOUND" };
+  }
+
+  const parsed = draftJobCorrectionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, code: "INVALID_INPUT" };
+  }
+  const next = parsed.data;
+
+  return await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select(JOB_CORRECTION_LOCK_COLUMNS)
+      .from(jobs)
+      .where(eq(jobs.id, jobId))
+      .limit(1)
+      .for("update");
+
+    if (!current) {
+      return { ok: false, code: "NOT_FOUND" };
+    }
+    if (current.status !== "DRAFT") {
+      return { ok: false, code: "NOT_DRAFT" };
+    }
+
+    const changedFields: string[] = [];
+    if (
+      (current.deadline?.getTime() ?? null) !== next.deadline.getTime()
+    ) {
+      changedFields.push("deadline");
+    }
+    if ((current.description ?? "") !== next.description) {
+      changedFields.push("description");
+    }
+    if ((current.requirements ?? null) !== next.requirements) {
+      changedFields.push("requirements");
+    }
+
+    if (changedFields.length === 0) {
+      return { ok: true, changedFields };
+    }
+
+    await tx
+      .update(jobs)
+      .set({
+        deadline: next.deadline,
+        description: next.description,
+        requirements: next.requirements,
+        updatedAt: new Date(),
+      })
+      .where(eq(jobs.id, jobId));
+
+    await tx.insert(auditLog).values({
+      actorUserId,
+      action: "JOB_DRAFT_CORRECTED",
+      targetType: "job",
+      targetId: jobId,
+      metadata: {
+        changedFields,
+        deadlineBefore: current.deadline?.toISOString() ?? null,
+        deadlineAfter: next.deadline.toISOString(),
+        descriptionLengthBefore: current.description?.length ?? 0,
+        descriptionLengthAfter: next.description.length,
+        requirementsChanged: changedFields.includes("requirements"),
+        status: current.status,
+      },
+    });
+
+    return { ok: true, changedFields };
+  });
+}
+
 /** Loads a single job's full moderation record (with provenance), or null when not found. */
 export async function getModerationJob(id: string): Promise<ModerationJobDetail | null> {
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
@@ -425,7 +649,17 @@ export async function getModerationJob(id: string): Promise<ModerationJobDetail 
   const job = await db.query.jobs.findFirst({ where: eq(jobs.id, id) });
   if (!job) return null;
   const provenance = await resolveJobProvenance([job.id]);
-  return { ...job, provenance: provenance.get(job.id) ?? null };
+  const category = job.categoryId
+    ? await db.query.categories.findFirst({
+        where: eq(categories.id, job.categoryId),
+        columns: { name: true },
+      })
+    : null;
+  return {
+    ...job,
+    provenance: provenance.get(job.id) ?? null,
+    categoryName: category?.name ?? null,
+  };
 }
 
 /**
@@ -437,7 +671,8 @@ export async function getModerationJob(id: string): Promise<ModerationJobDetail 
  *                        forbidden transition, already final, incomplete data)
  *   throws               on an unexpected DB error (caller maps to generic error)
  *
- * The job update and the audit insert happen atomically in a single transaction.
+ * The job update, audit insert, and optional Telegram outbox insert happen
+ * atomically in a single transaction.
  */
 export async function moderateJob(
   jobId: string,
@@ -464,6 +699,9 @@ export async function moderateJob(
       return { ok: false, code: validation.code };
     }
   }
+
+  const telegramChannel =
+    plan.event === "JOB_PUBLISHED" ? getTelegramChannelId() : null;
 
   try {
     await db.transaction(async (tx) => {
@@ -497,6 +735,14 @@ export async function moderateJob(
         targetId: jobId,
         metadata: auditMetadata,
       });
+
+      if (plan.event === "JOB_PUBLISHED" && telegramChannel) {
+        await enqueueTelegramPublication(tx, {
+          jobId,
+          channel: telegramChannel,
+          now,
+        });
+      }
     });
   } catch {
     throw new Error("Moderation update failed");

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   mockRecordFailed: vi.fn(),
   mockIsDue: vi.fn(),
   mockGetAdapter: vi.fn(),
+  mockAutoPublish: vi.fn(),
   mockAutoDeactivate: vi.fn(),
 }));
 
@@ -45,7 +46,15 @@ vi.mock("@/lib/sources/health", () => ({
 
 vi.mock("@/lib/sources/adapters", () => ({
   getAdapterForSource: (...args: unknown[]) => mocks.mockGetAdapter(...args),
+  getAdapterForSourceRecord: (...args: unknown[]) =>
+    mocks.mockGetAdapter(...args),
   SUPPORTED_ADAPTER_SOURCE_TYPES: ["API", "FEED"],
+  SWEEP_SOURCE_TYPES: ["API", "FEED", "WEBSITE"],
+}));
+
+vi.mock("@/lib/ingestion/autoPublish", () => ({
+  autoPublishIngestedJob: (...args: unknown[]) =>
+    mocks.mockAutoPublish(...args),
 }));
 
 import {
@@ -82,6 +91,7 @@ beforeEach(() => {
   mocks.mockRecordSuccess.mockResolvedValue({});
   mocks.mockRecordFailed.mockResolvedValue({});
   mocks.mockAutoDeactivate.mockResolvedValue(false);
+  mocks.mockAutoPublish.mockResolvedValue({ published: false });
 });
 
 afterEach(() => {
@@ -95,6 +105,31 @@ describe("runSourceIngestion", () => {
     expect(result.status).toBe("FAILED");
     expect(result.reason).toBe("Source not found");
     expect(mocks.mockRecordFailed).not.toHaveBeenCalled();
+  });
+
+  it("skips Facebook sources while the feature flag is disabled", async () => {
+    vi.stubEnv("ENABLE_FACEBOOK_INGESTION", "false");
+    mocks.mockFindFirst.mockResolvedValue(
+      sourceRow({ sourceType: "FACEBOOK" }),
+    );
+
+    const result = await runSourceIngestion(SOURCE_ID);
+
+    expect(result.status).toBe("SKIPPED");
+    expect(result.reason).toBe("Facebook ingestion is disabled");
+    expect(mocks.mockGetAdapter).not.toHaveBeenCalled();
+  });
+
+  it("allows Facebook sources to reach the adapter when enabled", async () => {
+    vi.stubEnv("ENABLE_FACEBOOK_INGESTION", "true");
+    mocks.mockFindFirst.mockResolvedValue(
+      sourceRow({ sourceType: "FACEBOOK" }),
+    );
+
+    const result = await runSourceIngestion(SOURCE_ID);
+
+    expect(result.status).toBe("SUCCEEDED");
+    expect(mocks.mockGetAdapter).toHaveBeenCalled();
   });
 
   it("returns SKIPPED for an inactive source", async () => {
@@ -171,6 +206,61 @@ describe("runSourceIngestion", () => {
     expect(result.total).toBe(1);
     expect(result.created).toBe(1);
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("auto-publishes only newly created jobs", async () => {
+    mocks.mockGetAdapter.mockReturnValue(
+      successAdapter([
+        { title: "A", description: "D", organizationName: "O" },
+        { title: "B", description: "D", organizationName: "O" },
+      ]),
+    );
+    mocks.mockIngestJobs.mockResolvedValue({
+      items: [
+        { outcome: "CREATED", jobId: "job-1" },
+        { outcome: "UPDATED", jobId: "job-2" },
+      ],
+      summary: {
+        total: 2,
+        created: 1,
+        updated: 1,
+        duplicate: 0,
+        linked: 0,
+        possibleDuplicate: 0,
+        failed: 0,
+      },
+    });
+    mocks.mockAutoPublish.mockResolvedValue({ published: true });
+
+    const result = await runSourceIngestion(SOURCE_ID);
+
+    expect(mocks.mockAutoPublish).toHaveBeenCalledTimes(1);
+    expect(mocks.mockAutoPublish).toHaveBeenCalledWith("job-1", SOURCE_ID);
+    expect(result.status).toBe("SUCCEEDED");
+  });
+
+  it("keeps ingestion successful when auto-publish throws", async () => {
+    mocks.mockGetAdapter.mockReturnValue(
+      successAdapter([{ title: "A", description: "D", organizationName: "O" }]),
+    );
+    mocks.mockIngestJobs.mockResolvedValue({
+      items: [{ outcome: "CREATED", jobId: "job-1" }],
+      summary: {
+        total: 1,
+        created: 1,
+        updated: 0,
+        duplicate: 0,
+        linked: 0,
+        possibleDuplicate: 0,
+        failed: 0,
+      },
+    });
+    mocks.mockAutoPublish.mockRejectedValue(new Error("telegram down"));
+
+    const result = await runSourceIngestion(SOURCE_ID);
+
+    expect(result.status).toBe("SUCCEEDED");
+    expect(result.created).toBe(1);
   });
 
   it("records a failed check when the adapter throws", async () => {

@@ -120,6 +120,31 @@ describe("CareerArticlePage", () => {
     expect(html).toContain("Then list your experience.");
   });
 
+  it("renders HTML-like article fields as escaped plain text, not markup", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue(
+      makeArticle({
+        title: "CV <script>alert('xss')</script> tips",
+        excerpt: '<img onerror="alert(1)" src=x>',
+        content: '<script>alert("xss")</script>\n<img onerror=alert(1) src=x>',
+        category: "<script>alert(1)</script>",
+      }),
+    );
+
+    const html = await renderPage();
+
+    // Article fields are rendered as text nodes, so tags are escaped.
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).toContain("&lt;img onerror=");
+    expect(html).not.toContain("<script>alert");
+    expect(html).not.toContain("<img onerror");
+    expect(html).not.toContain("<img src");
+
+    // The only script element is the escaped JSON-LD block; no injection.
+    expect(html).toContain('<script type="application/ld+json">');
+    expect((html.match(/<script\b/g) || []).length).toBe(1);
+    expect(html).not.toContain("</script><script>");
+  });
+
   it("renders related articles with links", async () => {
     const html = await renderPage();
     expect(html).toContain('data-testid="/careers/art-2"');
@@ -149,6 +174,38 @@ describe("CareerArticlePage", () => {
 
   it("calls notFound when the article does not exist", async () => {
     mocks.mockFetchCareerArticle.mockResolvedValue(null);
+    await expect(renderPage()).rejects.toThrow("NOT_FOUND");
+  });
+
+  it("renders an article published at the current time", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue(
+      makeArticle({ publishedAtIso: new Date().toISOString() }),
+    );
+    const html = await renderPage();
+    expect(html).toContain("How to Write a Strong CV");
+  });
+
+  it("calls notFound for a future-dated PUBLISHED article", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue(
+      makeArticle({
+        publishedAt: "Jan 1, 2099",
+        publishedAtIso: "2099-01-01T00:00:00.000Z",
+      }),
+    );
+    await expect(renderPage()).rejects.toThrow("NOT_FOUND");
+  });
+
+  it("calls notFound for a PUBLISHED article with no publication date", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue(
+      makeArticle({ publishedAt: null, publishedAtIso: null }),
+    );
+    await expect(renderPage()).rejects.toThrow("NOT_FOUND");
+  });
+
+  it("calls notFound for an unpublished article", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue(
+      makeArticle({ status: "DRAFT" }),
+    );
     await expect(renderPage()).rejects.toThrow("NOT_FOUND");
   });
 });

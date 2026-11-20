@@ -14,6 +14,7 @@ function makeJob(
     professionId: null,
     locationId: null,
     organizationName: "Black Lion Hospital",
+    organizationLogoUrl: null,
     locationName: "Addis Ababa",
     categoryName: "Healthcare",
     professionName: "Nursing",

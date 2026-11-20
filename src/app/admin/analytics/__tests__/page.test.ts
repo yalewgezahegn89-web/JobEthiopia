@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   mockGuard: vi.fn(),
   mockGetSummary: vi.fn(),
   mockGetI18n: vi.fn(),
+  mockUseI18n: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -25,6 +26,10 @@ vi.mock("@/lib/admin/analytics", () => ({
 
 vi.mock("@/lib/i18n/server", () => ({
   getI18n: (...args: unknown[]) => mocks.mockGetI18n(...args),
+}));
+
+vi.mock("@/lib/i18n/client", () => ({
+  useI18n: () => mocks.mockUseI18n(),
 }));
 
 import AdminAnalyticsPage from "@/app/admin/analytics/page";
@@ -213,6 +218,7 @@ beforeEach(() => {
   mocks.mockGuard.mockResolvedValue({ ok: true });
   mocks.mockGetSummary.mockResolvedValue(EMPTY_SUMMARY);
   mocks.mockGetI18n.mockResolvedValue(T);
+  mocks.mockUseI18n.mockReturnValue({ locale: "en", t: T });
 });
 
 function renderPage(props?: Parameters<typeof AdminAnalyticsPage>[0]) {

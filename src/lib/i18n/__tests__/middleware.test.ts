@@ -5,6 +5,7 @@ import {
   isPrefixedPath,
   stripLocalePrefix,
   localizePath,
+  localizeHref,
   detectPathLocale,
 } from "@/lib/i18n/routing";
 import { LOCALE_COOKIE_NAME, LOCALE_HEADER } from "@/lib/i18n";
@@ -236,6 +237,68 @@ describe("middleware — i18n locale resolution", () => {
     expect(cookie).toBeTruthy();
     expect(cookie?.[1]).toBe("am");
   });
+
+  it.each([
+    ["am", "om"],
+    ["om", "am"],
+  ] as const)(
+    "keeps the %s cookie when following an internal link localized from %s",
+    (currentLocale, otherLocale) => {
+      const headers = new Headers();
+      mockRewrite.mockReturnValue({ rewritten: true, headers });
+      const destination = localizeHref("/jobs?categoryId=7", currentLocale);
+      const localizedPath = new URL(
+        destination,
+        "https://jobethiopia.et",
+      ).pathname;
+
+      middleware(fakeRequest({ pathname: localizedPath, cookieValue: currentLocale }));
+
+      const cookie = headers
+        .get("Set-Cookie")
+        ?.match(
+          new RegExp(`^${LOCALE_COOKIE_NAME}=([^;]+);\\s*Path=/;.*SameSite=Lax`),
+        );
+      expect(destination).toBe(`/${currentLocale}/jobs?categoryId=7`);
+      expect(cookie?.[1]).toBe(currentLocale);
+      expect(cookie?.[1]).not.toBe(otherLocale);
+    },
+  );
+});
+
+describe("middleware — legal pages are public and served in every locale", () => {
+  const legalPaths = ["/privacy", "/terms", "/cookies"] as const;
+
+  it.each(legalPaths)("passes through unprefixed %s without a redirect", (path) => {
+    const headers = new Headers();
+    mockNext.mockReturnValue({ passed: true, headers });
+
+    middleware(fakeRequest({ pathname: path }));
+
+    expect(mockRedirect).not.toHaveBeenCalled();
+    expect(mockNext).toHaveBeenCalled();
+    expect(mockRewrite).not.toHaveBeenCalled();
+    expect(requestHeadersFromLastCall().get(LOCALE_HEADER)).toBe("en");
+  });
+
+  it.each(["am", "om"] as const)(
+    "rewrites /%s legal pages to the canonical route without a redirect",
+    (locale) => {
+      for (const path of legalPaths) {
+        vi.clearAllMocks();
+        const headers = new Headers();
+        mockRewrite.mockReturnValue({ rewritten: true, headers });
+
+        middleware(fakeRequest({ pathname: `/${locale}${path}` }));
+
+        expect(mockRedirect).not.toHaveBeenCalled();
+        expect(mockRewrite).toHaveBeenCalled();
+        const [url, init] = mockRewrite.mock.calls[0];
+        expect(new URL(url).pathname).toBe(path);
+        expect((init.request.headers as Headers).get(LOCALE_HEADER)).toBe(locale);
+      }
+    },
+  );
 });
 
 describe("middleware — protected routes remain protected with locale prefixes", () => {

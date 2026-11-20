@@ -32,7 +32,10 @@ export type PublicArticleDetail = {
   excerpt: string | null;
   content: string | null;
   status: string | null;
+  /** Locale-formatted label for display only. */
   publishedAt: string | null;
+  /** Exact source instant for metadata and structured data. */
+  publishedAtIso: string | null;
 };
 
 export type PublicArticleList = {
@@ -87,6 +90,22 @@ export function formatDate(
   });
 }
 
+/** Preserve the source instant without flattening it into a display string. */
+export function toIsoDateString(
+  value?: string | number | Date | null,
+): string | null {
+  if (value == null) {
+    return null;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toISOString();
+}
+
 export function toPublicArticleSummary(
   raw: Record<string, unknown>,
 ): PublicArticleSummary {
@@ -112,6 +131,9 @@ export function toPublicArticleDetail(
     content: raw.content != null ? String(raw.content) : null,
     status: typeof raw.status === "string" ? raw.status : null,
     publishedAt: formatDate(raw.publishedAt as string | null | undefined),
+    publishedAtIso: toIsoDateString(
+      raw.publishedAt as string | number | Date | null | undefined,
+    ),
   };
 }
 

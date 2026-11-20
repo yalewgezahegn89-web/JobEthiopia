@@ -13,6 +13,7 @@ const links = [
   { href: "/admin/organizations", label: "Organizations" },
   { href: "/admin/employer-requests", label: "Employer Requests" },
   { href: "/admin/sources", label: "Sources" },
+  { href: "/admin/telegram", label: "Telegram" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/taxonomy", label: "Taxonomy" },
   { href: "/admin/audit", label: "Audit Log" },

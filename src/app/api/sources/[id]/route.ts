@@ -2,17 +2,37 @@ import { withRouteMetrics } from "@/lib/observability/routeMetrics";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
+import { auditLog } from "@/db/schema/auditLog";
 import { sources } from "@/db/schema/sources";
 import { sourceIdParamSchema } from "@/lib/validations/sourceParams";
-import { updateSourceSchema } from "@/lib/validations";
+import {
+  updateSourceSchema,
+  validateMergedSourceUpdate,
+} from "@/lib/validations";
 import { checkApiKey } from "@/lib/auth/apiKey";
+import {
+  API_KEY_SOURCE_ACTOR,
+  authorizeSourceMutation,
+  changedSourceFields,
+} from "@/lib/auth/roles";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
-import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
 import { isPgUniqueViolation, isPgForeignKeyViolation } from "@/lib/pgErrors";
 
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
+}
+
+function pickAuditFields(
+  source: object,
+  fields: readonly string[],
+): Record<string, unknown> {
+  const record = source as Record<string, unknown>;
+  const picked: Record<string, unknown> = {};
+  for (const field of fields) {
+    picked[field] = record[field] ?? null;
+  }
+  return picked;
 }
 
 async function __wrapped_GET(
@@ -92,38 +112,88 @@ async function __wrapped_PUT(
   }
 
   try {
-    const existing = await db.query.sources.findFirst({
-      where: eq(sources.id, parsedId.data.id),
-      columns: { id: true },
-    });
+    const result = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          id: sources.id,
+          name: sources.name,
+          sourceType: sources.sourceType,
+          baseUrl: sources.baseUrl,
+          isActive: sources.isActive,
+          trustLevel: sources.trustLevel,
+          autoPublish: sources.autoPublish,
+          checkFrequencyMinutes: sources.checkFrequencyMinutes,
+          facebookPageId: sources.facebookPageId,
+          facebookPageKind: sources.facebookPageKind,
+          facebookApprovalState: sources.facebookApprovalState,
+          facebookContentUseState: sources.facebookContentUseState,
+          facebookAuthorizationNote: sources.facebookAuthorizationNote,
+        })
+        .from(sources)
+        .where(eq(sources.id, parsedId.data.id))
+        .limit(1)
+        .for("update");
 
-    if (!existing) {
-      return jsonError("Source not found", 404);
-    }
+      if (!current) {
+        return { status: "not_found" as const };
+      }
 
-    const [updated] = await db
-      .update(sources)
-      .set(parsed.data)
-      .where(eq(sources.id, parsedId.data.id))
-      .returning({
-        id: sources.id,
-        name: sources.name,
-        sourceType: sources.sourceType,
-        baseUrl: sources.baseUrl,
-        isActive: sources.isActive,
-        trustLevel: sources.trustLevel,
-        createdAt: sources.createdAt,
-        updatedAt: sources.updatedAt,
+      // The ingestion API key is a machine credential, not an admin role.
+      if (
+        !authorizeSourceMutation(API_KEY_SOURCE_ACTOR, {
+          ...parsed.data,
+          existing: current,
+          operation: "update",
+        }).ok
+      ) {
+        return { status: "forbidden" as const };
+      }
+
+      const merged = validateMergedSourceUpdate(current, parsed.data);
+      if (!merged.ok) {
+        return {
+          status: "invalid" as const,
+          message: merged.issues[0] ?? "Invalid source update",
+        };
+      }
+
+      const [updated] = await tx
+        .update(sources)
+        .set(parsed.data)
+        .where(eq(sources.id, parsedId.data.id))
+        .returning({
+          id: sources.id,
+          name: sources.name,
+          sourceType: sources.sourceType,
+          baseUrl: sources.baseUrl,
+          isActive: sources.isActive,
+          trustLevel: sources.trustLevel,
+          createdAt: sources.createdAt,
+          updatedAt: sources.updatedAt,
+        });
+
+      const changedFields = changedSourceFields({ ...parsed.data, existing: current });
+      await tx.insert(auditLog).values({
+        actorUserId: null,
+        action: "SOURCE_UPDATED",
+        targetType: "source",
+        targetId: parsedId.data.id,
+        metadata: {
+          source: "api_key",
+          fields: changedFields,
+          before: pickAuditFields(current, changedFields),
+          after: pickAuditFields(parsed.data, changedFields),
+        },
       });
 
-    await writeAuditLog({
-      action: "SOURCE_UPDATED",
-      targetType: "source",
-      targetId: parsedId.data.id,
-      metadata: { source: "api_key", fields: Object.keys(parsed.data) },
+      return { status: "ok" as const, updated };
     });
 
-    return NextResponse.json({ item: updated });
+    if (result.status === "not_found") return jsonError("Source not found", 404);
+    if (result.status === "forbidden") return jsonError("Forbidden", 403);
+    if (result.status === "invalid") return jsonError(result.message, 400);
+
+    return NextResponse.json({ item: result.updated });
   } catch (err: unknown) {
     if (isPgUniqueViolation(err, "sources_name_unique")) {
       return jsonError("Source name already exists", 409);
@@ -153,25 +223,56 @@ async function __wrapped_DELETE(
   }
 
   try {
-    const existing = await db.query.sources.findFirst({
-      where: eq(sources.id, parsedId.data.id),
-      columns: { id: true },
+    const result = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          id: sources.id,
+          name: sources.name,
+          sourceType: sources.sourceType,
+          trustLevel: sources.trustLevel,
+          autoPublish: sources.autoPublish,
+        })
+        .from(sources)
+        .where(eq(sources.id, parsedId.data.id))
+        .limit(1)
+        .for("update");
+
+      if (!current) {
+        return { status: "not_found" as const };
+      }
+
+      if (
+        !authorizeSourceMutation(API_KEY_SOURCE_ACTOR, {
+          existing: current,
+          operation: "delete",
+        }).ok
+      ) {
+        return { status: "forbidden" as const };
+      }
+
+      await tx.delete(sources).where(eq(sources.id, parsedId.data.id));
+
+      await tx.insert(auditLog).values({
+        actorUserId: null,
+        action: "SOURCE_DELETED",
+        targetType: "source",
+        targetId: parsedId.data.id,
+        metadata: {
+          source: "api_key",
+          before: pickAuditFields(current, [
+            "name",
+            "sourceType",
+            "trustLevel",
+            "autoPublish",
+          ]),
+        },
+      });
+
+      return { status: "ok" as const };
     });
 
-    if (!existing) {
-      return jsonError("Source not found", 404);
-    }
-
-    await db
-      .delete(sources)
-      .where(eq(sources.id, parsedId.data.id));
-
-    await writeAuditLog({
-      action: "SOURCE_DELETED",
-      targetType: "source",
-      targetId: parsedId.data.id,
-      metadata: { source: "api_key" },
-    });
+    if (result.status === "not_found") return jsonError("Source not found", 404);
+    if (result.status === "forbidden") return jsonError("Forbidden", 403);
 
     return NextResponse.json({ success: true });
   } catch (err: unknown) {

@@ -15,6 +15,7 @@ import {
   salaryPeriodEnum,
   jobStatusEnum,
   verificationStatusEnum,
+  applicantEligibilityEnum,
 } from "./enums";
 import { organizations } from "./organizations";
 import { categories } from "./categories";
@@ -66,6 +67,9 @@ export const jobs = pgTable(
     verificationStatus: verificationStatusEnum("verification_status")
       .notNull()
       .default("PENDING"),
+    applicantEligibility: applicantEligibilityEnum("applicant_eligibility")
+      .notNull()
+      .default("NOT_STATED"),
 
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true })
       .notNull()

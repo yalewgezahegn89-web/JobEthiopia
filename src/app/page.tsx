@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import { fetchJobs } from "@/lib/jobs/public";
 import { fetchCareerArticles } from "@/lib/careerArticles/public";
 import { fetchCategories } from "@/lib/categories/public";
@@ -14,16 +14,22 @@ import { EmployerCta } from "@/components/homepage/employer-cta";
 import { CareerResources } from "@/components/homepage/career-resources";
 import AdSlot from "@/components/ads/ad-slot";
 import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import { localizeHref } from "@/lib/i18n/routing";
+import { buildPageMetadata } from "@/lib/seo/metadata";
 import { trackPageView } from "@/lib/analytics/pageEvents";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const t = await getI18n();
-  return {
+  const [t, locale] = await Promise.all([getI18n(), getCurrentLocale()]);
+  return buildPageMetadata({
+    path: "/",
+    locale,
     title: t.home.metaTitle,
     description: t.home.metaDescription,
-  };
+    includeAlternates: true,
+    includeXDefault: true,
+  });
 }
 
 export default async function Home() {
@@ -56,7 +62,11 @@ export default async function Home() {
 
   return (
     <div className="flex w-full flex-col">
-      <Hero locations={locations} t={t} />
+      <Hero
+        locations={locations}
+        searchAction={localizeHref("/jobs", locale)}
+        t={t}
+      />
 
       <TrustSignals t={t} />
 
@@ -103,9 +113,9 @@ function JobsLoadError({ t }: { t: Awaited<ReturnType<typeof getI18n>> }) {
         {t.jobs.loadErrorHeading}
       </h2>
       <p className="mt-2 text-sm text-muted">{t.jobs.loadErrorBody}</p>
-      <Link href="/" className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary">
+      <LocalizedLink href="/" className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary">
         {t.jobs.loadErrorCta}
-      </Link>
+      </LocalizedLink>
     </section>
   );
 }
@@ -117,9 +127,9 @@ function ResourcesLoadError({ t }: { t: Awaited<ReturnType<typeof getI18n>> }) {
         {t.careers.loadErrorHeading}
       </h2>
       <p className="mt-2 text-sm text-muted">{t.careers.loadErrorBody}</p>
-      <Link href="/careers" className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary">
+      <LocalizedLink href="/careers" className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary">
         {t.careers.loadErrorCta}
-      </Link>
+      </LocalizedLink>
     </section>
   );
 }
@@ -137,12 +147,12 @@ function JobsEmptyState({ t }: { t: Awaited<ReturnType<typeof getI18n>> }) {
         {t.home.latestJobsEmptyHeading}
       </h2>
       <p className="mt-2 text-sm text-muted">{t.home.latestJobsEmptyBody}</p>
-      <Link
+      <LocalizedLink
         href="/jobs"
         className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         {t.home.latestJobsEmptyCta}
-      </Link>
+      </LocalizedLink>
     </section>
   );
 }
@@ -160,12 +170,12 @@ function ResourcesEmptyState({ t }: { t: Awaited<ReturnType<typeof getI18n>> }) 
         {t.home.resourcesEmptyHeading}
       </h2>
       <p className="mt-2 text-sm text-muted">{t.home.resourcesEmptyBody}</p>
-      <Link
+      <LocalizedLink
         href="/careers"
         className="focus-visible:outline-2 mt-4 inline-block font-semibold text-primary underline focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         {t.home.resourcesEmptyCta}
-      </Link>
+      </LocalizedLink>
     </section>
   );
 }

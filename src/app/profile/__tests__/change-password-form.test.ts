@@ -1,20 +1,25 @@
 import { describe, it, expect, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { Dictionary } from "@/lib/i18n/dictionary";
 import { en } from "@/lib/i18n/messages/en";
 
 vi.mock("../change-password/actions", () => ({
   changePasswordAction: vi.fn(),
 }));
 
-import ChangePasswordForm from "../change-password/change-password-form";
+vi.mock("@/lib/i18n/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/client")>();
+  return {
+    ...actual,
+    useI18n: () => ({ locale: "en" as const, t: en }),
+  };
+});
 
-const t = en as Dictionary;
+import ChangePasswordForm from "../change-password/change-password-form";
 
 describe("ChangePasswordForm", () => {
   it("renders the current password field with label and autocomplete", async () => {
-    const html = renderToStaticMarkup(createElement(ChangePasswordForm, { t }));
+    const html = renderToStaticMarkup(createElement(ChangePasswordForm));
     expect(html).toContain("Current password");
     expect(html).toContain('name="currentPassword"');
     expect(html).toContain('autoComplete="current-password"');
@@ -22,7 +27,7 @@ describe("ChangePasswordForm", () => {
   });
 
   it("renders the new password field with label and autocomplete", async () => {
-    const html = renderToStaticMarkup(createElement(ChangePasswordForm, { t }));
+    const html = renderToStaticMarkup(createElement(ChangePasswordForm));
     expect(html).toContain("New password");
     expect(html).toContain('name="newPassword"');
     expect(html).toContain('autoComplete="new-password"');
@@ -30,7 +35,7 @@ describe("ChangePasswordForm", () => {
   });
 
   it("renders the confirm new password field with label and autocomplete", async () => {
-    const html = renderToStaticMarkup(createElement(ChangePasswordForm, { t }));
+    const html = renderToStaticMarkup(createElement(ChangePasswordForm));
     expect(html).toContain("Confirm new password");
     expect(html).toContain('name="confirmPassword"');
     expect(html).toContain('autoComplete="new-password"');
@@ -38,24 +43,24 @@ describe("ChangePasswordForm", () => {
   });
 
   it("renders all three password-type inputs", async () => {
-    const html = renderToStaticMarkup(createElement(ChangePasswordForm, { t }));
+    const html = renderToStaticMarkup(createElement(ChangePasswordForm));
     const typeCount = (html.match(/type="password"/g) ?? []).length;
     expect(typeCount).toBe(3);
   });
 
   it("renders a submit button", async () => {
-    const html = renderToStaticMarkup(createElement(ChangePasswordForm, { t }));
+    const html = renderToStaticMarkup(createElement(ChangePasswordForm));
     expect(html).toContain('type="submit"');
     expect(html).toContain("Change password");
   });
 
   it("shows 8-character minimum hint", async () => {
-    const html = renderToStaticMarkup(createElement(ChangePasswordForm, { t }));
+    const html = renderToStaticMarkup(createElement(ChangePasswordForm));
     expect(html).toContain("8 characters");
   });
 
   it("does not render errors in the initial state", async () => {
-    const html = renderToStaticMarkup(createElement(ChangePasswordForm, { t }));
+    const html = renderToStaticMarkup(createElement(ChangePasswordForm));
     expect(html).not.toContain('role="alert"');
     expect(html).not.toContain('role="status"');
   });
@@ -63,7 +68,6 @@ describe("ChangePasswordForm", () => {
   it("renders a form-level error with role=alert", async () => {
     const html = renderToStaticMarkup(
       createElement(ChangePasswordForm, {
-        t,
         initialState: { formError: "Your current password is incorrect." },
       }),
     );
@@ -74,7 +78,6 @@ describe("ChangePasswordForm", () => {
   it("renders a per-field error with aria-describedby", async () => {
     const html = renderToStaticMarkup(
       createElement(ChangePasswordForm, {
-        t,
         initialState: {
           fieldErrors: {
             newPassword: "New password must be at least 8 characters.",
@@ -90,7 +93,6 @@ describe("ChangePasswordForm", () => {
   it("renders success with role=status", async () => {
     const html = renderToStaticMarkup(
       createElement(ChangePasswordForm, {
-        t,
         initialState: { success: "Your password has been changed." },
       }),
     );
@@ -99,7 +101,7 @@ describe("ChangePasswordForm", () => {
   });
 
   it("exposes no role, organization, or profile fields", async () => {
-    const html = renderToStaticMarkup(createElement(ChangePasswordForm, { t }));
+    const html = renderToStaticMarkup(createElement(ChangePasswordForm));
     expect(html).not.toContain('name="role"');
     expect(html).not.toContain('name="organizationId"');
     expect(html).not.toContain('name="email"');
@@ -110,7 +112,7 @@ describe("ChangePasswordForm", () => {
   });
 
   it("does not render any password value in the initial output", async () => {
-    const html = renderToStaticMarkup(createElement(ChangePasswordForm, { t }));
+    const html = renderToStaticMarkup(createElement(ChangePasswordForm));
     expect(html).not.toContain("OldPassword");
     expect(html).not.toContain("NewPassword");
   });

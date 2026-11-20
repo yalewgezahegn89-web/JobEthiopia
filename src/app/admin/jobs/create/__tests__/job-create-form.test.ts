@@ -35,6 +35,7 @@ const OPTIONS = {
   categories: [{ id: "cat-1", name: "Finance" }],
   professions: [{ id: "prof-1", name: "Accountant" }],
   locations: [{ id: "loc-1", name: "Addis Ababa" }],
+  originalSources: [{ name: "UNICEF Careers Website" }],
 };
 
 function renderForm(initialState?: CreateCuratedJobActionResult) {
@@ -84,6 +85,15 @@ describe("JobCreateForm — selectors", () => {
     expect(html).toContain('value="loc-1"');
   });
 
+  it("marks the category selector as required (publication needs a category)", () => {
+    const html = renderForm();
+    const categorySelect = html.match(
+      /<select[^>]*id="categoryId"[^>]*>/,
+    )?.[0];
+    expect(categorySelect).toBeTruthy();
+    expect(categorySelect).toContain("required");
+  });
+
   it("renders all employment type options", () => {
     const html = renderForm();
     for (const value of ["FULL_TIME", "PART_TIME", "CONTRACT", "TEMPORARY", "INTERNSHIP", "VOLUNTEER", "FREELANCE", "OTHER"]) {
@@ -114,6 +124,58 @@ describe("JobCreateForm — selectors", () => {
 });
 
 describe("JobCreateForm — provenance/safety", () => {
+  it("renders original-source fields for administrators", () => {
+    const html = renderForm();
+    expect(html).toContain('name="originalSourceName"');
+    expect(html).toContain('name="originalSourceUrl"');
+    expect(html).toContain('name="originalExternalId"');
+  });
+
+  it("renders an existing original-source selector for moderators without creation controls", () => {
+    const html = renderToStaticMarkup(
+      createElement(JobCreateForm, {
+        ...OPTIONS,
+        canCreateOriginalSource: false,
+      }),
+    );
+    expect(html).toContain('id="originalSourceSelect"');
+    expect(html).toContain('name="originalSourceName"');
+    expect(html).toContain('value="UNICEF Careers Website"');
+    expect(html).toContain('name="originalSourceUrl"');
+    expect(html).toContain('name="originalExternalId"');
+    expect(html).not.toContain('id="originalSourceName"');
+    expect(html).not.toContain('placeholder="e.g. UNICEF Careers Website"');
+    expect(html).toContain("Only administrators can create a new original source");
+  });
+
+  it("does not render original-source creation controls for moderators when no eligible sources exist", () => {
+    const html = renderToStaticMarkup(
+      createElement(JobCreateForm, {
+        ...OPTIONS,
+        originalSources: [],
+        canCreateOriginalSource: false,
+      }),
+    );
+    expect(html).not.toContain('id="originalSourceSelect"');
+    expect(html).not.toContain('id="originalSourceName"');
+    expect(html).not.toContain('name="originalSourceUrl"');
+    expect(html).not.toContain('name="originalExternalId"');
+    expect(html).toContain("No existing original sources are available");
+  });
+
+  it("does not expose source privilege controls to moderators", () => {
+    const html = renderToStaticMarkup(
+      createElement(JobCreateForm, {
+        ...OPTIONS,
+        canCreateOriginalSource: false,
+      }),
+    );
+    expect(html).not.toContain('name="trustLevel"');
+    expect(html).not.toContain('name="autoPublish"');
+    expect(html).not.toContain('name="sourceType"');
+    expect(html).not.toContain('name="sourceId"');
+  });
+
   it("does not expose a sourceId field", () => {
     const html = renderForm();
     expect(html).not.toContain('name="sourceId"');

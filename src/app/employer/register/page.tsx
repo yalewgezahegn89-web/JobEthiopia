@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import EmployerRegisterForm from "./employer-register-form";
 import { getI18n } from "@/lib/i18n/server";
+import { privateMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Request an employer account",
-};
+export const metadata: Metadata = privateMetadata(
+  "Request an employer account",
+);
 
 export default async function EmployerRegisterPage() {
   const t = await getI18n();
@@ -17,7 +18,7 @@ export default async function EmployerRegisterPage() {
           {t.employerAuth.registerSubtitle}
         </p>
       </div>
-      <EmployerRegisterForm t={t} />
+      <EmployerRegisterForm />
       <div className="flex flex-col items-center gap-2">
         <Link href="/login" className="text-sm text-muted underline">
           {t.employerAuth.registerSignIn}

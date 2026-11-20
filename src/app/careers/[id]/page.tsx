@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import { notFound } from "next/navigation";
 import {
   fetchCareerArticle,
@@ -8,7 +8,17 @@ import {
   type PublicArticleSummary,
 } from "@/lib/careerArticles/public";
 import { selectRelatedArticles } from "@/lib/careerArticles/related";
-import { getAppBaseUrl } from "@/lib/appBaseUrl";
+import { isArticlePubliclyEligible } from "@/lib/careerArticles/eligibility";
+import {
+  absoluteUrl,
+  buildPageMetadata,
+  NOINDEX_METADATA,
+  toIsoDate,
+} from "@/lib/seo/metadata";
+import {
+  buildArticleLd,
+  serializeJsonLd,
+} from "@/lib/seo/structuredData";
 import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
 import { trackPageView } from "@/lib/analytics/pageEvents";
 import { Breadcrumb } from "@/components/public/breadcrumb";
@@ -39,48 +49,37 @@ export async function generateMetadata({
 
   if (!article) {
     return {
-      title: "Career Resource | JobEthiopia",
+      title: { absolute: "Career Resource | JobEthiopia" },
       description: "Career advice and resources on JobEthiopia.",
+      robots: NOINDEX_METADATA,
     };
   }
 
-  const baseUrl = getAppBaseUrl();
-  const canonicalUrl = `${baseUrl}/careers/${id}`;
-
-  const isPubliclyEligible = article.status === "PUBLISHED";
+  // Keep the canonical/OG structure for known articles, but only index those
+  // whose publication instant has actually arrived.
+  const isPubliclyEligible = isArticlePubliclyEligible({
+    status: article.status,
+    publishedAt: article.publishedAtIso ?? article.publishedAt,
+  });
   const title = article.title;
   const description = article.excerpt
     ? truncateMetadata(article.excerpt, 160)
     : `${title} — career advice and resources on JobEthiopia.`;
+  const publishedTime =
+    toIsoDate(article.publishedAtIso ?? article.publishedAt) ?? undefined;
 
-  if (!isPubliclyEligible) {
-    return {
-      title,
-      description,
-      robots: { index: false, follow: false },
-      alternates: { canonical: canonicalUrl },
-    };
-  }
-
-  return {
+  // Article bodies are not translated: locale-prefixed URLs are UI shells, so
+  // every locale shares the English canonical and intentionally emits no hreflang.
+  return buildPageMetadata({
+    path: `/careers/${id}`,
+    locale: "en",
+    canonicalLocale: "en",
     title,
     description,
-    openGraph: {
-      title: `${title} | JobEthiopia`,
-      description,
-      url: canonicalUrl,
-      type: "article",
-      siteName: "JobEthiopia",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${title} | JobEthiopia`,
-      description,
-    },
-    alternates: {
-      canonical: canonicalUrl,
-    },
-  };
+    openGraphType: "article",
+    publishedTime,
+    robots: isPubliclyEligible ? undefined : NOINDEX_METADATA,
+  });
 }
 
 export default async function CareerArticlePage({
@@ -114,12 +113,12 @@ export default async function CareerArticlePage({
         <p className="mt-4 text-muted">
           {t.publicDetail.careerLoadError}
         </p>
-        <Link
+        <LocalizedLink
           href="/careers"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.publicDetail.careerBack}
-        </Link>
+        </LocalizedLink>
       </div>
     );
   }
@@ -127,6 +126,19 @@ export default async function CareerArticlePage({
   if (!article) {
     notFound();
   }
+
+  // A scheduled or undated article is treated as not found: no render, no
+  // Article JSON-LD, and no indexable content.
+  if (
+    !isArticlePubliclyEligible({
+      status: article.status,
+      publishedAt: article.publishedAtIso ?? article.publishedAt,
+    })
+  ) {
+    notFound();
+  }
+
+  const articleLd = buildArticleLd(article, absoluteUrl(`/careers/${id}`));
 
   let related: PublicArticleSummary[] = [];
   const category = article.category;
@@ -157,13 +169,13 @@ export default async function CareerArticlePage({
       <article className="mt-6">
         <header>
           {article.category && (
-            <Link
+            <LocalizedLink
               href={`/careers?category=${encodeURIComponent(article.category)}`}
               className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-accent-light px-3 py-1 text-xs font-semibold text-warning hover:bg-accent-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               <BookIcon className="h-3.5 w-3.5" />
               {article.category}
-            </Link>
+            </LocalizedLink>
           )}
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
             {article.title}
@@ -202,7 +214,7 @@ export default async function CareerArticlePage({
           <ul className="mt-4 grid gap-3 sm:grid-cols-2">
             {related.map((item) => (
               <li key={item.id}>
-                <Link
+                <LocalizedLink
                   href={`/careers/${item.id}`}
                   className="group block h-full rounded-xl border border-border bg-surface p-4 shadow-sm transition-all duration-200 hover:border-primary/20 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
@@ -214,20 +226,20 @@ export default async function CareerArticlePage({
                       {t.publicDetail.careerPublishedPrefix} {item.publishedAt}
                     </p>
                   )}
-                </Link>
+                </LocalizedLink>
               </li>
             ))}
           </ul>
         </section>
       )}
 
-      <Link
+      <LocalizedLink
         href="/careers"
         className="focus-visible:outline-2 mt-10 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-6 py-3 text-base font-semibold text-foreground transition-colors hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary sm:w-auto"
       >
         {t.publicDetail.careerBrowseAll}
         <ArrowRightIcon className="h-4 w-4" />
-      </Link>
+      </LocalizedLink>
 
       <AdSlot
         placementId="career-article-bottom"
@@ -235,6 +247,13 @@ export default async function CareerArticlePage({
         locale={locale}
         t={t}
       />
+
+      {articleLd && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(articleLd) }}
+        />
+      )}
     </div>
   );
 }

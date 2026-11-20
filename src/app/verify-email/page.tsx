@@ -54,5 +54,5 @@ export default async function VerifyEmailPage({
     );
   }
 
-  return <VerifyEmailFlow token={token} type={type} t={t} />;
+  return <VerifyEmailFlow token={token} type={type} />;
 }

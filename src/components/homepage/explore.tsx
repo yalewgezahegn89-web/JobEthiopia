@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import type { PublicCategorySummary } from "@/lib/categories/public";
 import type { PublicProfessionSummary } from "@/lib/professions/public";
 import type { PublicLocationSummary } from "@/lib/locations/public";
@@ -60,7 +60,7 @@ function ProfessionCategoryGrid({
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {professions.slice(0, 6).map((profession) => (
-          <Link
+          <LocalizedLink
             key={profession.id}
             href={`/professions/${profession.id}`}
             className="group flex h-full items-start gap-3 rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -78,10 +78,10 @@ function ProfessionCategoryGrid({
                 </p>
               )}
             </div>
-          </Link>
+          </LocalizedLink>
         ))}
         {categories.slice(0, 3).map((category) => (
-          <Link
+          <LocalizedLink
             key={category.id}
             href={`/categories/${category.id}`}
             className="group flex h-full items-start gap-3 rounded-xl border border-border bg-surface p-5 shadow-sm transition-all duration-200 hover:border-accent/50 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
@@ -104,23 +104,23 @@ function ProfessionCategoryGrid({
                 </p>
               )}
             </div>
-          </Link>
+          </LocalizedLink>
         ))}
       </div>
 
       <div className="mt-6 flex flex-wrap gap-4">
-        <Link
+        <LocalizedLink
           href="/professions"
           className="focus-visible:outline-2 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.home.viewAllProfessions}
-        </Link>
-        <Link
+        </LocalizedLink>
+        <LocalizedLink
           href="/categories"
           className="focus-visible:outline-2 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.home.viewAllCategories}
-        </Link>
+        </LocalizedLink>
       </div>
     </section>
   );
@@ -155,7 +155,7 @@ function LocationGrid({
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {locations.slice(0, 9).map((location) => (
           <li key={location.id}>
-            <Link
+            <LocalizedLink
               href={`/locations/${location.id}`}
               className="group flex items-center gap-3 rounded-xl border border-border bg-surface p-4 shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
@@ -168,18 +168,18 @@ function LocationGrid({
               <span className="ml-auto text-xs text-subtle">
                 {location.type.replace("_", " ")}
               </span>
-            </Link>
+            </LocalizedLink>
           </li>
         ))}
       </ul>
 
       <div className="mt-6">
-        <Link
+        <LocalizedLink
           href="/locations"
           className="focus-visible:outline-2 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.home.viewAllLocations}
-        </Link>
+        </LocalizedLink>
       </div>
     </section>
   );

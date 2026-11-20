@@ -1,9 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { dictionaries } from "@/lib/i18n/dictionary";
 
 const mocks = vi.hoisted(() => ({
   mockRegisterAction: vi.fn(),
+  mockGetI18n: vi.fn(),
+}));
+
+vi.mock("@/lib/i18n/server", () => ({
+  getI18n: () => mocks.mockGetI18n(),
 }));
 
 vi.mock("next/link", () => ({
@@ -16,18 +22,27 @@ vi.mock("./actions", () => ({
 }));
 
 vi.mock("@/components/auth/telegram-option", () => ({
-  TelegramOption: () => null,
+  TelegramOption: () => createElement("div", null, "telegram-option"),
 }));
 
-import RegisterPage from "../page";
+vi.mock("@/components/auth/google-option", () => ({
+  GoogleOption: () => createElement("div", null, "google-option"),
+}));
+
+import RegisterPage, { metadata } from "../page";
 import RegisterForm from "../register-form";
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.mockRegisterAction.mockResolvedValue({ error: null });
+  mocks.mockGetI18n.mockResolvedValue(dictionaries.en);
 });
 
 describe("RegisterPage", () => {
+  it("is excluded from search indexes", () => {
+    expect(metadata.robots).toEqual({ index: false, follow: false });
+  });
+
   it("is public and renders without requiring an authenticated user", async () => {
     const element = await RegisterPage();
     const html = renderToStaticMarkup(element);
@@ -41,6 +56,25 @@ describe("RegisterPage", () => {
     const html = renderToStaticMarkup(element);
     expect(html).toContain('href="/login"');
     expect(html).toContain('href="/"');
+  });
+
+  it("retains email/password, Google, and Telegram options", async () => {
+    const element = await RegisterPage();
+    const html = renderToStaticMarkup(element);
+    expect(html).toContain('name="email"');
+    expect(html).toContain('name="password"');
+    expect(html).toContain("google-option");
+    expect(html).toContain("telegram-option");
+  });
+
+  it("links to the legal pages without changing the registration form", async () => {
+    const element = await RegisterPage();
+    const html = renderToStaticMarkup(element);
+    expect(html).toContain('href="/privacy"');
+    expect(html).toContain('href="/terms"');
+    expect(html).toContain('href="/cookies"');
+    expect(html).toContain("Privacy Policy");
+    expect(html).toContain('type="submit"');
   });
 });
 
