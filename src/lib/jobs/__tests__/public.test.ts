@@ -633,6 +633,38 @@ describe("view model mappers", () => {
 
     expect(detail.description).toBe("Job description");
   });
+
+  it("maps the organization logo into job summaries and details", () => {
+    const raw = {
+      organization: {
+        id: "org-1",
+        name: "ACME Plc",
+        logoUrl: "https://cdn.example.com/acme.png",
+      },
+    };
+
+    expect(toPublicJobSummary(raw).organizationLogoUrl).toBe(
+      "https://cdn.example.com/acme.png",
+    );
+    expect(toPublicJobDetail(raw).organizationLogoUrl).toBe(
+      "https://cdn.example.com/acme.png",
+    );
+  });
+
+  it("rejects non-https and malformed organization logos", () => {
+    expect(
+      toPublicJobSummary({
+        organization: { logoUrl: "http://cdn.example.com/acme.png" },
+      }).organizationLogoUrl,
+    ).toBeNull();
+    expect(
+      toPublicJobDetail({
+        organization: { logoUrl: "not a url" },
+      }).organizationLogoUrl,
+    ).toBeNull();
+    expect(toPublicJobSummary({}).organizationLogoUrl).toBeNull();
+    expect(toPublicJobDetail({}).organizationLogoUrl).toBeNull();
+  });
 });
 
 describe("daysSince", () => {

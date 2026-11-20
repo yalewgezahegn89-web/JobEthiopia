@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import type { PublicArticleSummary } from "@/lib/careerArticles/public";
 import { SectionHeading } from "@/components/homepage/section-heading";
 import type { Dictionary } from "@/lib/i18n/dictionary";
@@ -19,12 +19,12 @@ export function CareerResources({
         title={t.home.resourcesTitle}
         subtitle={t.home.resourcesSubtitle}
         action={
-          <Link
+          <LocalizedLink
             href="/careers"
             className="focus-visible:outline-2 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             {t.home.viewAllResources}
-          </Link>
+          </LocalizedLink>
         }
       />
 
@@ -34,7 +34,7 @@ export function CareerResources({
             key={article.id}
             className="rounded-xl border border-border-subtle bg-surface-raised p-6 transition-all duration-200 hover:border-primary/30 hover:bg-surface hover:shadow-sm"
           >
-            <Link
+            <LocalizedLink
               href={`/careers/${article.id}`}
               className="focus-visible:outline-2 group block focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
@@ -74,7 +74,7 @@ export function CareerResources({
                   <path d="m12 5 7 7-7 7" />
                 </svg>
               </span>
-            </Link>
+            </LocalizedLink>
           </article>
         ))}
       </div>

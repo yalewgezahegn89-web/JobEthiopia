@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
-import { getI18n } from "@/lib/i18n/server";
+import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import { buildPageMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Contact | JobEthiopia",
-  description: "Contact JobEthiopia by email.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const [t, locale] = await Promise.all([getI18n(), getCurrentLocale()]);
+  return buildPageMetadata({
+    path: "/contact",
+    locale,
+    title: t.seo.contact.title,
+    description: t.seo.contact.description,
+    includeAlternates: true,
+    includeXDefault: true,
+  });
+}
 
 export default async function ContactPage() {
   const t = await getI18n();

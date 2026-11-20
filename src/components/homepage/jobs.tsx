@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import type { PublicJobSummary } from "@/lib/jobs/public";
 import { SectionHeading } from "@/components/homepage/section-heading";
 import JobCard from "@/components/job-card";
@@ -14,12 +14,12 @@ export function LatestJobs({ jobs, t }: { jobs: PublicJobSummary[]; t: Dictionar
         title={t.home.latestJobsTitle}
         subtitle={t.home.latestJobsSubtitle}
         action={
-          <Link
+          <LocalizedLink
             href="/jobs"
             className="focus-visible:outline-2 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             {t.home.viewAllJobs}
-          </Link>
+          </LocalizedLink>
         }
       />
 
@@ -51,12 +51,12 @@ export function ClosingSoon({ jobs, t }: { jobs: PublicJobSummary[]; t: Dictiona
         title={t.home.closingSoonTitle}
         subtitle={t.home.closingSoonSubtitle}
         action={
-          <Link
+          <LocalizedLink
             href="/jobs"
             className="focus-visible:outline-2 text-sm font-semibold text-warning hover:text-warning focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             {t.home.viewAllJobs}
-          </Link>
+          </LocalizedLink>
         }
       />
 

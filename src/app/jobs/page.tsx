@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import {
   listPublicJobSummaries,
   type PublicJobList,
@@ -13,15 +13,24 @@ import {
 import JobCard from "@/components/job-card";
 import AdSlot from "@/components/ads/ad-slot";
 import { getI18n, getCurrentLocale } from "@/lib/i18n/server";
+import { localizeHref } from "@/lib/i18n/routing";
+import { buildPageMetadata } from "@/lib/seo/metadata";
 import type { Locale } from "@/lib/i18n/locale";
 import type { Messages } from "@/lib/i18n/dictionary";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Jobs | JobEthiopia",
-  description: "Browse job openings across Ethiopia.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const [t, locale] = await Promise.all([getI18n(), getCurrentLocale()]);
+  return buildPageMetadata({
+    path: "/jobs",
+    locale,
+    title: t.seo.jobs.title,
+    description: t.seo.jobs.description,
+    includeAlternates: true,
+    includeXDefault: true,
+  });
+}
 
 type SearchParamsValue = string | string[] | undefined;
 type SearchParams = Record<string, SearchParamsValue>;
@@ -212,6 +221,7 @@ export default async function JobsPage({
       <div className="mt-8 rounded-xl border border-border bg-surface p-5 shadow-sm">
         <SearchForm
           t={t}
+          action={localizeHref("/jobs", locale)}
           q={q}
           categories={categories}
           professions={professions}
@@ -230,12 +240,12 @@ export default async function JobsPage({
       <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
         <ResultCount total={total} from={from} to={to} t={t} />
         {hasFilters && (
-          <Link
+          <LocalizedLink
             href="/jobs"
             className="focus-visible:outline-2 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             {t.search.clearAllFilters}
-          </Link>
+          </LocalizedLink>
         )}
       </div>
 
@@ -266,13 +276,13 @@ export default async function JobsPage({
               aria-label={t.jobs.paginationLabel}
             >
               {currentPage > 1 ? (
-                <Link
+                <LocalizedLink
                   href={hrefWith({ page: String(currentPage - 1) })}
                   className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-all duration-200 hover:bg-surface-raised hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   <ArrowIcon dir="left" />
                   {t.jobs.previous}
-                </Link>
+                </LocalizedLink>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-subtle opacity-60">
                   <ArrowIcon dir="left" />
@@ -288,13 +298,13 @@ export default async function JobsPage({
               />
 
               {currentPage < totalPages ? (
-                <Link
+                <LocalizedLink
                   href={hrefWith({ page: String(currentPage + 1) })}
                   className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-all duration-200 hover:bg-surface-raised hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   {t.jobs.next}
                   <ArrowIcon dir="right" />
-                </Link>
+                </LocalizedLink>
               ) : (
                 <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-subtle opacity-60">
                   {t.jobs.next}
@@ -311,6 +321,7 @@ export default async function JobsPage({
 
 function SearchForm({
   t,
+  action,
   q,
   categories,
   professions,
@@ -325,6 +336,7 @@ function SearchForm({
   salaryMax,
 }: {
   t: Messages;
+  action: string;
   q: string;
   categories: FilterOption[];
   professions: FilterOption[];
@@ -340,7 +352,7 @@ function SearchForm({
 }) {
   return (
     <form
-      action="/jobs"
+      action={action}
       aria-label={t.search.searchJobs}
       method="get"
       className="space-y-5"
@@ -647,12 +659,12 @@ function PageLink({
     );
   }
   return (
-    <Link
+    <LocalizedLink
       href={hrefFor(page)}
       className="focus-visible:outline-2 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-sm font-semibold text-foreground transition-colors duration-200 hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
       {page}
-    </Link>
+    </LocalizedLink>
   );
 }
 
@@ -689,12 +701,12 @@ function EmptyState({
       </span>
       <h2 className="mt-5 text-xl font-bold text-foreground">{heading}</h2>
       <p className="mt-2 max-w-md text-sm leading-6 text-muted">{body}</p>
-      <Link
+      <LocalizedLink
         href="/jobs"
         className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         {t.jobs.browseAllJobs}
-      </Link>
+      </LocalizedLink>
     </div>
   );
 }
@@ -729,12 +741,12 @@ function ErrorState({
       </span>
       <h2 className="mt-5 text-xl font-bold text-foreground">{heading}</h2>
       <p className="mt-2 max-w-md text-sm leading-6 text-muted">{body}</p>
-      <Link
+      <LocalizedLink
         href={ctaHref}
         className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         {ctaLabel}
-      </Link>
+      </LocalizedLink>
     </div>
   );
 }

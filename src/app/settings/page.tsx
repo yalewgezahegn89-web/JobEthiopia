@@ -14,13 +14,14 @@ import { SettingsPasswordForm } from "./password-form";
 import { ResendVerificationForm } from "./resend-verification-form";
 import { SessionsManager } from "./sessions-manager";
 import type { SettingsSession } from "./sessions-manager";
+import { privateMetadata } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Account Settings | JobEthiopia",
-  description: "Manage your account, email, password, and active sessions.",
-};
+export const metadata: Metadata = privateMetadata(
+  "Account Settings",
+  "Manage your account, email, password, and active sessions.",
+);
 
 function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);

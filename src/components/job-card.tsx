@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import {
   freshnessLabel,
   closingState,
@@ -38,7 +38,7 @@ export default function JobCard({
 
   return (
     <article className="h-full">
-      <Link
+      <LocalizedLink
         href={`/jobs/${job.id}`}
         className="group relative block h-full rounded-xl border border-border bg-surface pl-6 pr-5 pt-5 pb-5 shadow-sm transition-all duration-200 hover:border-primary/30 hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
@@ -48,10 +48,19 @@ export default function JobCard({
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          {job.organizationName && (
-            <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary-light text-[10px] font-bold text-primary">
-              {orgInitials(job.organizationName)}
-            </span>
+          {job.organizationLogoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={job.organizationLogoUrl}
+              alt={t.organizations.logoAlt(job.organizationName ?? "Employer")}
+              className="h-6 w-6 shrink-0 rounded-md bg-surface-raised object-contain"
+            />
+          ) : (
+            job.organizationName && (
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-primary-light text-[10px] font-bold text-primary">
+                {orgInitials(job.organizationName)}
+              </span>
+            )
           )}
           {job.organizationName ? (
             <span className="truncate text-sm font-medium text-muted">
@@ -124,7 +133,7 @@ export default function JobCard({
             <span className="text-subtle">{job.salaryText}</span>
           )}
         </div>
-      </Link>
+      </LocalizedLink>
     </article>
   );
 }

@@ -1,8 +1,16 @@
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import type { PublicLocationSummary } from "@/lib/locations/public";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 
-export function Hero({ locations, t }: { locations: PublicLocationSummary[]; t: Dictionary }) {
+export function Hero({
+  locations,
+  searchAction,
+  t,
+}: {
+  locations: PublicLocationSummary[];
+  searchAction: string;
+  t: Dictionary;
+}) {
 
   return (
     <section className="relative overflow-hidden">
@@ -23,34 +31,34 @@ export function Hero({ locations, t }: { locations: PublicLocationSummary[]; t: 
               {t.home.heroSubtitle}
             </p>
 
-            <SearchPanel locations={locations} t={t} />
+            <SearchPanel locations={locations} searchAction={searchAction} t={t} />
 
             <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm text-muted">
               <span>
-                <Link
+                <LocalizedLink
                   href="/professions"
                   className="font-semibold text-primary hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   {t.home.browseProfessions}
-                </Link>
+                </LocalizedLink>
               </span>
               <span className="h-1 w-1 rounded-full bg-subtle" aria-hidden="true" />
               <span>
-                <Link
+                <LocalizedLink
                   href="/locations"
                   className="font-semibold text-primary hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   {t.home.browseLocations}
-                </Link>
+                </LocalizedLink>
               </span>
               <span className="h-1 w-1 rounded-full bg-subtle" aria-hidden="true" />
               <span>
-                <Link
+                <LocalizedLink
                   href="/categories"
                   className="font-semibold text-primary hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   {t.home.browseCategories}
-                </Link>
+                </LocalizedLink>
               </span>
             </div>
           </div>
@@ -66,14 +74,16 @@ export function Hero({ locations, t }: { locations: PublicLocationSummary[]; t: 
 
 function SearchPanel({
   locations,
+  searchAction,
   t,
 }: {
   locations: PublicLocationSummary[];
+  searchAction: string;
   t: Dictionary;
 }) {
   return (
     <form
-      action="/jobs"
+      action={searchAction}
       aria-label={t.search.searchJobs}
       method="get"
       className="mt-8 overflow-hidden rounded-xl border border-border bg-surface shadow-md"
@@ -176,12 +186,12 @@ function EmployerPanel({
       <p className="mt-2 text-sm leading-6 text-muted">
         {t.home.employerPanelBody}
       </p>
-      <Link
+      <LocalizedLink
         href="/employer/register"
         className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
       >
         {t.home.employerPanelCta}
-      </Link>
+      </LocalizedLink>
       <p className="mt-3 text-xs text-subtle">{t.home.employerPanelNote}</p>
     </div>
   );

@@ -221,18 +221,19 @@ describe("ProfessionPage generateMetadata", () => {
     const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
     expect(metadata.alternates).toBeDefined();
     expect(metadata.alternates!.canonical).toContain(`/professions/${PROFESSION_ID}`);
+    expect(metadata.alternates!.languages).toBeUndefined();
   });
 
   it("returns fallback metadata for a missing profession", async () => {
     mocks.mockFetchProfessionById.mockResolvedValue(null);
     const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
-    expect(metadata.title).toBe("Profession | JobEthiopia");
+    expect(metadata.title).toEqual({ absolute: "Profession | JobEthiopia" });
   });
 
   it("returns fallback metadata when fetching throws", async () => {
     mocks.mockFetchProfessionById.mockRejectedValue(new Error("network error"));
     const metadata = await generateMetadata({ params: Promise.resolve({ id: PROFESSION_ID }) });
-    expect(metadata.title).toBe("Profession | JobEthiopia");
+    expect(metadata.title).toEqual({ absolute: "Profession | JobEthiopia" });
   });
 
   it("generates description from name when description is null", async () => {

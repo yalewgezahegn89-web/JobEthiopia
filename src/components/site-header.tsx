@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { Suspense } from "react";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import { getCurrentUser } from "@/lib/auth/context";
 import { isStaffRole } from "@/lib/auth/roles";
 import { HeaderNavLink } from "@/components/site-header-nav";
@@ -75,12 +76,12 @@ const candidateLinks = [
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6 lg:px-8">
           <div className="flex shrink-0 items-center gap-2.5">
             <BrandMark size={28} />
-            <Link
+            <LocalizedLink
               href="/"
               className="whitespace-nowrap text-lg font-bold tracking-tight text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {t.common.brand}
-            </Link>
+            </LocalizedLink>
           </div>
 
           <nav
@@ -107,35 +108,37 @@ const candidateLinks = [
           </nav>
 
           <div className="hidden shrink-0 items-center gap-2 xl:flex">
-            <LanguageSwitcher />
+            <Suspense fallback={null}>
+              <LanguageSwitcher />
+            </Suspense>
             {user ? (
               <AccountMenu userName={user.name ?? ""} links={roleLinks} />
             ) : (
               <nav aria-label={t.nav.accountNavLabel}>
                 <ul className="flex items-center gap-x-2">
                   <li>
-                    <Link
+                    <LocalizedLink
                       href="/employer/register"
                       className="whitespace-nowrap text-sm font-medium text-muted hover:text-foreground transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                     >
                       {t.nav.forEmployers}
-                    </Link>
+                    </LocalizedLink>
                   </li>
                   <li>
-                    <Link
+                    <LocalizedLink
                       href="/login"
                       className="whitespace-nowrap rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised hover:border-border shadow-sm hover:shadow-md transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                     >
                       {t.nav.login}
-                    </Link>
+                    </LocalizedLink>
                   </li>
                   <li>
-                    <Link
+                    <LocalizedLink
                       href="/register"
                       className="whitespace-nowrap rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover shadow-sm hover:shadow-md transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                     >
                       {t.nav.signUp}
-                    </Link>
+                    </LocalizedLink>
                   </li>
                 </ul>
               </nav>

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import { useI18n } from "@/lib/i18n/client";
 
 export default function Error({
@@ -30,18 +30,18 @@ export default function Error({
         >
           {t.common.tryAgain}
         </button>
-        <Link
+        <LocalizedLink
           href="/"
           className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.common.backToHome}
-        </Link>
-        <Link
+        </LocalizedLink>
+        <LocalizedLink
           href="/jobs"
           className="inline-flex items-center justify-center rounded-lg border border-border px-4 py-2 text-sm font-semibold text-foreground hover:bg-surface-raised shadow-sm hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.error.browseJobs}
-        </Link>
+        </LocalizedLink>
       </div>
     </div>
   );

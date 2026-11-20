@@ -85,3 +85,29 @@ describe("SiteFooter contact link", () => {
     expect(await renderFooter("om")).toContain("Nu qunnamaa");
   });
 });
+
+describe("SiteFooter legal links", () => {
+  it("links to all three legal pages in English", async () => {
+    const html = await renderFooter("en");
+    expect(html).toContain('href="/privacy"');
+    expect(html).toContain('href="/terms"');
+    expect(html).toContain('href="/cookies"');
+    expect(html).toContain(">Privacy Policy</a>");
+    expect(html).toContain(">Terms of Use</a>");
+    expect(html).toContain(">Cookie Policy</a>");
+  });
+
+  it("uses Amharic legal labels", async () => {
+    const html = await renderFooter("am");
+    expect(html).toContain(">የግላዊነት መመሪያ</a>");
+    expect(html).toContain(">የአጠቃቀም ውሎች</a>");
+    expect(html).toContain(">የኩኪ መመሪያ</a>");
+  });
+
+  it("uses Afaan Oromo legal labels", async () => {
+    const html = await renderFooter("om");
+    expect(html).toContain(">Siyaasa Dhuugaa</a>");
+    expect(html).toContain(">Shartii Fayyadamaa</a>");
+    expect(html).toContain(">Siyaasi Kaallii</a>");
+  });
+});

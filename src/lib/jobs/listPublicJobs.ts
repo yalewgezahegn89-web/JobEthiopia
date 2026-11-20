@@ -154,12 +154,16 @@ export async function listPublicJobs(
   ];
 
   const entityColumns = { id: true, name: true, slug: true } as const;
+  const organizationColumns = {
+    ...entityColumns,
+    logoUrl: true,
+  } as const;
 
   const [organizationRows, categoryRows, professionRows, locationRows] =
     await Promise.all([
       organizationIds.length > 0
         ? db.query.organizations.findMany({
-            columns: entityColumns,
+            columns: organizationColumns,
             where: inArray(organizations.id, organizationIds),
           })
         : Promise.resolve([] as { id: string }[]),

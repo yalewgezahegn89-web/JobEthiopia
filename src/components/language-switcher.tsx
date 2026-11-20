@@ -1,18 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useI18n } from "@/lib/i18n/client";
 import { LOCALE_METADATA, LOCALES } from "@/lib/i18n/locale";
-import { localizePath } from "@/lib/i18n/routing";
+import { localizeHref } from "@/lib/i18n/routing";
 
 const focusRing =
   "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
 export function LanguageSwitcher() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { locale } = useI18n();
   const t = useI18n().t;
+  const query = searchParams.toString();
 
   return (
     <nav
@@ -22,7 +24,10 @@ export function LanguageSwitcher() {
       {LOCALES.map((code) => {
         const isCurrent = code === locale;
         const meta = LOCALE_METADATA[code];
-        const href = localizePath(pathname, code);
+        const href = localizeHref(
+          `${pathname}${query ? `?${query}` : ""}`,
+          code,
+        );
         return (
           <Link
             key={code}

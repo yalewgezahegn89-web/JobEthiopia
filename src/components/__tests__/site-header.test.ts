@@ -33,6 +33,7 @@ vi.mock("next/link", () => ({
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mocks.mockPathname(),
+  useSearchParams: () => new URLSearchParams(),
 }));
 
 import SiteHeader from "@/components/site-header";

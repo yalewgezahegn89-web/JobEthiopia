@@ -187,18 +187,19 @@ describe("CategoryPage generateMetadata", () => {
     const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
     expect(metadata.alternates).toBeDefined();
     expect(metadata.alternates!.canonical).toContain(`/categories/${CATEGORY_ID}`);
+    expect(metadata.alternates!.languages).toBeUndefined();
   });
 
   it("returns fallback metadata for a missing category", async () => {
     mocks.mockFetchCategoryById.mockResolvedValue(null);
     const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
-    expect(metadata.title).toBe("Category | JobEthiopia");
+    expect(metadata.title).toEqual({ absolute: "Category | JobEthiopia" });
   });
 
   it("returns fallback metadata when fetching throws", async () => {
     mocks.mockFetchCategoryById.mockRejectedValue(new Error("network error"));
     const metadata = await generateMetadata({ params: Promise.resolve({ id: CATEGORY_ID }) });
-    expect(metadata.title).toBe("Category | JobEthiopia");
+    expect(metadata.title).toEqual({ absolute: "Category | JobEthiopia" });
   });
 
   it("generates description from name when description is null", async () => {

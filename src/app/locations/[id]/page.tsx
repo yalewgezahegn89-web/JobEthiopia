@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import { notFound } from "next/navigation";
 import {
   fetchLocationById,
   type PublicLocationDetail,
 } from "@/lib/locations/public";
 import { fetchJobs, type PublicJobSummary } from "@/lib/jobs/public";
-import { getAppBaseUrl } from "@/lib/appBaseUrl";
+import {
+  buildPageMetadata,
+  NOINDEX_METADATA,
+} from "@/lib/seo/metadata";
 import JobCard from "@/components/job-card";
 import { getI18n } from "@/lib/i18n/server";
 import { Breadcrumb } from "@/components/public/breadcrumb";
@@ -30,8 +33,9 @@ export async function generateMetadata({
 
   if (!location) {
     return {
-      title: "Location | JobEthiopia",
+      title: { absolute: "Location | JobEthiopia" },
       description: "Browse jobs in this location on JobEthiopia.",
+      robots: NOINDEX_METADATA,
     };
   }
 
@@ -39,28 +43,16 @@ export async function generateMetadata({
   const typeLabel = location.type.replace("_", " ").toLowerCase();
   const description = `${name} — explore ${typeLabel} jobs on JobEthiopia.`;
 
-  const baseUrl = getAppBaseUrl();
-  const canonicalUrl = `${baseUrl}/locations/${id}`;
-
-  return {
+  // DB-backed content is not translated: locale-prefixed URLs are UI shells, so
+  // every locale shares the English canonical and intentionally emits no hreflang.
+  return buildPageMetadata({
+    path: `/locations/${id}`,
+    locale: "en",
+    canonicalLocale: "en",
     title: name,
     description,
-    openGraph: {
-      title: `${name} | JobEthiopia`,
-      description,
-      url: canonicalUrl,
-      type: "website",
-      siteName: "JobEthiopia",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${name} | JobEthiopia`,
-      description,
-    },
-    alternates: {
-      canonical: canonicalUrl,
-    },
-  };
+    robots: location.isActive ? undefined : NOINDEX_METADATA,
+  });
 }
 
 export default async function LocationPage({
@@ -87,12 +79,12 @@ export default async function LocationPage({
         <p className="mt-4 text-muted">
           {t.publicDetail.locationLoadError}
         </p>
-        <Link
+        <LocalizedLink
           href="/locations"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.publicDetail.locationBack}
-        </Link>
+        </LocalizedLink>
       </div>
     );
   }
@@ -155,21 +147,21 @@ export default async function LocationPage({
           {parent && (
             <p className="mt-2 text-sm text-muted">
               {t.publicDetail.locationPartOf}{" "}
-              <Link
+              <LocalizedLink
                 href={`/locations/${parent.id}`}
                 className="font-semibold text-primary hover:text-primary-hover underline underline-offset-2"
               >
                 {parent.name}
-              </Link>
+              </LocalizedLink>
             </p>
           )}
           <div className="mt-4 flex flex-wrap items-center gap-3">
-            <Link
+            <LocalizedLink
               href={`/jobs?locationId=${encodeURIComponent(location.id)}`}
               className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {t.publicDetail.locationBrowseAll}
-            </Link>
+            </LocalizedLink>
           </div>
         </div>
       </header>
@@ -208,12 +200,12 @@ export default async function LocationPage({
               {t.publicDetail.locationJobsHeading(location.name)}
             </h2>
           </div>
-          <Link
+          <LocalizedLink
             href={`/jobs?locationId=${encodeURIComponent(location.id)}`}
             className="focus-visible:outline-2 hidden shrink-0 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary sm:inline-flex"
           >
             {t.publicDetail.locationViewAll}
-          </Link>
+          </LocalizedLink>
         </div>
 
         {jobsLoadError ? (
@@ -231,12 +223,12 @@ export default async function LocationPage({
             <p className="mt-1 text-sm text-muted">
               {t.publicDetail.locationNoJobsBody}
             </p>
-            <Link
+            <LocalizedLink
               href="/jobs"
               className="focus-visible:outline-2 mt-5 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {t.publicDetail.locationBrowseJobs}
-            </Link>
+            </LocalizedLink>
           </div>
         ) : (
           <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

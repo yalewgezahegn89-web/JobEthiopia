@@ -80,11 +80,15 @@ async function __wrapped_GET(
     const locationId = job.locationId;
 
     const entityColumns = { id: true, name: true, slug: true } as const;
+    const organizationColumns = {
+      ...entityColumns,
+      logoUrl: true,
+    } as const;
 
     const [organization, category, profession, location] = await Promise.all([
       organizationId
         ? db.query.organizations.findFirst({
-            columns: entityColumns,
+            columns: organizationColumns,
             where: eq(organizations.id, organizationId),
           })
         : Promise.resolve(null),

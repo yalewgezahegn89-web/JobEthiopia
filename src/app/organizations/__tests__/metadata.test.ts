@@ -15,7 +15,7 @@ vi.mock("@/lib/jobs/public", () => ({
 }));
 
 vi.mock("@/lib/appBaseUrl", () => ({
-  getAppBaseUrl: () => "https://jobethiopia.com",
+  getAppBaseUrl: () => "https://jobethiopia.com/",
 }));
 
 vi.mock("@/components/job-card", () => ({
@@ -68,6 +68,7 @@ describe("organizations/[id] generateMetadata", () => {
     expect(meta.alternates?.canonical).toBe(
       "https://jobethiopia.com/organizations/org-1",
     );
+    expect(meta.alternates?.languages).toBeUndefined();
     expect(meta.openGraph?.title).toContain("Ethio Health");
     expect(meta.openGraph?.url).toBe(
       "https://jobethiopia.com/organizations/org-1",
@@ -83,7 +84,7 @@ describe("organizations/[id] generateMetadata", () => {
       params: Promise.resolve({ id: "missing" }),
     });
 
-    expect(meta.title).toBe("Organization | JobEthiopia");
+    expect(meta.title).toEqual({ absolute: "Organization | JobEthiopia" });
   });
 
   it("sets robots noindex for a non-public organization", async () => {

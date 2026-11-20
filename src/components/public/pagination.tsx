@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import type { Dictionary } from "@/lib/i18n/dictionary";
 
 export function Pagination({
@@ -29,13 +29,13 @@ export function Pagination({
       aria-label={t.common.paginationLabel}
     >
       {currentPage > 1 ? (
-        <Link
+        <LocalizedLink
           href={hrefForPage(currentPage - 1)}
           className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-all duration-200 hover:bg-surface-raised hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           <ArrowLeft className="h-4 w-4" />
           {t.common.previous}
-        </Link>
+        </LocalizedLink>
       ) : (
         <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-subtle opacity-60">
           <ArrowLeft className="h-4 w-4" />
@@ -62,13 +62,13 @@ export function Pagination({
       </div>
 
       {currentPage < totalPages ? (
-        <Link
+        <LocalizedLink
           href={hrefForPage(currentPage + 1)}
           className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-foreground shadow-sm transition-all duration-200 hover:bg-surface-raised hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.common.next}
           <ArrowRight className="h-4 w-4" />
-        </Link>
+        </LocalizedLink>
       ) : (
         <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-subtle opacity-60">
           {t.common.next}
@@ -99,12 +99,12 @@ function PageLink({
     );
   }
   return (
-    <Link
+    <LocalizedLink
       href={hrefForPage(page)}
       className="focus-visible:outline-2 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-surface text-sm font-semibold text-foreground transition-colors duration-200 hover:bg-surface-raised focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
       {page}
-    </Link>
+    </LocalizedLink>
   );
 }
 

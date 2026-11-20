@@ -8,6 +8,7 @@ import { ApplicationHistory } from "@/components/applications/history";
 import { Breadcrumb } from "@/components/public/breadcrumb";
 import { BuildingIcon } from "@/components/public/icons";
 import { getI18n } from "@/lib/i18n/server";
+import { NOINDEX_METADATA } from "@/lib/seo/metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t.applications.pageTitle,
     description: t.applications.metaDescription,
+    robots: NOINDEX_METADATA,
   };
 }
 

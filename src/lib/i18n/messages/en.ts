@@ -24,6 +24,36 @@ export const en = {
     previous: "Previous",
     next: "Next",
   },
+  seo: {
+    jobs: {
+      title: "Jobs",
+      description: "Browse verified job openings across Ethiopia.",
+    },
+    organizations: {
+      title: "Organizations",
+      description: "Browse organizations hiring across Ethiopia.",
+    },
+    categories: {
+      title: "Categories",
+      description: "Browse job categories across Ethiopia.",
+    },
+    professions: {
+      title: "Professions",
+      description: "Browse professions across Ethiopia.",
+    },
+    locations: {
+      title: "Locations",
+      description: "Browse job locations across Ethiopia.",
+    },
+    careers: {
+      title: "Career Resources",
+      description: "Career advice and resources for Ethiopian job seekers.",
+    },
+    contact: {
+      title: "Contact",
+      description: "Contact JobEthiopia by email.",
+    },
+  },
   nav: {
     home: "Home",
     jobs: "Jobs",
@@ -1147,6 +1177,11 @@ export const en = {
   footer: {
     footerNavLabel: "Footer",
     contact: "Contact",
+  },
+  legalNav: {
+    privacy: "Privacy Policy",
+    terms: "Terms of Use",
+    cookies: "Cookie Policy",
   },
   contact: {
     heading: "Contact us",

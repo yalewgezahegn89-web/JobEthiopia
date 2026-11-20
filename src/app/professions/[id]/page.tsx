@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import { notFound } from "next/navigation";
 import {
   fetchProfessionById,
@@ -7,7 +7,10 @@ import {
 } from "@/lib/professions/public";
 import { fetchCategoryById } from "@/lib/categories/public";
 import { fetchJobs, type PublicJobSummary } from "@/lib/jobs/public";
-import { getAppBaseUrl } from "@/lib/appBaseUrl";
+import {
+  buildPageMetadata,
+  NOINDEX_METADATA,
+} from "@/lib/seo/metadata";
 import JobCard from "@/components/job-card";
 import { getI18n } from "@/lib/i18n/server";
 import { Breadcrumb } from "@/components/public/breadcrumb";
@@ -37,8 +40,9 @@ export async function generateMetadata({
 
   if (!profession) {
     return {
-      title: "Profession | JobEthiopia",
+      title: { absolute: "Profession | JobEthiopia" },
       description: "Browse jobs in this profession on JobEthiopia.",
+      robots: NOINDEX_METADATA,
     };
   }
 
@@ -47,28 +51,16 @@ export async function generateMetadata({
     ? truncateMetadata(profession.description, 160)
     : `${name} — explore jobs in this profession on JobEthiopia.`;
 
-  const baseUrl = getAppBaseUrl();
-  const canonicalUrl = `${baseUrl}/professions/${id}`;
-
-  return {
+  // DB-backed content is not translated: locale-prefixed URLs are UI shells, so
+  // every locale shares the English canonical and intentionally emits no hreflang.
+  return buildPageMetadata({
+    path: `/professions/${id}`,
+    locale: "en",
+    canonicalLocale: "en",
     title: name,
     description,
-    openGraph: {
-      title: `${name} | JobEthiopia`,
-      description,
-      url: canonicalUrl,
-      type: "website",
-      siteName: "JobEthiopia",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `${name} | JobEthiopia`,
-      description,
-    },
-    alternates: {
-      canonical: canonicalUrl,
-    },
-  };
+    robots: profession.isActive ? undefined : NOINDEX_METADATA,
+  });
 }
 
 export default async function ProfessionPage({
@@ -95,12 +87,12 @@ export default async function ProfessionPage({
         <p className="mt-4 text-muted">
           {t.publicDetail.professionLoadError}
         </p>
-        <Link
+        <LocalizedLink
           href="/professions"
           className="focus-visible:outline-2 mt-6 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
         >
           {t.publicDetail.professionBack}
-        </Link>
+        </LocalizedLink>
       </div>
     );
   }
@@ -161,19 +153,19 @@ export default async function ProfessionPage({
           )}
           <div className="mt-4 flex flex-wrap items-center gap-3">
             {category && (
-              <Link
+              <LocalizedLink
                 href={`/categories/${category.id}`}
                 className="focus-visible:outline-2 inline-flex items-center gap-1.5 rounded-full bg-primary-light px-3 py-1 text-xs font-semibold text-primary hover:bg-primary-light/70 focus-visible:outline-offset-2 focus-visible:outline-primary"
               >
                 {t.publicDetail.professionPartOf} {category.name}
-              </Link>
+              </LocalizedLink>
             )}
-            <Link
+            <LocalizedLink
               href={`/jobs?professionId=${encodeURIComponent(profession.id)}`}
               className="focus-visible:outline-2 inline-flex items-center justify-center rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {t.publicDetail.professionBrowseAll}
-            </Link>
+            </LocalizedLink>
           </div>
         </div>
       </header>
@@ -191,12 +183,12 @@ export default async function ProfessionPage({
               {t.publicDetail.professionJobsHeading(profession.name)}
             </h2>
           </div>
-          <Link
+          <LocalizedLink
             href={`/jobs?professionId=${encodeURIComponent(profession.id)}`}
             className="focus-visible:outline-2 hidden shrink-0 text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-offset-2 focus-visible:outline-primary sm:inline-flex"
           >
             {t.publicDetail.professionViewAll}
-          </Link>
+          </LocalizedLink>
         </div>
 
         {jobsLoadError ? (
@@ -214,12 +206,12 @@ export default async function ProfessionPage({
             <p className="mt-1 text-sm text-muted">
               {t.publicDetail.professionNoJobsBody}
             </p>
-            <Link
+            <LocalizedLink
               href="/jobs"
               className="focus-visible:outline-2 mt-5 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:bg-primary-hover hover:shadow-md focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {t.publicDetail.professionBrowseJobs}
-            </Link>
+            </LocalizedLink>
           </div>
         ) : (
           <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

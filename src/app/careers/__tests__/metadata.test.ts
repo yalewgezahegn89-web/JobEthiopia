@@ -17,7 +17,7 @@ vi.mock("@/lib/careerArticles/related", () => ({
 }));
 
 vi.mock("@/lib/appBaseUrl", () => ({
-  getAppBaseUrl: () => "https://jobethiopia.com",
+  getAppBaseUrl: () => "https://jobethiopia.com/",
 }));
 
 vi.mock("@/components/public/breadcrumb", () => ({
@@ -40,7 +40,8 @@ const PUBLISHED_ARTICLE = {
   excerpt: "Practical tips for Ethiopian job seekers.",
   content: "Some content.",
   status: "PUBLISHED",
-  publishedAt: "2026-02-10T00:00:00.000Z",
+  publishedAt: "Feb 10, 2026",
+  publishedAtIso: "2026-02-10T00:00:00.000Z",
 };
 
 const DRAFT_ARTICLE = {
@@ -65,11 +66,15 @@ describe("careers/[id] generateMetadata", () => {
     expect(meta.alternates?.canonical).toBe(
       "https://jobethiopia.com/careers/article-1",
     );
+    expect(meta.alternates?.languages).toBeUndefined();
     expect(meta.openGraph?.title).toContain("How to Write a Strong CV");
     expect(meta.openGraph?.url).toBe(
       "https://jobethiopia.com/careers/article-1",
     );
     expect(meta.openGraph?.siteName).toBe("JobEthiopia");
+    expect(meta.openGraph).toMatchObject({
+      publishedTime: "2026-02-10T00:00:00.000Z",
+    });
     expect(meta.robots).toBeUndefined();
   });
 
@@ -80,7 +85,7 @@ describe("careers/[id] generateMetadata", () => {
       params: Promise.resolve({ id: "missing" }),
     });
 
-    expect(meta.title).toBe("Career Resource | JobEthiopia");
+    expect(meta.title).toEqual({ absolute: "Career Resource | JobEthiopia" });
   });
 
   it("sets robots noindex for an unpublished article", async () => {

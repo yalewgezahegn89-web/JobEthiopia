@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocalizedLink } from "@/components/i18n/localized-link";
 import { getCurrentLocale, getI18n } from "@/lib/i18n/server";
 
 export default async function SiteFooter() {
@@ -27,6 +27,9 @@ export default async function SiteFooter() {
     { href: "/locations", label: t.nav.locations },
     { href: "/careers", label: t.nav.careers },
     { href: "/contact", label: t.footer.contact },
+    { href: "/privacy", label: t.legalNav.privacy },
+    { href: "/terms", label: t.legalNav.terms },
+    { href: "/cookies", label: t.legalNav.cookies },
   ];
 
   return (
@@ -37,12 +40,12 @@ export default async function SiteFooter() {
           <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">
             {footerLinks.map((link) => (
               <li key={link.href}>
-                <Link
+                <LocalizedLink
                   href={link.href}
                   className="font-medium text-muted transition-colors duration-150 hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 >
                   {link.label}
-                </Link>
+                </LocalizedLink>
               </li>
             ))}
             <li>

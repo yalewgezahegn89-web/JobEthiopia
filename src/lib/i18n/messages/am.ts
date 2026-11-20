@@ -24,6 +24,36 @@ export const am = {
     previous: "ቀዳሚ",
     next: "ቀጣይ",
   },
+  seo: {
+    jobs: {
+      title: "ስራዎች",
+      description: "በመላ ኢትዮጵያ የተረጋገጡ የስራ ክፍት ቦታዎችን ያስሱ።",
+    },
+    organizations: {
+      title: "ድርጅቶች",
+      description: "በኢትዮጵያ ስራዎችን የሚሰጡ ድርጅቶችን ያስሱ።",
+    },
+    categories: {
+      title: "ምድቦች",
+      description: "በኢትዮጵያ የስራ ምድቦችን ያስሱ።",
+    },
+    professions: {
+      title: "ሙያዎች",
+      description: "በኢትዮጵያ የሙያ መስኮችን ያስሱ።",
+    },
+    locations: {
+      title: "አካባቢዎች",
+      description: "በኢትዮጵያ የስራ አካባቢዎችን ያስሱ።",
+    },
+    careers: {
+      title: "የሙያ ገጾች",
+      description: "ለኢትዮጵያ የስራ ፈላጊዎች የሙያ ምክርና መርጃዎችን ያግኙ።",
+    },
+    contact: {
+      title: "እኛን ያነጋግሩ",
+      description: "ጆብኢትዮጵያን በኢሜል ያነጋግሩ።",
+    },
+  },
   nav: {
     home: "መነሻ",
     jobs: "ስራዎች",
@@ -1131,6 +1161,11 @@ primaryNavLabel: "ዋና",
   footer: {
     footerNavLabel: "የግርጌ አሰሳ",
     contact: "ያግኙን",
+  },
+  legalNav: {
+    privacy: "የግላዊነት መመሪያ",
+    terms: "የአጠቃቀም ውሎች",
+    cookies: "የኩኪ መመሪያ",
   },
   contact: {
     heading: "ያግኙን",

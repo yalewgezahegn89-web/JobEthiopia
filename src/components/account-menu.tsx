@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useI18n } from "@/lib/i18n/client";
+import { LocalizedLink } from "@/components/i18n/localized-link";
+import { isActivePath } from "@/lib/i18n/routing";
 
 type LinkItem = { href: string; label: string };
 
@@ -94,12 +95,10 @@ export function AccountMenu({
 
         <ul className="max-h-[70vh] overflow-y-auto py-2">
           {links.map((link) => {
-            const isActive =
-              pathname === link.href ||
-              pathname.startsWith(`${link.href}/`);
+            const isActive = isActivePath(pathname, link.href);
             return (
               <li key={link.href}>
-                <Link
+                <LocalizedLink
                   href={link.href}
                   aria-current={isActive ? "page" : undefined}
                   onClick={() => setOpen(false)}
@@ -110,7 +109,7 @@ export function AccountMenu({
                   }`}
                 >
                   {link.label}
-                </Link>
+                </LocalizedLink>
               </li>
             );
           })}

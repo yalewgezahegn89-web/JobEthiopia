@@ -31,7 +31,12 @@ import { savedJobs } from "@/db/schema/savedJobs";
 import { applications } from "@/db/schema/applications";
 import { recommendationFeedback } from "@/db/schema/recommendationFeedback";
 import { buildPublicJobEligibilityConditions } from "@/lib/jobs/eligibility";
-import { formatDate, formatSalary, type PublicJobSummary } from "@/lib/jobs/public";
+import {
+  formatDate,
+  formatSalary,
+  safeEmployerLogoUrl,
+  type PublicJobSummary,
+} from "@/lib/jobs/public";
 import { loadJobSkillsForJobs, resolveCanonicalSkills } from "@/lib/skills/dal";
 import {
   MAX_RECOMMENDATIONS,
@@ -221,6 +226,7 @@ function toSummary(row: {
   professionId: string | null;
   locationId: string | null;
   organizationName: string | null;
+  organizationLogoUrl: string | null;
   locationName: string | null;
   categoryName: string | null;
   professionName: string | null;
@@ -243,6 +249,7 @@ function toSummary(row: {
     professionId: row.professionId,
     locationId: row.locationId,
     organizationName: row.organizationName,
+    organizationLogoUrl: safeEmployerLogoUrl(row.organizationLogoUrl),
     locationName: row.locationName,
     categoryName: row.categoryName,
     professionName: row.professionName,
@@ -294,6 +301,7 @@ export async function getCandidateRecommendations(
       professionId: jobs.professionId,
       locationId: jobs.locationId,
       organizationName: organizations.name,
+      organizationLogoUrl: organizations.logoUrl,
       locationName: locations.name,
       locationParentId: locations.parentId,
       categoryName: categories.name,

@@ -24,6 +24,37 @@ export const om = {
     previous: "Kan duraa",
     next: "Kan itti aanu",
   },
+  seo: {
+    jobs: {
+      title: "Hojiilee",
+      description: "Carraa hojii mirkanaa'aa Itoophiyaa guutuu keessatti barbaadi.",
+    },
+    organizations: {
+      title: "Dhaabbilee",
+      description: "Dhaabbilee Itoophiyaa keessatti hojii dhiisan barbaadi.",
+    },
+    categories: {
+      title: "Ramaddiiwwan",
+      description: "Ramaddiiwwan hojii Itoophiyaa keessatti barbaadi.",
+    },
+    professions: {
+      title: "Ogummaa",
+      description: "Damee ogummaa Itoophiyaa keessatti barbaadi.",
+    },
+    locations: {
+      title: "Iddoowwan",
+      description: "Iddoowwan hojii Itoophiyaa keessatti barbaadi.",
+    },
+    careers: {
+      title: "Qophii Ogummaa",
+      description:
+        "Gorsa ogummaa fi qophii hojiif namoota Itoophiyaa keessatti barbaadan argadhu.",
+    },
+    contact: {
+      title: "Nu qunnami",
+      description: "JobEthiopia imeyliin qunnami.",
+    },
+  },
   nav: {
     home: "Fuula Dura",
     jobs: "Hojiilee",
@@ -1134,6 +1165,11 @@ cv: {
   footer: {
     footerNavLabel: "Baqqii gubbaa",
     contact: "Nu qunnamaa",
+  },
+  legalNav: {
+    privacy: "Siyaasa Dhuugaa",
+    terms: "Shartii Fayyadamaa",
+    cookies: "Siyaasi Kaallii",
   },
   contact: {
     heading: "Nu qunnamaa",

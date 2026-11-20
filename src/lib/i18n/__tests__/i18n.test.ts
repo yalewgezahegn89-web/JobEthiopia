@@ -27,6 +27,9 @@ import {
   isPrefixedPath,
   stripLocalePrefix,
   localizePath,
+  localizeHref,
+  isLocaleIndependentHref,
+  isActivePath,
   detectPathLocale,
 } from "../routing";
 
@@ -51,6 +54,7 @@ const TOP_LEVEL_KEYS = [
   "error",
   "notFound",
   "footer",
+  "legalNav",
   "contact",
   "adminAnalytics",
   "adminAds",
@@ -70,6 +74,7 @@ const TOP_LEVEL_KEYS = [
   "settings",
   "verifyEmail",
   "googleAuth",
+  "seo",
 ] as const;
 
 describe("locale allowlist", () => {
@@ -228,6 +233,47 @@ describe("routing", () => {
     expect(localizePath("/jobs", "am")).toBe("/am/jobs");
     expect(localizePath("/jobs", "om")).toBe("/om/jobs");
     expect(localizePath("/am/jobs", "en")).toBe("/jobs");
+  });
+
+  it("localizes hrefs while preserving query strings and hashes", () => {
+    expect(localizeHref("/jobs?categoryId=123#results", "am")).toBe(
+      "/am/jobs?categoryId=123#results",
+    );
+    expect(localizeHref("/am/jobs?page=2", "om")).toBe("/om/jobs?page=2");
+    expect(localizeHref("/om", "en")).toBe("/");
+    expect(localizeHref("/jobs", "en")).toBe("/jobs");
+  });
+
+  it("leaves external, API, static and relative hrefs unchanged", () => {
+    const unchanged = [
+      "https://example.com/jobs",
+      "//cdn.example.com/logo.png",
+      "mailto:jobs@example.com",
+      "/api/jobs",
+      "/api/auth/google/start?locale=am",
+      "/_next/static/chunk.js",
+      "/favicon.ico",
+      "/robots.txt",
+      "/sitemap.xml",
+      "/images/logo.png",
+      "?page=2",
+      "#results",
+    ];
+
+    for (const href of unchanged) {
+      expect(isLocaleIndependentHref(href)).toBe(true);
+      expect(localizeHref(href, "am")).toBe(href);
+    }
+  });
+
+  it("matches active paths across locale prefixes and nested routes", () => {
+    expect(isActivePath("/am/jobs", "/jobs")).toBe(true);
+    expect(isActivePath("/om/jobs/job-1", "/jobs")).toBe(true);
+    expect(isActivePath("/jobs", "/am/jobs")).toBe(true);
+    expect(isActivePath("/am/jobs", "/")).toBe(false);
+    expect(isActivePath("/am", "/")).toBe(true);
+    expect(isActivePath("/am/organizations", "/jobs")).toBe(false);
+    expect(isActivePath("/am/jobs?categoryId=1", "/jobs?page=2")).toBe(true);
   });
 
   it("resolves a raw path value to a locale", () => {

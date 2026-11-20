@@ -2,10 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import ForgotPasswordForm from "./forgot-password-form";
 import { AuthCard } from "@/components/auth/auth-card";
+import { privateMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Reset password",
-};
+export const metadata: Metadata = privateMetadata("Reset password");
 
 export default function ForgotPasswordPage() {
   return (
