@@ -101,7 +101,12 @@ async function __wrapped_GET(request: Request) {
   const offset = (page - 1) * limit;
 
   try {
-    const conditions = [eq(careerArticles.status, "PUBLISHED")];
+    // Match the sitemap's publication-date filter: undated and future-dated
+    // articles must not be exposed publicly, even when marked PUBLISHED.
+    const conditions = [
+      eq(careerArticles.status, "PUBLISHED"),
+      sql`${careerArticles.publishedAt} IS NOT NULL AND ${careerArticles.publishedAt} <= ${new Date().toISOString()}`,
+    ];
     if (category) {
       conditions.push(eq(careerArticles.category, category));
     }

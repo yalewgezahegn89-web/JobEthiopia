@@ -98,4 +98,48 @@ describe("careers/[id] generateMetadata", () => {
     expect(meta.robots).toEqual({ index: false, follow: false });
     expect(meta.openGraph).toBeUndefined();
   });
+
+  it("sets robots noindex for a future-dated PUBLISHED article", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue({
+      ...PUBLISHED_ARTICLE,
+      publishedAt: "Jan 1, 2099",
+      publishedAtIso: "2099-01-01T00:00:00.000Z",
+    });
+
+    const meta = await generateMetadata({
+      params: Promise.resolve({ id: "article-1" }),
+    });
+
+    expect(meta.robots).toEqual({ index: false, follow: false });
+    expect(meta.openGraph).toBeUndefined();
+  });
+
+  it("sets robots noindex for a PUBLISHED article with no publication date", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue({
+      ...PUBLISHED_ARTICLE,
+      publishedAt: null,
+      publishedAtIso: null,
+    });
+
+    const meta = await generateMetadata({
+      params: Promise.resolve({ id: "article-1" }),
+    });
+
+    expect(meta.robots).toEqual({ index: false, follow: false });
+    expect(meta.openGraph).toBeUndefined();
+  });
+
+  it("keeps an article published exactly now indexable", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue({
+      ...PUBLISHED_ARTICLE,
+      publishedAtIso: new Date().toISOString(),
+    });
+
+    const meta = await generateMetadata({
+      params: Promise.resolve({ id: "article-1" }),
+    });
+
+    expect(meta.robots).toBeUndefined();
+    expect(meta.openGraph).toBeDefined();
+  });
 });

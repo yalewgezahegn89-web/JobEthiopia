@@ -8,6 +8,7 @@ import {
   type PublicArticleSummary,
 } from "@/lib/careerArticles/public";
 import { selectRelatedArticles } from "@/lib/careerArticles/related";
+import { isArticlePubliclyEligible } from "@/lib/careerArticles/eligibility";
 import {
   absoluteUrl,
   buildPageMetadata,
@@ -54,7 +55,12 @@ export async function generateMetadata({
     };
   }
 
-  const isPubliclyEligible = article.status === "PUBLISHED";
+  // Keep the canonical/OG structure for known articles, but only index those
+  // whose publication instant has actually arrived.
+  const isPubliclyEligible = isArticlePubliclyEligible({
+    status: article.status,
+    publishedAt: article.publishedAtIso ?? article.publishedAt,
+  });
   const title = article.title;
   const description = article.excerpt
     ? truncateMetadata(article.excerpt, 160)
@@ -118,6 +124,17 @@ export default async function CareerArticlePage({
   }
 
   if (!article) {
+    notFound();
+  }
+
+  // A scheduled or undated article is treated as not found: no render, no
+  // Article JSON-LD, and no indexable content.
+  if (
+    !isArticlePubliclyEligible({
+      status: article.status,
+      publishedAt: article.publishedAtIso ?? article.publishedAt,
+    })
+  ) {
     notFound();
   }
 

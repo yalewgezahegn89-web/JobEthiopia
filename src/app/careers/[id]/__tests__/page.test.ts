@@ -151,4 +151,36 @@ describe("CareerArticlePage", () => {
     mocks.mockFetchCareerArticle.mockResolvedValue(null);
     await expect(renderPage()).rejects.toThrow("NOT_FOUND");
   });
+
+  it("renders an article published at the current time", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue(
+      makeArticle({ publishedAtIso: new Date().toISOString() }),
+    );
+    const html = await renderPage();
+    expect(html).toContain("How to Write a Strong CV");
+  });
+
+  it("calls notFound for a future-dated PUBLISHED article", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue(
+      makeArticle({
+        publishedAt: "Jan 1, 2099",
+        publishedAtIso: "2099-01-01T00:00:00.000Z",
+      }),
+    );
+    await expect(renderPage()).rejects.toThrow("NOT_FOUND");
+  });
+
+  it("calls notFound for a PUBLISHED article with no publication date", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue(
+      makeArticle({ publishedAt: null, publishedAtIso: null }),
+    );
+    await expect(renderPage()).rejects.toThrow("NOT_FOUND");
+  });
+
+  it("calls notFound for an unpublished article", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue(
+      makeArticle({ status: "DRAFT" }),
+    );
+    await expect(renderPage()).rejects.toThrow("NOT_FOUND");
+  });
 });
