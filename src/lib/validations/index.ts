@@ -260,13 +260,37 @@ export const createJobSchema = z
     { message: "experienceMax must be greater than or equal to experienceMin", path: ["experienceMax"] },
   );
 
+/** Bounds for career article text fields (plain text only, no markup). */
+export const CAREER_ARTICLE_TITLE_MAX = 200;
+export const CAREER_ARTICLE_EXCERPT_MAX = 500;
+export const CAREER_ARTICLE_CONTENT_MAX = 20000;
+export const CAREER_ARTICLE_CATEGORY_MAX = 100;
+
 export const createCareerArticleSchema = z
   .object({
-    title: z.string().min(1, "Title is required"),
+    title: z
+      .string()
+      .trim()
+      .min(1, "Title is required")
+      .max(CAREER_ARTICLE_TITLE_MAX, `Title must be at most ${CAREER_ARTICLE_TITLE_MAX} characters`),
     slug: z.string().regex(slugRegex, "Slug must be lowercase alphanumeric with hyphens"),
-    excerpt: z.string().nullable().optional(),
-    content: z.string().min(1, "Content is required"),
-    category: z.string().nullable().optional(),
+    excerpt: z
+      .string()
+      .trim()
+      .max(CAREER_ARTICLE_EXCERPT_MAX, `Excerpt must be at most ${CAREER_ARTICLE_EXCERPT_MAX} characters`)
+      .nullable()
+      .optional(),
+    content: z
+      .string()
+      .trim()
+      .min(1, "Content is required")
+      .max(CAREER_ARTICLE_CONTENT_MAX, `Content must be at most ${CAREER_ARTICLE_CONTENT_MAX} characters`),
+    category: z
+      .string()
+      .trim()
+      .max(CAREER_ARTICLE_CATEGORY_MAX, `Category must be at most ${CAREER_ARTICLE_CATEGORY_MAX} characters`)
+      .nullable()
+      .optional(),
     status: ArticleStatus.optional().default("DRAFT"),
   })
   .strict();

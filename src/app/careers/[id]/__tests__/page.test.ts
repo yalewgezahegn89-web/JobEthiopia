@@ -120,6 +120,31 @@ describe("CareerArticlePage", () => {
     expect(html).toContain("Then list your experience.");
   });
 
+  it("renders HTML-like article fields as escaped plain text, not markup", async () => {
+    mocks.mockFetchCareerArticle.mockResolvedValue(
+      makeArticle({
+        title: "CV <script>alert('xss')</script> tips",
+        excerpt: '<img onerror="alert(1)" src=x>',
+        content: '<script>alert("xss")</script>\n<img onerror=alert(1) src=x>',
+        category: "<script>alert(1)</script>",
+      }),
+    );
+
+    const html = await renderPage();
+
+    // Article fields are rendered as text nodes, so tags are escaped.
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).toContain("&lt;img onerror=");
+    expect(html).not.toContain("<script>alert");
+    expect(html).not.toContain("<img onerror");
+    expect(html).not.toContain("<img src");
+
+    // The only script element is the escaped JSON-LD block; no injection.
+    expect(html).toContain('<script type="application/ld+json">');
+    expect((html.match(/<script\b/g) || []).length).toBe(1);
+    expect(html).not.toContain("</script><script>");
+  });
+
   it("renders related articles with links", async () => {
     const html = await renderPage();
     expect(html).toContain('data-testid="/careers/art-2"');
