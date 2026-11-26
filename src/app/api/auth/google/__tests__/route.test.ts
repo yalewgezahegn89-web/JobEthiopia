@@ -202,6 +202,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const { OAuth2Client: RealOAuth2Client } =
+  await vi.importActual<typeof import("google-auth-library")>(
+    "google-auth-library",
+  );
+
 describe("GET /api/auth/google/start", () => {
   it("redirects to the localized login page when credentials are missing", async () => {
     vi.stubEnv("GOOGLE_CLIENT_ID", "");
@@ -417,9 +422,6 @@ describe("GET /api/auth/google/callback", () => {
         retryConfig: { totalTimeout: number };
       };
     };
-    const { OAuth2Client: RealOAuth2Client } = await vi.importActual<
-      typeof import("google-auth-library")
-    >("google-auth-library");
     const captured: GaxiosOptionsPrepared[] = [];
     const client = new RealOAuth2Client({
       ...routeOptions,

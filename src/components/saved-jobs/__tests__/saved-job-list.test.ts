@@ -1,4 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";import { createElement, type ReactNode } from "react";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from "vitest";
+import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 vi.mock("@/lib/i18n/client", async (importOriginal) => {
@@ -37,8 +45,16 @@ function render(items: SavedJobListItem[]) {
   return renderToStaticMarkup(createElement(SavedJobList, { items }));
 }
 
+const FIXED_NOW = new Date("2026-01-15T00:00:00.000Z");
+
 beforeEach(() => {
   vi.restoreAllMocks();
+  vi.useFakeTimers();
+  vi.setSystemTime(FIXED_NOW);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("SavedJobList", () => {
