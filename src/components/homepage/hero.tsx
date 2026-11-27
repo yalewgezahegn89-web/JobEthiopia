@@ -191,7 +191,8 @@ function HeroGeometry() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-0">
       <svg
-        className="absolute -right-20 -top-24 h-[36rem] w-[36rem] text-primary/5"
+        aria-hidden="true"
+        className="absolute -right-20 -top-24 hidden xl:block h-[36rem] w-[36rem] text-primary/5"
         viewBox="0 0 200 200"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"

@@ -1,17 +1,12 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import type { Dictionary } from "@/lib/i18n/dictionary";
+import { useI18n } from "@/lib/i18n/client";
 
 type FeedbackType = "relevant" | "not_relevant" | "hidden";
 
-export function RecommendationFeedback({
-  jobId,
-  t,
-}: {
-  jobId: string;
-  t: Dictionary;
-}) {
+export function RecommendationFeedback({ jobId }: { jobId: string }) {
+  const { t } = useI18n();
   const [feedback, setFeedback] = useState<FeedbackType | null>(null);
   const [pending, startTransition] = useTransition();
 

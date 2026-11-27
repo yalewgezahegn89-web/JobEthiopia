@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { employerOnboardingAction } from "./actions";
 import type { EmployerOnboardingActionState } from "./types";
-import type { Dictionary } from "@/lib/i18n/dictionary";
+import { useI18n } from "@/lib/i18n/client";
 
 const initialState: EmployerOnboardingActionState = { error: null };
 
@@ -12,7 +12,8 @@ const inputClass =
 
 const labelClass = "block text-sm font-medium text-foreground";
 
-export default function EmployerRegisterForm({ t }: { t: Dictionary }) {
+export default function EmployerRegisterForm() {
+  const { t } = useI18n();
   const [state, formAction, isPending] = useActionState<
     EmployerOnboardingActionState,
     FormData

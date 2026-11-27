@@ -103,7 +103,7 @@ export default async function EmployerStatusPage() {
               {t.employerAuth.resubmitBody}
             </p>
             <div className="mt-4 flex justify-center">
-              <EmployerResubmitForm t={t} />
+              <EmployerResubmitForm />
             </div>
           </div>
         </>

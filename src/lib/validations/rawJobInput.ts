@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { RawJobInput } from "../ingestion/types";
+import { APPLICANT_ELIGIBILITY_VALUES } from "../jobs/applicantEligibility";
 import { httpUrlSchema } from "./employerJob";
 
 const rawJobInputSchema = z.object({
@@ -33,6 +34,11 @@ const rawJobInputSchema = z.object({
     .datetime({
       message: "deadline must be a valid ISO 8601 datetime",
     })
+    .nullable()
+    .optional(),
+
+  applicantEligibility: z
+    .enum(APPLICANT_ELIGIBILITY_VALUES)
     .nullable()
     .optional(),
 

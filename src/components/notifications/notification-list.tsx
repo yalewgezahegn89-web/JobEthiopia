@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import {
-  NotificationItem,
-  type NotificationMessages,
-} from "./notification-item";
+import { useI18n } from "@/lib/i18n/client";
+import { NotificationItem } from "./notification-item";
 
 export type ClientNotification = {
   id: string;
@@ -18,10 +16,10 @@ export type ClientNotification = {
 
 type Props = {
   items: ClientNotification[];
-  t: NotificationMessages;
 };
 
-export function NotificationList({ items, t }: Props) {
+export function NotificationList({ items }: Props) {
+  const { t } = useI18n();
   const [rows, setRows] = useState(items);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
@@ -66,7 +64,7 @@ export function NotificationList({ items, t }: Props) {
         <NotificationItem
           key={item.id}
           item={item}
-          t={t}
+          t={t.notifications}
           onMarkRead={handleMarkRead}
           onDelete={handleDelete}
           disabled={processingId !== null && processingId !== item.id}

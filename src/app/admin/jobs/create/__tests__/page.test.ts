@@ -59,12 +59,30 @@ function collectNodes(node: unknown): unknown[] {
   return out;
 }
 
+function findNode(node: unknown, type: unknown): { props?: Record<string, unknown> } | undefined {
+  if (node === null || node === undefined) return undefined;
+  if (Array.isArray(node)) {
+    for (const child of node) {
+      const found = findNode(child, type);
+      if (found) return found;
+    }
+    return undefined;
+  }
+  if (typeof node === "object") {
+    const asRecord = node as { type?: unknown; props?: { children?: unknown } };
+    if (asRecord.type === type) return asRecord;
+    return findNode(asRecord.props?.children, type);
+  }
+  return undefined;
+}
+
 function stubOptionData() {
   mocks.mockSelect
     .mockReturnValueOnce(dbChain([{ id: "org-1", name: "ABC Corp" }]))
     .mockReturnValueOnce(dbChain([{ id: "cat-1", name: "Finance" }]))
     .mockReturnValueOnce(dbChain([{ id: "prof-1", name: "Accountant" }]))
-    .mockReturnValueOnce(dbChain([{ id: "loc-1", name: "Addis Ababa" }]));
+    .mockReturnValueOnce(dbChain([{ id: "loc-1", name: "Addis Ababa" }]))
+    .mockReturnValueOnce(dbChain([{ name: "UNICEF Careers Website" }]));
 }
 
 beforeEach(() => {
@@ -89,6 +107,30 @@ describe("AdminJobsCreatePage — access control", () => {
     expect(collectNodes(element)).toContain(JobCreateForm);
   });
 
+  it("disables original-source creation for moderators but provides eligible existing sources", async () => {
+    stubOptionData();
+    const element = await AdminJobsCreatePage();
+    const form = findNode(element, JobCreateForm);
+    expect(form?.props?.canCreateOriginalSource).toBe(false);
+    expect(form?.props?.originalSources).toEqual([
+      { name: "UNICEF Careers Website" },
+    ]);
+  });
+
+  it("enables original-source creation for admins and provides eligible existing sources", async () => {
+    mocks.mockGuard.mockResolvedValue({
+      ok: true,
+      user: { id: "u1", email: "a@b.com", name: "A", role: "ADMIN" },
+    });
+    stubOptionData();
+    const element = await AdminJobsCreatePage();
+    const form = findNode(element, JobCreateForm);
+    expect(form?.props?.canCreateOriginalSource).toBe(true);
+    expect(form?.props?.originalSources).toEqual([
+      { name: "UNICEF Careers Website" },
+    ]);
+  });
+
   it("redirects unauthenticated users to /login", async () => {
     mocks.mockGuard.mockResolvedValue({ ok: false, status: 401 });
     await expect(AdminJobsCreatePage()).rejects.toThrow("REDIRECT:/login");
@@ -101,10 +143,10 @@ describe("AdminJobsCreatePage — access control", () => {
 });
 
 describe("AdminJobsCreatePage — selector data loading", () => {
-  it("loads active organizations, categories, professions and locations", async () => {
+  it("loads active organizations, categories, professions, locations, and eligible original sources", async () => {
     stubOptionData();
     await AdminJobsCreatePage();
-    expect(mocks.mockSelect).toHaveBeenCalledTimes(4);
+    expect(mocks.mockSelect).toHaveBeenCalledTimes(5);
   });
 
   it("renders a safe error and no form when option loading fails", async () => {

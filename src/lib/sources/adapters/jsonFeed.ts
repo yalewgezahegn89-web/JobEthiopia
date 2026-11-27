@@ -1,22 +1,58 @@
-import { eq } from "drizzle-orm";
-import { db } from "@/db";
-import { sources } from "@/db/schema/sources";
 import { ssrfFetch } from "@/lib/ssrf";
 import { jsonFeedItemSchema } from "./feedSchema";
+import {
+  MAX_FEED_BYTES,
+  MAX_FEED_ITEMS,
+  loadFeedSource,
+  errorMessage,
+  type FeedParseContext,
+} from "./feedSource";
 import type { SourceAdapter, FetchResult } from "../adapter";
 import type { RawJobInput } from "@/lib/ingestion/types";
 
-/** Bounded response body cap for a single feed fetch (4 MiB). */
-export const MAX_FEED_BYTES = 4 * 1024 * 1024;
+export { MAX_FEED_BYTES, MAX_FEED_ITEMS };
 
-/** Maximum number of feed records processed per fetch. */
-export const MAX_FEED_ITEMS = 100;
+/**
+ * Parses a JSON array body into validated raw jobs. Shared by the dedicated
+ * JSON adapter and the content-sniffing structured adapter so both keep
+ * identical semantics.
+ */
+export function parseJsonFeedBody(
+  text: string,
+  context: FeedParseContext,
+  maxItems: number = MAX_FEED_ITEMS,
+):
+  | { ok: true; jobs: RawJobInput[] }
+  | { ok: false; error: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, error: "Invalid JSON response" };
+  }
+
+  if (!Array.isArray(parsed)) {
+    return { ok: false, error: "Feed root must be a JSON array" };
+  }
+
+  const jobs: RawJobInput[] = [];
+  for (const item of parsed.slice(0, maxItems)) {
+    const result = jsonFeedItemSchema.safeParse(item);
+    if (!result.success) {
+      // Per-record isolation: one malformed listing must not fail the source.
+      continue;
+    }
+    jobs.push({ ...result.data, sourceId: context.sourceId });
+  }
+
+  return { ok: true, jobs };
+}
 
 /**
  * Adapter for structured JSON feeds (sources with `sourceType` API or FEED).
  *
  * - Fetches the source's `baseUrl` with the SSRF-safe client (GET, bounded body).
- * - Requires the response to be a JSON array conforming to {@link jsonFeedItemSchema}.
+ * - Requires the response to be a JSON array conforming to the feed schema.
  * - Isolates invalid records: a malformed item is skipped without failing the
  *   whole fetch; valid items map one-to-one to `RawJobInput`.
  */
@@ -24,22 +60,14 @@ export class JsonFeedAdapter implements SourceAdapter {
   constructor(private readonly maxItems: number = MAX_FEED_ITEMS) {}
 
   async fetchJobs(sourceId: string): Promise<FetchResult> {
-    const source = await db.query.sources.findFirst({
-      where: eq(sources.id, sourceId),
-      columns: { id: true, baseUrl: true, name: true },
-    });
+    const loaded = await loadFeedSource(sourceId);
+    if (!loaded.ok) return { success: false, error: loaded.error };
 
-    if (!source) {
-      return { success: false, error: "Source not found" };
-    }
-
-    if (!source.baseUrl) {
-      return { success: false, error: "Source has no base URL configured" };
-    }
+    const { source } = loaded;
 
     let response;
     try {
-      response = await ssrfFetch(source.baseUrl, {
+      response = await ssrfFetch(source.baseUrl!, {
         method: "GET",
         maxBytes: MAX_FEED_BYTES,
       });
@@ -51,32 +79,17 @@ export class JsonFeedAdapter implements SourceAdapter {
       return { success: false, error: `HTTP ${response.status}` };
     }
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(response.text ?? "");
-    } catch {
-      return { success: false, error: "Invalid JSON response" };
-    }
+    const parsed = parseJsonFeedBody(
+      response.text ?? "",
+      {
+        sourceId: source.id,
+        sourceName: source.name,
+        baseUrl: source.baseUrl!,
+      },
+      this.maxItems,
+    );
 
-    if (!Array.isArray(parsed)) {
-      return { success: false, error: "Feed root must be a JSON array" };
-    }
-
-    const jobs: RawJobInput[] = [];
-    for (const item of parsed.slice(0, this.maxItems)) {
-      const result = jsonFeedItemSchema.safeParse(item);
-      if (!result.success) {
-        // Per-record isolation: one malformed listing must not fail the source.
-        continue;
-      }
-      jobs.push({ ...result.data, sourceId });
-    }
-
-    return { success: true, jobs };
+    if (!parsed.ok) return { success: false, error: parsed.error };
+    return { success: true, jobs: parsed.jobs };
   }
-}
-
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return "Connection failed";
 }

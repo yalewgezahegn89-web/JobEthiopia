@@ -5,6 +5,7 @@ import type {
   DailyCount,
 } from "@/lib/admin/analytics";
 import type { Messages } from "@/lib/i18n/dictionary";
+import { useI18n } from "@/lib/i18n/client";
 import {
   ANALYTICS_WINDOW_IDS,
   ANALYTICS_WINDOWS,
@@ -161,11 +162,10 @@ function windowLabel(id: AnalyticsWindowId, t: Messages): string {
 
 export default function AnalyticsDashboard({
   summary,
-  t,
 }: {
   summary: AnalyticsSummary;
-  t: Messages;
 }) {
+  const { t } = useI18n();
   const { discovery, engagement, moderation, platform, window, monetization } =
     summary;
 

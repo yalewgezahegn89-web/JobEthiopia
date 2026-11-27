@@ -33,6 +33,14 @@ vi.mock("@/lib/i18n/server", () => ({
   getI18n: async () => en,
 }));
 
+vi.mock("@/lib/i18n/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/client")>();
+  return {
+    ...actual,
+    useI18n: () => ({ locale: "en" as const, t: en }),
+  };
+});
+
 vi.mock("@/db", () => ({
   db: {
     query: {

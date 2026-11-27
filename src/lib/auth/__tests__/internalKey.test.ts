@@ -83,11 +83,52 @@ describe("checkInternalRouteKey", () => {
   });
 
   it("falls back to the shared key when a dedicated key is unset", async () => {
+    delete process.env.INTERNAL_INGESTION_API_KEY;
     const result = await checkInternalRouteKey(makeRequest(SHARED_KEY), {
       route: ROUTE,
       keyEnvVar: "INTERNAL_INGESTION_API_KEY",
     });
     expect(result.ok).toBe(true);
+  });
+
+  it("falls back to the shared key when a dedicated key is blank", async () => {
+    vi.stubEnv("INTERNAL_INGESTION_API_KEY", "");
+    const result = await checkInternalRouteKey(makeRequest(SHARED_KEY), {
+      route: ROUTE,
+      keyEnvVar: "INTERNAL_INGESTION_API_KEY",
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("falls back to the shared key when a dedicated key is whitespace-only", async () => {
+    vi.stubEnv("INTERNAL_INGESTION_API_KEY", "   ");
+    const result = await checkInternalRouteKey(makeRequest(SHARED_KEY), {
+      route: ROUTE,
+      keyEnvVar: "INTERNAL_INGESTION_API_KEY",
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("does not accept a blank or whitespace-only provided key", async () => {
+    expect(
+      await checkInternalRouteKey(makeRequest(""), { route: ROUTE }),
+    ).toMatchObject({ ok: false, status: 401 });
+
+    expect(
+      await checkInternalRouteKey(makeRequest("   "), { route: ROUTE }),
+    ).toMatchObject({ ok: false, status: 401 });
+  });
+
+  it("treats a whitespace-only fallback key as unconfigured", async () => {
+    vi.stubEnv(INTERNAL_AUTH_FALLBACK_ENV, "   ");
+    const result = await checkInternalRouteKey(makeRequest("any-key"), {
+      route: ROUTE,
+    });
+    expect(result).toEqual({
+      ok: false,
+      status: 500,
+      message: "Server configuration error",
+    });
   });
 
   it("never returns or logs the key material", async () => {

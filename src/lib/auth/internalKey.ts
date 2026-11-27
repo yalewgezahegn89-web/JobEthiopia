@@ -70,11 +70,14 @@ export async function checkInternalRouteKey(
     return { ok: false, status, message };
   };
 
+  // A blank or whitespace-only dedicated key counts as unset so operators can
+  // adopt per-route keys without redeploying every route at once. A blank
+  // request key is never accepted because it can never equal a configured key.
   const dedicatedKey = options.keyEnvVar
-    ? process.env[options.keyEnvVar]
+    ? process.env[options.keyEnvVar]?.trim()
     : undefined;
-  const configuredKey =
-    dedicatedKey ?? process.env[INTERNAL_AUTH_FALLBACK_ENV];
+  const fallbackKey = process.env[INTERNAL_AUTH_FALLBACK_ENV]?.trim();
+  const configuredKey = dedicatedKey ? dedicatedKey : fallbackKey;
 
   if (!configuredKey) {
     return reject(500, "Server configuration error", "AUTH_CONFIG_MISSING");

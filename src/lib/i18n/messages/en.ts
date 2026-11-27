@@ -1146,5 +1146,24 @@ export const en = {
   },
   footer: {
     footerNavLabel: "Footer",
+    contact: "Contact",
+  },
+  contact: {
+    heading: "Contact us",
+    intro:
+      "Have a question, feedback, or a job listing to share? Email us and we will get back to you.",
+    emailLabel: "Email",
+    emailAddress: "jobethiopiaet@gmail.com",
+    cta: "Email jobethiopiaet@gmail.com",
+    responseNote: "We aim to respond as soon as possible.",
+  },
+  googleAuth: {
+    divider: "OR",
+    button: "Continue with Google",
+    hint: "Sign in securely with your Google account.",
+    error:
+      "Google sign-in could not be completed. Please try again or use email and password.",
+    conflict:
+      "An account with this email already exists. Please sign in with your existing method.",
   },
 };

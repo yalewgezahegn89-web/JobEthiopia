@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import LoginForm from "./login-form";
 import { TelegramOption } from "@/components/auth/telegram-option";
+import { GoogleOption } from "@/components/auth/google-option";
 import { Card } from "@/components/ui/card";
 import { BrandMark } from "@/components/ui/brand-mark";
 
@@ -10,12 +11,21 @@ export const metadata: Metadata = {
 };
 
 type LoginPageProps = {
-  searchParams: Promise<{ telegramError?: string | string[] }>;
+  searchParams: Promise<{
+    telegramError?: string | string[];
+    googleError?: string | string[];
+    googleConflict?: string | string[];
+  }>;
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const telegramError = params.telegramError === "1";
+  const googleError = params.googleError === "1";
+  const googleConflict = params.googleConflict === "1";
+  const googleConfigured = Boolean(
+    process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
+  );
 
   return (
     <section className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-4 py-16 sm:py-20">
@@ -39,6 +49,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             </p>
           </div>
           <LoginForm />
+          <GoogleOption
+            configured={googleConfigured}
+            showError={googleError}
+            showConflict={googleConflict}
+          />
           <TelegramOption showError={telegramError} />
           <div className="mt-6 border-t border-border-subtle pt-6 text-center">
             <p className="text-sm text-muted">

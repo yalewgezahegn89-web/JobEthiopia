@@ -25,7 +25,7 @@ export function HeaderNavLink({
     <Link
       href={href}
       aria-current={isActive ? "page" : undefined}
-      className={`px-3 py-2 rounded-lg text-sm ${focus} ${
+      className={`whitespace-nowrap px-2.5 py-2 rounded-lg text-sm ${focus} ${
         isActive ? active : idle
       } ${className}`}
     >
@@ -53,7 +53,7 @@ export function HeaderNavItems({
             <Link
               href={link.href}
               aria-current={isActive ? "page" : undefined}
-              className={`px-3 py-2 rounded-lg text-sm ${focus} ${
+              className={`whitespace-nowrap px-2.5 py-2 rounded-lg text-sm ${focus} ${
                 isActive ? active : idle
               } ${className}`}
             >

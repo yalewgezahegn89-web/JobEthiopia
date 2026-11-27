@@ -51,6 +51,7 @@ const TOP_LEVEL_KEYS = [
   "error",
   "notFound",
   "footer",
+  "contact",
   "adminAnalytics",
   "adminAds",
   "ads",
@@ -68,6 +69,7 @@ const TOP_LEVEL_KEYS = [
   "loading",
   "settings",
   "verifyEmail",
+  "googleAuth",
 ] as const;
 
 describe("locale allowlist", () => {

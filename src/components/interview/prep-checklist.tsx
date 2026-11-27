@@ -1,24 +1,16 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { useI18n } from "@/lib/i18n/client";
 
 export type PrepSection = {
   heading: string;
   items: string[];
 };
 
-type PrepChecklistLabels = {
-  title: string;
-  hint: string;
-  progress: (done: number, total: number) => string;
-  reset: string;
-  done: string;
-};
-
 type PrepChecklistProps = {
   checklistId: string;
   sections: PrepSection[];
-  labels: PrepChecklistLabels;
 };
 
 function CheckIcon({ className }: { className?: string }) {
@@ -105,8 +97,9 @@ function persist(storageKey: string, next: Record<string, boolean>) {
 export function PrepChecklist({
   checklistId,
   sections,
-  labels,
 }: PrepChecklistProps) {
+  const { t } = useI18n();
+  const labels = t.interviewPrep;
   const storageKey = `je_interview_checklist:${checklistId}`;
 
   const flatItems = sections.flatMap((s) => s.items);
@@ -133,19 +126,19 @@ export function PrepChecklist({
 
   return (
     <section
-      aria-label={labels.title}
+      aria-label={labels.checklistTitle}
       className="overflow-hidden rounded-xl border border-border bg-surface shadow-sm"
     >
       <div className="p-6 sm:p-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold tracking-tight">{labels.title}</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{labels.checklistTitle}</h2>
           <button
             type="button"
             onClick={reset}
             disabled={!hydrated}
             className="rounded-lg border border-border px-3 py-1.5 text-sm font-semibold text-muted transition-colors hover:bg-surface-raised hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {labels.reset}
+            {labels.resetCta}
           </button>
         </div>
 
@@ -158,11 +151,13 @@ export function PrepChecklist({
         </div>
         <p className="mt-2 text-sm text-muted">
           {done === total && total > 0
-            ? labels.done
+            ? labels.allDone
             : labels.progress(done, total)}
         </p>
 
-        <p className="mt-4 text-xs leading-5 text-subtle">{labels.hint}</p>
+        <p className="mt-4 text-xs leading-5 text-subtle">
+          {labels.checklistHint}
+        </p>
       </div>
 
       <div className="space-y-8 border-t border-border-subtle p-6 sm:p-8">

@@ -182,6 +182,33 @@ beforeEach(() => {
   mocks.mockJobSourcesFindFirst.mockResolvedValue({ id: "provenance-1" });
 });
 
+/** Collects literal filter values embedded in a Drizzle SQL condition. */
+function sqlLiterals(value: unknown): string[] {
+  const found: string[] = [];
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (node && typeof node === "object") {
+      if ("value" in node) {
+        const v = (node as { value: unknown }).value;
+        if (typeof v === "string") found.push(v);
+      }
+      if ("queryChunks" in node) {
+        visit((node as { queryChunks: unknown[] }).queryChunks);
+      }
+    }
+  };
+  visit(value);
+  return found;
+}
+
+function lastJobsWhere(): unknown {
+  const calls = mocks.mockJobsFindMany.mock.calls;
+  return (calls[calls.length - 1]?.[0] as { where?: unknown } | undefined)?.where;
+}
+
 describe("VALID_STATUS_TRANSITIONS (Batch 51 authoritative)", () => {
   it("matches the existing job route lifecycle table", () => {
     expect(VALID_STATUS_TRANSITIONS).toEqual({
@@ -225,6 +252,114 @@ describe("listModerationJobs", () => {
   it("propagates a DB error to the caller (generic handling upstream)", async () => {
     mocks.mockJobsFindMany.mockRejectedValue(new Error("db down"));
     await expect(listModerationJobs({ page: 1, limit: 20 })).rejects.toThrow();
+  });
+
+  it("defaults to the moderation queue when no filters are supplied", async () => {
+    mocks.mockJobsFindMany.mockResolvedValue([JOB]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    await listModerationJobs({ page: 1, limit: 20 });
+
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("PENDING_REVIEW");
+    expect(values).toContain("NEEDS_REVIEW");
+  });
+
+  it("honors an explicit DRAFT status filter without the default moderation condition", async () => {
+    const draft = { ...JOB, status: "DRAFT", verificationStatus: "PENDING" };
+    mocks.mockJobsFindMany.mockResolvedValue([draft]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    const result = await listModerationJobs({
+      page: 1,
+      limit: 20,
+      status: "DRAFT",
+    });
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].status).toBe("DRAFT");
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("DRAFT");
+    expect(values).not.toContain("PENDING_REVIEW");
+    expect(values).not.toContain("NEEDS_REVIEW");
+  });
+
+  it("combines DRAFT status and PENDING verification filters with AND", async () => {
+    const draft = { ...JOB, status: "DRAFT", verificationStatus: "PENDING" };
+    mocks.mockJobsFindMany.mockResolvedValue([draft]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    const result = await listModerationJobs({
+      page: 1,
+      limit: 20,
+      status: "DRAFT",
+      verificationStatus: "PENDING",
+    });
+
+    expect(result.items[0].status).toBe("DRAFT");
+    expect(result.items[0].verificationStatus).toBe("PENDING");
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("DRAFT");
+    expect(values).toContain("PENDING");
+    expect(values).not.toContain("PENDING_REVIEW");
+    expect(values).not.toContain("NEEDS_REVIEW");
+  });
+
+  it("honors an explicit PUBLISHED status filter", async () => {
+    const published = { ...JOB, status: "PUBLISHED", verificationStatus: "VERIFIED" };
+    mocks.mockJobsFindMany.mockResolvedValue([published]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    const result = await listModerationJobs({
+      page: 1,
+      limit: 20,
+      status: "PUBLISHED",
+    });
+
+    expect(result.items[0].status).toBe("PUBLISHED");
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("PUBLISHED");
+    expect(values).not.toContain("PENDING_REVIEW");
+    expect(values).not.toContain("NEEDS_REVIEW");
+  });
+
+  it("honors an explicit EXPIRED status filter", async () => {
+    const expired = { ...JOB, status: "EXPIRED", verificationStatus: "VERIFIED" };
+    mocks.mockJobsFindMany.mockResolvedValue([expired]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    const result = await listModerationJobs({
+      page: 1,
+      limit: 20,
+      status: "EXPIRED",
+    });
+
+    expect(result.items[0].status).toBe("EXPIRED");
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("EXPIRED");
+    expect(values).not.toContain("PENDING_REVIEW");
+    expect(values).not.toContain("NEEDS_REVIEW");
+  });
+
+  it("preserves explicit NEEDS_REVIEW verification filtering without the status default", async () => {
+    const needsReview = {
+      ...JOB,
+      status: "PUBLISHED",
+      verificationStatus: "NEEDS_REVIEW",
+    };
+    mocks.mockJobsFindMany.mockResolvedValue([needsReview]);
+    mocks.mockCountRows.mockResolvedValue([{ count: 1 }]);
+
+    const result = await listModerationJobs({
+      page: 1,
+      limit: 20,
+      verificationStatus: "NEEDS_REVIEW",
+    });
+
+    expect(result.items[0].verificationStatus).toBe("NEEDS_REVIEW");
+    const values = sqlLiterals(lastJobsWhere());
+    expect(values).toContain("NEEDS_REVIEW");
+    expect(values).not.toContain("PENDING_REVIEW");
   });
 });
 

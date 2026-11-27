@@ -14,6 +14,11 @@ import {
   EMPLOYER_SOURCE_NAME,
   API_KEY_SOURCE_NAME,
 } from "../lib/sources/provenance";
+import { assertSeedAllowed } from "./seedGuard";
+
+// Fail before opening a database pool if this looks like Production and the
+// operation has not been deliberately confirmed through the environment.
+assertSeedAllowed(process.env);
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -169,6 +174,25 @@ async function seed() {
       where: (cats, { eq }) => eq(cats.slug, "transport-logistics"),
     });
     transportLogisticsId = existing!.id;
+  }
+
+  const [aviationAirline] = await db
+    .insert(categories)
+    .values({
+      name: "Aviation & Airline Jobs",
+      slug: "aviation-airline-jobs",
+      description: "Airline, airport, and aviation operations roles",
+      sortOrder: 5,
+    })
+    .onConflictDoNothing()
+    .returning();
+
+  let aviationAirlineId = aviationAirline?.id;
+  if (!aviationAirlineId) {
+    const existing = await db.query.categories.findFirst({
+      where: (cats, { eq }) => eq(cats.slug, "aviation-airline-jobs"),
+    });
+    aviationAirlineId = existing!.id;
   }
 
   console.log("Categories seeded.");

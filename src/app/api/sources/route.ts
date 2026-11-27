@@ -6,6 +6,10 @@ import { sources } from "@/db/schema/sources";
 import { sourceListQuerySchema } from "@/lib/validations/sourceQuery";
 import { createSourceSchema } from "@/lib/validations";
 import { checkApiKey } from "@/lib/auth/apiKey";
+import {
+  API_KEY_SOURCE_ACTOR,
+  authorizeSourceMutation,
+} from "@/lib/auth/roles";
 import { assertTrustedCsrfFromRequest } from "@/lib/auth/csrf";
 import { writeAuditLog } from "@/lib/auth/audit";
 import { checkBodySize } from "@/lib/apiUtils";
@@ -40,6 +44,16 @@ async function __wrapped_POST(request: Request) {
     const issue = parsed.error.issues[0];
     const path = issue.path.length > 0 ? `${issue.path.join(".")}: ` : "";
     return jsonError(`${path}${issue.message}`, 400);
+  }
+
+  // The ingestion API key is a machine credential, not an admin role.
+  if (
+    !authorizeSourceMutation(API_KEY_SOURCE_ACTOR, {
+      ...parsed.data,
+      operation: "create",
+    }).ok
+  ) {
+    return jsonError("Forbidden", 403);
   }
 
   try {

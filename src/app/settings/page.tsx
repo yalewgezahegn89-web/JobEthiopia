@@ -179,7 +179,7 @@ export default async function SettingsPage() {
               {t.settings.emailVerificationHeading}
             </h2>
             <div className="mt-3">
-              <ResendVerificationForm t={t} />
+              <ResendVerificationForm />
             </div>
           </div>
         </section>
@@ -199,7 +199,7 @@ export default async function SettingsPage() {
               {t.settings.changeEmailHeading}
             </h2>
             <div className="mt-4">
-              <ChangeEmailForm t={t} />
+              <ChangeEmailForm />
             </div>
           </div>
         </section>
@@ -220,7 +220,7 @@ export default async function SettingsPage() {
             </h2>
             <p className="mt-1 text-sm text-muted">{t.settings.passwordSubtitle}</p>
             <div className="mt-4">
-              <SettingsPasswordForm t={t} />
+              <SettingsPasswordForm />
             </div>
           </div>
         </section>
@@ -243,7 +243,6 @@ export default async function SettingsPage() {
             <SessionsManager
               sessions={activeSessions}
               currentSessionId={currentSessionId}
-              t={t}
             />
           </div>
         </div>

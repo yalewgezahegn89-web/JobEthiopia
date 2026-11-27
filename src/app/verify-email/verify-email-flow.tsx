@@ -5,17 +5,16 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { verifyEmailLinkAction } from "./actions";
 import type { VerifyEmailActionState } from "./actions";
-import type { Dictionary } from "@/lib/i18n/dictionary";
+import { useI18n } from "@/lib/i18n/client";
 
 export function VerifyEmailFlow({
   token,
   type,
-  t,
 }: {
   token: string;
   type: "verify" | "change";
-  t: Dictionary;
 }) {
+  const { t } = useI18n();
   const [state, formAction, isPending] = useActionState<
     VerifyEmailActionState,
     FormData

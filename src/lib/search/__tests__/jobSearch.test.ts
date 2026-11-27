@@ -159,4 +159,25 @@ describe("buildJobListOrder", () => {
     const rendered = sqlRendered(order);
     expect(rendered).toContain("GREATEST");
   });
+
+  it("handles relevance ordering when keyword matches no organization names", () => {
+    const substring = sqlRendered(
+      buildJobListOrder("relevance", {
+        q: "engineer",
+        organizationIds: [],
+        trgm: false,
+      }),
+    );
+    const trgm = sqlRendered(
+      buildJobListOrder("relevance", {
+        q: "engineer",
+        organizationIds: [],
+        trgm: true,
+      }),
+    );
+    expect(substring).not.toContain("ANY");
+    expect(substring).not.toContain("()");
+    expect(trgm).not.toContain("ANY");
+    expect(trgm).not.toContain("()");
+  });
 });

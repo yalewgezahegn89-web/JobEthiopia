@@ -16,7 +16,11 @@ vi.mock("./actions", () => ({
 }));
 
 vi.mock("@/components/auth/telegram-option", () => ({
-  TelegramOption: () => null,
+  TelegramOption: () => createElement("div", null, "telegram-option"),
+}));
+
+vi.mock("@/components/auth/google-option", () => ({
+  GoogleOption: () => createElement("div", null, "google-option"),
 }));
 
 import RegisterPage from "../page";
@@ -41,6 +45,15 @@ describe("RegisterPage", () => {
     const html = renderToStaticMarkup(element);
     expect(html).toContain('href="/login"');
     expect(html).toContain('href="/"');
+  });
+
+  it("retains email/password, Google, and Telegram options", async () => {
+    const element = await RegisterPage();
+    const html = renderToStaticMarkup(element);
+    expect(html).toContain('name="email"');
+    expect(html).toContain('name="password"');
+    expect(html).toContain("google-option");
+    expect(html).toContain("telegram-option");
   });
 });
 

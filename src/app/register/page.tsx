@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import RegisterForm from "./register-form";
 import { TelegramOption } from "@/components/auth/telegram-option";
+import { GoogleOption } from "@/components/auth/google-option";
 import { AuthCard } from "@/components/auth/auth-card";
 
 export const metadata: Metadata = {
@@ -9,6 +10,10 @@ export const metadata: Metadata = {
 };
 
 export default function RegisterPage() {
+  const googleConfigured = Boolean(
+    process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
+  );
+
   return (
     <AuthCard
       eyebrow="Get started"
@@ -34,6 +39,7 @@ export default function RegisterPage() {
       }
     >
       <RegisterForm />
+      <GoogleOption configured={googleConfigured} />
       <TelegramOption />
     </AuthCard>
   );

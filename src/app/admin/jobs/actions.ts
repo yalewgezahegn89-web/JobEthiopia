@@ -17,10 +17,16 @@
  * client can never supply an actor id, a role, a status, or a timestamp.
  */
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { requireStaffAdmin } from "@/lib/auth/context";
 import { assertTrustedCsrfFromRequest, CsrfError } from "@/lib/auth/csrf";
-import { moderateJob, type ModerationAction } from "@/lib/admin/jobs";
+import {
+  assignJobCategory,
+  correctDraftJob,
+  moderateJob,
+  type ModerationAction,
+} from "@/lib/admin/jobs";
 import { dispatchInstantAlertsForJob } from "@/lib/jobAlerts/delivery";
 import { notifyEmployerJobStatusChanged } from "@/lib/notifications/events";
 import { db } from "@/db";
@@ -32,6 +38,13 @@ import {
   type CuratedJobResult,
 } from "@/lib/admin/curatedJobs";
 import { curatedCreateJobSchema } from "@/lib/validations/curatedJob";
+import { draftJobCorrectionSchema } from "@/lib/validations/jobCorrection";
+import { parseEthiopiaDateTime } from "@/lib/time/ethiopia";
+import {
+  publishJobToOwnedFacebookPage,
+  type FacebookPublishReason,
+} from "@/lib/facebook/publishing";
+import { redactFacebookSecrets } from "@/lib/facebook/config";
 
 export type ModerationActionResult = {
   ok: boolean;
@@ -142,6 +155,332 @@ export async function moderateJobAction(
 }
 
 /* -------------------------------------------------------------------------- */
+/*  Assign a category to an existing draft job                                */
+/* -------------------------------------------------------------------------- */
+
+export type AssignJobCategoryActionResult = {
+  ok: boolean;
+  error?: string;
+};
+
+const ASSIGN_CATEGORY_GENERIC_ERROR =
+  "Unable to assign a category. Please try again.";
+const ASSIGN_CATEGORY_INVALID_ERROR =
+  "Select an active category and try again.";
+const ASSIGN_CATEGORY_NOT_DRAFT_ERROR =
+  "Only draft jobs can have a category assigned.";
+const ASSIGN_CATEGORY_ALREADY_SET_ERROR =
+  "This job already has a category and cannot be overwritten.";
+
+/**
+ * Assigns an active category to a DRAFT job that has none.
+ *
+ * Security order:
+ *   1. Authenticate + authorize the staff role
+ *   2. Validate the CSRF / trusted origin
+ *   3. Validate the job and category ids server-side
+ *   4. Delegate to assignJobCategory(), which locks the job row, re-checks the
+ *      DRAFT + uncategorized invariants, and writes the update + audit
+ *      atomically
+ *   5. Revalidate the detail page and return a safe result
+ *
+ * The action only reads the two ids below; client-supplied status,
+ * verificationStatus, organization, source, provenance, and timestamps are
+ * never read, so the action cannot publish, verify, reject, or otherwise change
+ * moderation state.
+ */
+export async function assignJobCategoryAction(
+  _prevState: AssignJobCategoryActionResult,
+  formData: FormData,
+): Promise<AssignJobCategoryActionResult> {
+  const jobId = String(formData.get("jobId") ?? "");
+  const categoryId = String(formData.get("categoryId") ?? "");
+
+  const guard = await requireStaffAdmin();
+  if (!guard.ok) {
+    redirect(guard.status === 401 ? "/login" : "/admin/jobs");
+  }
+  const actor = guard.user;
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return { ok: false, error: ASSIGN_CATEGORY_GENERIC_ERROR };
+  }
+
+  if (!JOB_ID_PATTERN.test(jobId) || !JOB_ID_PATTERN.test(categoryId)) {
+    return { ok: false, error: ASSIGN_CATEGORY_INVALID_ERROR };
+  }
+
+  let result: Awaited<ReturnType<typeof assignJobCategory>>;
+  try {
+    result = await assignJobCategory(jobId, categoryId, actor.id);
+  } catch {
+    return { ok: false, error: ASSIGN_CATEGORY_GENERIC_ERROR };
+  }
+
+  if (!result.ok) {
+    switch (result.code) {
+      case "CATEGORY_NOT_FOUND":
+      case "CATEGORY_INACTIVE":
+        return { ok: false, error: ASSIGN_CATEGORY_INVALID_ERROR };
+      case "NOT_DRAFT":
+        return { ok: false, error: ASSIGN_CATEGORY_NOT_DRAFT_ERROR };
+      case "ALREADY_ASSIGNED":
+        return { ok: false, error: ASSIGN_CATEGORY_ALREADY_SET_ERROR };
+      default:
+        return { ok: false, error: ASSIGN_CATEGORY_GENERIC_ERROR };
+    }
+  }
+
+  revalidatePath(`/admin/jobs/${jobId}`);
+  revalidatePath("/admin/jobs");
+  return { ok: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Correct the deadline / description / requirements of a draft job          */
+/* -------------------------------------------------------------------------- */
+
+export type CorrectDraftJobActionResult = {
+  ok: boolean;
+  error?: string;
+  fieldErrors?: Record<string, string[] | undefined>;
+};
+
+const CORRECT_DRAFT_GENERIC_ERROR =
+  "Unable to save corrections. Please try again.";
+const CORRECT_DRAFT_INVALID_ERROR =
+  "Check the deadline and description, then try again.";
+const CORRECT_DRAFT_NOT_DRAFT_ERROR =
+  "Only draft jobs can be corrected. This job is no longer a draft.";
+
+/**
+ * Corrects the deadline, description, and requirements of a DRAFT job.
+ *
+ * Security order:
+ *   1. Validate the job id
+ *   2. Authenticate + authorize the staff role
+ *   3. Validate the CSRF / trusted origin
+ *   4. Parse the datetime-local input as fixed EAT (UTC+03:00), never the
+ *      server timezone
+ *   5. Validate the whitelisted fields with the authoritative schema
+ *   6. Delegate to correctDraftJob(), which locks the row, re-checks DRAFT,
+ *      and writes the update + audit atomically
+ *   7. Revalidate the detail page and return a safe result
+ *
+ * The action never reads status, verificationStatus, category, organization,
+ * provenance, or any other client-supplied field, and never publishes.
+ */
+export async function correctDraftJobAction(
+  _prevState: CorrectDraftJobActionResult,
+  formData: FormData,
+): Promise<CorrectDraftJobActionResult> {
+  const jobId = String(formData.get("jobId") ?? "");
+  if (!JOB_ID_PATTERN.test(jobId)) {
+    return { ok: false, error: CORRECT_DRAFT_GENERIC_ERROR };
+  }
+
+  const guard = await requireStaffAdmin();
+  if (!guard.ok) {
+    redirect(guard.status === 401 ? "/login" : "/admin/jobs");
+  }
+  const actor = guard.user;
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return { ok: false, error: CORRECT_DRAFT_GENERIC_ERROR };
+  }
+
+  const deadlineInput = String(formData.get("deadline") ?? "");
+  const deadline = parseEthiopiaDateTime(deadlineInput);
+  if (!deadline) {
+    return {
+      ok: false,
+      error: CORRECT_DRAFT_INVALID_ERROR,
+      fieldErrors: { deadline: ["Enter a valid Ethiopia Time deadline"] },
+    };
+  }
+
+  const requirements = String(formData.get("requirements") ?? "").trim();
+  const parsed = draftJobCorrectionSchema.safeParse({
+    deadline,
+    description: String(formData.get("description") ?? ""),
+    requirements: requirements.length > 0 ? requirements : null,
+  });
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: CORRECT_DRAFT_INVALID_ERROR,
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  let result: Awaited<ReturnType<typeof correctDraftJob>>;
+  try {
+    result = await correctDraftJob(jobId, parsed.data, actor.id);
+  } catch {
+    return { ok: false, error: CORRECT_DRAFT_GENERIC_ERROR };
+  }
+
+  if (!result.ok) {
+    switch (result.code) {
+      case "NOT_DRAFT":
+        return { ok: false, error: CORRECT_DRAFT_NOT_DRAFT_ERROR };
+      case "INVALID_INPUT":
+        return { ok: false, error: CORRECT_DRAFT_INVALID_ERROR };
+      default:
+        return { ok: false, error: CORRECT_DRAFT_GENERIC_ERROR };
+    }
+  }
+
+  revalidatePath(`/admin/jobs/${jobId}`);
+  revalidatePath("/admin/jobs");
+  return { ok: true };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Manual Facebook Page publishing                                            */
+/* -------------------------------------------------------------------------- */
+
+export type FacebookPublishActionResult = {
+  ok: boolean;
+  error?: string;
+  /** Remote Facebook post id, present only on a confirmed success. */
+  postId?: string;
+  /**
+   * Machine-readable outcome for the UI. UNKNOWN means the request result is
+   * unclear and must not be retried automatically.
+   */
+  outcome?: "PUBLISHED" | "FAILED" | "UNKNOWN";
+};
+
+const JOB_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const FACEBOOK_PUBLISH_REASONS: Record<
+  FacebookPublishReason,
+  string
+> = {
+  PUBLISHED: "Published to Facebook.",
+  FORBIDDEN: "You are not allowed to publish to Facebook.",
+  NOT_FOUND: "Unable to publish this job. Please try again.",
+  FACEBOOK_PUBLISHING_DISABLED:
+    "Facebook publishing is not enabled on this deployment.",
+  LIVE_PUBLISHING_DISABLED:
+    "Live Facebook publishing is disabled outside Production.",
+  NOT_CONFIGURED: "Facebook publishing is not configured on this deployment.",
+  JOB_NOT_PUBLISHED_VERIFIED:
+    "Only jobs that are already published and verified can be shared to Facebook.",
+  DEADLINE_EXPIRED: "This vacancy has expired and cannot be shared.",
+  ELIGIBILITY_NOT_CONFIRMED:
+    "Applicant eligibility must be explicitly confirmed before sharing.",
+  UNSAFE_URL: "The job URL is not safe to publish.",
+  CONTENT_AUTHORIZATION_REQUIRED:
+    "You must confirm JobEthiopia's right to redistribute this listing.",
+  NO_PROVENANCE: "This job has no recorded source provenance.",
+  FACEBOOK_APPROVAL_REQUIRED:
+    "A Facebook source for this job lacks Meta Page Public Content Access approval.",
+  FACEBOOK_CONTENT_USE_NOT_AUTHORIZED:
+    "A Facebook source for this job lacks documented content-use authorization.",
+  DUPLICATE_IN_PROGRESS:
+    "A publish attempt for this job is already in progress.",
+  DUPLICATE_ALREADY_PUBLISHED:
+    "This job has already been published to the Facebook Page.",
+  DUPLICATE_UNKNOWN_OUTCOME:
+    "A previous attempt had an unclear result and needs manual review before this job can be published again.",
+  GRAPH_REJECTED: "Facebook rejected the post.",
+  UNKNOWN_OUTCOME:
+    "The result of the Facebook request is unclear. The attempt was recorded as UNKNOWN and must be reviewed manually.",
+};
+
+/**
+ * Publishes an existing job to the JobEthiopia-owned Facebook Page.
+ *
+ * Security order:
+ *   1. Authenticate the session (staff area)
+ *   2. Validate the CSRF / trusted origin
+ *   3. Validate the job id and the confirmation checkbox
+ *   4. Delegate to publishJobToOwnedFacebookPage(), which re-checks the
+ *      administrator role (ADMIN/SUPER_ADMIN), the dedicated feature flag,
+ *      the token, every job safety gate, and durable duplicate protection
+ *   5. Return a safe result (never the Page access token)
+ *
+ * The destination Page, the post text, and the requesting administrator are
+ * all resolved server-side; the client can supply only the job id and the
+ * rights confirmation.
+ */
+export async function publishJobToFacebookAction(
+  _prevState: FacebookPublishActionResult,
+  formData: FormData,
+): Promise<FacebookPublishActionResult> {
+  const jobId = String(formData.get("jobId") ?? "");
+  if (!JOB_ID_PATTERN.test(jobId)) {
+    return { ok: false, error: FACEBOOK_PUBLISH_REASONS.NOT_FOUND };
+  }
+
+  const confirmed =
+    formData.get("confirmContentRights") === "on" ||
+    formData.get("confirmContentRights") === "true" ||
+    formData.get("confirmContentRights") === "1";
+
+  const guard = await requireStaffAdmin();
+  if (!guard.ok) {
+    redirect(guard.status === 401 ? "/login" : "/admin/jobs");
+  }
+  const actor = guard.user;
+
+  try {
+    await assertTrustedCsrfFromRequest();
+  } catch {
+    return { ok: false, error: FACEBOOK_PUBLISH_REASONS.NOT_FOUND };
+  }
+
+  if (!confirmed) {
+    return {
+      ok: false,
+      error: FACEBOOK_PUBLISH_REASONS.CONTENT_AUTHORIZATION_REQUIRED,
+    };
+  }
+
+  let result: Awaited<ReturnType<typeof publishJobToOwnedFacebookPage>>;
+  try {
+    result = await publishJobToOwnedFacebookPage(actor, jobId, {
+      contentRightsConfirmed: confirmed,
+    });
+  } catch {
+    return { ok: false, error: FACEBOOK_PUBLISH_REASONS.NOT_FOUND };
+  }
+
+  if (result.published) {
+    return {
+      ok: true,
+      postId: result.postId,
+      outcome: "PUBLISHED",
+    };
+  }
+
+  const base = FACEBOOK_PUBLISH_REASONS[result.reason] ?? FACEBOOK_PUBLISH_REASONS.NOT_FOUND;
+  // Any error detail was already redacted server-side; redact again as
+  // defense in depth before it reaches the admin UI.
+  const detail = result.error
+    ? ` ${redactFacebookSecrets(result.error)}`
+    : "";
+
+  return {
+    ok: false,
+    error: `${base}${detail}`,
+    outcome:
+      result.reason === "UNKNOWN_OUTCOME"
+        ? "UNKNOWN"
+        : result.reason === "PUBLISHED"
+          ? "PUBLISHED"
+          : "FAILED",
+  };
+}
+
+/* -------------------------------------------------------------------------- */
 /*  Curated / manual job creation (Phase 6 Batch 2)                           */
 /* -------------------------------------------------------------------------- */
 
@@ -156,6 +495,8 @@ export type CreateCuratedJobActionResult = {
 const CREATE_GENERIC_ERROR = "Unable to create this job. Please try again.";
 const CREATE_SLUG_ERROR =
   "A job with a similar title already exists. Try a slightly different title.";
+const CREATE_PRIVILEGED_SOURCE_ERROR =
+  "Only administrators can create a new original source. Use an existing source or leave that section blank.";
 
 function readText(formData: FormData, key: string): string | undefined {
   const value = formData.get(key);
@@ -270,6 +611,9 @@ export async function createCuratedJobAction(
     return { ok: false, error: CREATE_GENERIC_ERROR };
   }
   if (!result.ok) {
+    if (result.code === "PRIVILEGED_SOURCE_FORBIDDEN") {
+      return { ok: false, error: CREATE_PRIVILEGED_SOURCE_ERROR };
+    }
     if (result.code === "SLUG_COLLISION") {
       return { ok: false, error: CREATE_SLUG_ERROR };
     }

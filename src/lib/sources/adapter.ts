@@ -1,10 +1,27 @@
 import type { RawJobInput } from "../ingestion/types";
 
 /**
+ * Optional per-fetch bookkeeping returned by adapters that support
+ * reconciliation (for example Facebook Page ingestion).
+ */
+export interface FetchMetadata {
+  /**
+   * Every external id observed in the fetch, including items that were not
+   * converted into jobs. Used to detect listings that disappeared upstream.
+   */
+  observedExternalIds?: string[];
+  /**
+   * Items that were ingested as drafts but need moderator attention, with the
+   * deterministic reasons why.
+   */
+  reviewItems?: Array<{ externalId: string; reasons: string[] }>;
+}
+
+/**
  * Represents the outcome of a source fetch operation.
  */
 export type FetchResult =
-  | { success: true; jobs: RawJobInput[] }
+  | { success: true; jobs: RawJobInput[]; metadata?: FetchMetadata }
   | { success: false; error: string };
 
 /**

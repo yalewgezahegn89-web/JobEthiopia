@@ -29,7 +29,15 @@ vi.mock("@/lib/applications/dal", () => ({
 
 vi.mock("@/lib/i18n/server", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/i18n/server")>();
-  return { ...actual, getI18n: async () => dictionaries.en, getCurrentLocale: async () => "en" };
+  return { ...actual, getI18n: async () => dictionaries.en };
+});
+
+vi.mock("@/lib/i18n/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/i18n/client")>();
+  return {
+    ...actual,
+    useI18n: () => ({ locale: "en" as const, t: dictionaries.en }),
+  };
 });
 
 import ApplicationsPage from "@/app/applications/page";

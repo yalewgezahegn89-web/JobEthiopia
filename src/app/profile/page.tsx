@@ -167,7 +167,6 @@ export default async function ProfilePage() {
                 totalExperienceYears={profile?.totalExperienceYears ?? null}
                 education={profile?.education ?? null}
                 locations={locationOptions}
-                t={t}
               />
             </div>
           )}
@@ -190,7 +189,7 @@ export default async function ProfilePage() {
             {t.profile.securitySubtitle}
           </p>
           <div className="mt-4">
-            <ChangePasswordForm t={t} />
+            <ChangePasswordForm />
           </div>
         </div>
       </section>
