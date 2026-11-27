@@ -247,6 +247,16 @@ describe("GET /api/auth/google/start", () => {
     expect(mocks.jar.get(GOOGLE_OAUTH_LOCALE_COOKIE)?.value).toBe("en");
   });
 
+  it("uses the production callback URI when APP_BASE_URL is the production origin", async () => {
+    vi.stubEnv("APP_BASE_URL", "https://jobethiopia.et");
+
+    await startGoogle(startRequest("en"));
+
+    expect(mocks.lastClientOptions).toMatchObject({
+      redirectUri: "https://jobethiopia.et/api/auth/google/callback",
+    });
+  });
+
   it("sets short-lived HttpOnly SameSite=Lax route-scoped OAuth cookies", async () => {
     await startGoogle(startRequest("en"));
 
@@ -301,6 +311,19 @@ describe("GET /api/auth/google/callback", () => {
       }),
     );
     expect(mocks.createSession).toHaveBeenCalledWith("user-1");
+  });
+
+  it("exchanges the authorization code with the production callback URI", async () => {
+    vi.stubEnv("APP_BASE_URL", "https://jobethiopia.et");
+    setOAuthCookies();
+
+    await callbackGoogle(callbackSuccessRequest());
+
+    expect(mocks.getToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        redirect_uri: "https://jobethiopia.et/api/auth/google/callback",
+      }),
+    );
   });
 
   it("does not expose OAuth codes, state, verifier, nonce, or provider tokens", async () => {

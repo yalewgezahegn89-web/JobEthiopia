@@ -33,6 +33,8 @@ import {
 const TOP_LEVEL_KEYS = [
   "common",
   "nav",
+  "publicNav",
+  "legalNav",
   "language",
   "search",
   "home",

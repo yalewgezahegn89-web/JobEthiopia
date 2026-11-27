@@ -145,6 +145,32 @@ describe("buildSitemapUrls", () => {
     expect(paths).toContain("/careers");
   });
 
+  it("includes localized About, FAQ, and legal page URLs", () => {
+    const urls = buildSitemapUrls(baseData());
+    const byPath = new Map(urls.map((url) => [url.path, url]));
+
+    for (const path of [
+      "/about",
+      "/am/about",
+      "/om/about",
+      "/faq",
+      "/am/faq",
+      "/om/faq",
+      "/privacy",
+      "/am/privacy",
+      "/om/privacy",
+      "/terms",
+      "/am/terms",
+      "/om/terms",
+      "/cookies",
+      "/am/cookies",
+      "/om/cookies",
+    ]) {
+      expect(byPath.has(path)).toBe(true);
+    }
+    expect(byPath.get("/privacy")?.lastModified).toBe("2026-11-19");
+  });
+
   it("includes eligible public job URLs", () => {
     const urls = buildSitemapUrls(baseData());
     const paths = urls.map((u) => u.path);

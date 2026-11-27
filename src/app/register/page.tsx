@@ -4,12 +4,14 @@ import RegisterForm from "./register-form";
 import { TelegramOption } from "@/components/auth/telegram-option";
 import { GoogleOption } from "@/components/auth/google-option";
 import { AuthCard } from "@/components/auth/auth-card";
+import AuthLegalLinks from "@/components/legal/auth-legal-links";
+import { getI18n } from "@/lib/i18n/server";
+import { privateMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Create an account",
-};
+export const metadata: Metadata = privateMetadata("Create an account");
 
-export default function RegisterPage() {
+export default async function RegisterPage() {
+  const t = await getI18n();
   const googleConfigured = Boolean(
     process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET,
   );
@@ -34,6 +36,7 @@ export default function RegisterPage() {
             >
               Back to JobEthiopia
             </Link>
+            <AuthLegalLinks labels={t.legalNav} />
           </div>
         </>
       }

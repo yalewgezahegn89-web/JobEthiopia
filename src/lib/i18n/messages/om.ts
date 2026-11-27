@@ -1135,6 +1135,15 @@ cv: {
     footerNavLabel: "Baqqii gubbaa",
     contact: "Nu qunnamaa",
   },
+  publicNav: {
+    about: "Waa'ee keenyaa",
+    faq: "Gaaffiiwwan yeroo baay'ee gaafataman",
+  },
+  legalNav: {
+    privacy: "Siyaasa Dhuugaa",
+    terms: "Shartii Fayyadamaa",
+    cookies: "Siyaasi Kaallii",
+  },
   contact: {
     heading: "Nu qunnamaa",
     intro:
