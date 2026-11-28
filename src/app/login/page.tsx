@@ -5,10 +5,11 @@ import { TelegramOption } from "@/components/auth/telegram-option";
 import { GoogleOption } from "@/components/auth/google-option";
 import { Card } from "@/components/ui/card";
 import { BrandMark } from "@/components/ui/brand-mark";
+import AuthLegalLinks from "@/components/legal/auth-legal-links";
+import { getI18n } from "@/lib/i18n/server";
+import { privateMetadata } from "@/lib/seo/metadata";
 
-export const metadata: Metadata = {
-  title: "Sign in",
-};
+export const metadata: Metadata = privateMetadata("Sign in");
 
 type LoginPageProps = {
   searchParams: Promise<{
@@ -19,7 +20,7 @@ type LoginPageProps = {
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
-  const params = await searchParams;
+  const [params, t] = await Promise.all([searchParams, getI18n()]);
   const telegramError = params.telegramError === "1";
   const googleError = params.googleError === "1";
   const googleConflict = params.googleConflict === "1";
@@ -71,6 +72,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             >
               Back to JobEthiopia
             </Link>
+            <AuthLegalLinks labels={t.legalNav} />
           </div>
         </Card>
       </div>

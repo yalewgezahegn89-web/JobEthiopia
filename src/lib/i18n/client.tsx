@@ -30,3 +30,7 @@ export function useI18n(): { locale: Locale; t: Dictionary } {
   }
   return ctx;
 }
+
+export function useOptionalI18n(): { locale: Locale; t: Dictionary } | null {
+  return useContext(I18nContext);
+}

@@ -1132,6 +1132,15 @@ primaryNavLabel: "ዋና",
     footerNavLabel: "የግርጌ አሰሳ",
     contact: "ያግኙን",
   },
+  publicNav: {
+    about: "ስለ እኛ",
+    faq: "ተደጋግሞ የሚጠየቁ ጥያቄዎች",
+  },
+  legalNav: {
+    privacy: "የግላዊነት መመሪያ",
+    terms: "የአጠቃቀም ውሎች",
+    cookies: "የኩኪ መመሪያ",
+  },
   contact: {
     heading: "ያግኙን",
     intro:

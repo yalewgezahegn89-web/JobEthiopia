@@ -5,9 +5,15 @@ import { organizations } from "@/db/schema/organizations";
 import { categories } from "@/db/schema/categories";
 import { professions } from "@/db/schema/professions";
 import { locations } from "@/db/schema/locations";
+import { LOCALES } from "@/lib/i18n/locale";
+import { localizePath } from "@/lib/i18n/routing";
 import { DEFAULT_STALE_MAX_AGE_DAYS } from "@/lib/jobs/public";
+import { LEGAL_OPERATOR } from "@/lib/legal/operator";
+import { LEGAL_PAGE_KEYS, legalPagePath } from "@/lib/legal/paths";
 
 export const SITEMAP_PAGE_LIMIT = 500;
+
+export const PUBLIC_INFORMATION_PATHS = ["/about", "/faq"] as const;
 
 export type SitemapUrlInput = {
   path: string;
@@ -89,6 +95,25 @@ export async function collectSitemapData(
   };
 }
 
+function localizedSitemapEntries(
+  paths: readonly string[],
+  lastModified?: string,
+): SitemapUrlInput[] {
+  return paths.flatMap((path) =>
+    LOCALES.map((locale) => ({
+      path: localizePath(path, locale),
+      ...(lastModified ? { lastModified } : {}),
+    })),
+  );
+}
+
+export function legalSitemapEntries(): SitemapUrlInput[] {
+  return localizedSitemapEntries(
+    LEGAL_PAGE_KEYS.map((key) => legalPagePath(key)),
+    LEGAL_OPERATOR.effectiveDate,
+  );
+}
+
 export function buildSitemapUrls(data: SitemapData): SitemapUrlInput[] {
   const jobUrls = data.jobs.map((job) => ({ path: `/jobs/${job.id}` }));
   const organizationUrls = data.organizations.map((org) => ({
@@ -106,6 +131,8 @@ export function buildSitemapUrls(data: SitemapData): SitemapUrlInput[] {
 
   return [
     ...data.staticPaths.map((path) => ({ path })),
+    ...localizedSitemapEntries(PUBLIC_INFORMATION_PATHS),
+    ...legalSitemapEntries(),
     ...jobUrls,
     ...organizationUrls,
     ...categoryUrls,

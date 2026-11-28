@@ -1148,6 +1148,15 @@ export const en = {
     footerNavLabel: "Footer",
     contact: "Contact",
   },
+  publicNav: {
+    about: "About",
+    faq: "FAQ",
+  },
+  legalNav: {
+    privacy: "Privacy Policy",
+    terms: "Terms of Use",
+    cookies: "Cookie Policy",
+  },
   contact: {
     heading: "Contact us",
     intro:
